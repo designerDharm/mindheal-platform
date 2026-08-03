@@ -86,7 +86,7 @@ export const routes = [
 ];
 
 async function health() {
-  const gitCommit = process.env.RENDER_GIT_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA || "b4174c2";
+  const gitCommit = process.env.RENDER_GIT_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA || "unknown";
   return {
     statusCode: 200,
     headers: {
