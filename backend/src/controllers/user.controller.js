@@ -1,6 +1,6 @@
 import { repositories } from "../repositories/index.js";
 import { sanitizeUser } from "../services/auth.service.js";
-import { created, ok } from "../utils/http.js";
+import { badRequest, created, ok } from "../utils/http.js";
 import { createId } from "../utils/security.js";
 
 export async function getMe({ user }) {
@@ -8,6 +8,12 @@ export async function getMe({ user }) {
 }
 
 export async function updateMe({ body, user }) {
+  const forbiddenKeys = ["role", "passwordHash", "password_hash", "is_active", "isActive", "isGuardianConsentVerified", "is_guardian_consent_verified", "totp_secret", "totpSecret", "verificationStatus", "verification_status"];
+  const presentForbidden = forbiddenKeys.filter((key) => body[key] !== undefined);
+  if (presentForbidden.length > 0) {
+    return badRequest(`Modification of privilege or security fields is forbidden: ${presentForbidden.join(", ")}`);
+  }
+
   const allowedKeys = ["fullName", "languageCode", "avatarUrl", "mobile"];
   const patch = {};
   for (const key of allowedKeys) {
