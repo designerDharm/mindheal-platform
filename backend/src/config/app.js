@@ -61,7 +61,7 @@ function resolveAllowedOrigins(currentEnv) {
     return ["*"];
   }
 
-  const invalid = configured.find((origin) => !/^https?:\/\/[^,\s]+$/i.test(origin));
+  const invalid = configured.find((origin) => origin !== "*" && !/^https?:\/\/[^,\s]+$/i.test(origin));
   if (invalid) {
     throw new Error(`ALLOWED_ORIGINS contains an invalid origin: ${invalid}`);
   }
