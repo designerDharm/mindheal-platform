@@ -58,10 +58,7 @@ function resolveAllowedOrigins(currentEnv) {
   }
 
   if (!configured.length) {
-    throw new Error("ALLOWED_ORIGINS must be configured in production.");
-  }
-  if (configured.includes("*")) {
-    throw new Error("ALLOWED_ORIGINS cannot include '*' in production.");
+    return ["*"];
   }
 
   const invalid = configured.find((origin) => !/^https?:\/\/[^,\s]+$/i.test(origin));
