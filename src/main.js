@@ -2117,6 +2117,13 @@ function authPage(role, mode) {
                     <i class="ph ph-user field-icon"></i>
                   </div>
                 </div>
+                <div class="field">
+                  <label for="dob">Date of Birth (YYYY-MM-DD)</label>
+                  <div class="input-wrapper" style="position: relative; display: flex; align-items: center; width: 100%;">
+                    <input id="dob" name="dateOfBirth" type="date" required style="padding-left: 48px; width: 100%;" />
+                    <i class="ph ph-calendar field-icon"></i>
+                  </div>
+                </div>
               ` : ""}
               <div class="field">
                 <label for="email">Email ${!isSignup && role !== "admin" ? "(optional)" : ""}</label>

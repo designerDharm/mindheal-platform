@@ -8,7 +8,12 @@ export async function getMe({ user }) {
 }
 
 export async function updateMe({ body, user }) {
-  const record = await repositories.users.update(user.id, body);
+  const allowedKeys = ["fullName", "languageCode", "avatarUrl", "mobile"];
+  const patch = {};
+  for (const key of allowedKeys) {
+    if (body[key] !== undefined) patch[key] = body[key];
+  }
+  const record = await repositories.users.update(user.id, patch);
   return ok(sanitizeUser(record));
 }
 
