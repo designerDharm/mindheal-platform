@@ -35,6 +35,10 @@ function mapUser(row) {
     languageCode: row.language_code,
     avatarUrl: row.avatar_url,
     passwordHash: row.password_hash,
+    dateOfBirth: row.date_of_birth ? new Date(row.date_of_birth).toISOString().split('T')[0] : null,
+    date_of_birth: row.date_of_birth ? new Date(row.date_of_birth).toISOString().split('T')[0] : null,
+    isGuardianConsentVerified: row.is_guardian_consent_verified || false,
+    guardianEmail: row.guardian_email || null,
     isActive: row.is_active,
     createdAt: row.created_at,
     updatedAt: row.updated_at
@@ -325,9 +329,23 @@ export const postgresRepositories = {
     },
     async create(user) {
       const res = await query(
-        `INSERT INTO users (id, firebase_uid, role, full_name, email, mobile, password_hash, language_code, avatar_url, is_active)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-        [user.id, user.firebase_uid || user.firebaseUid || null, user.role, user.fullName, user.email, user.mobile || null, user.passwordHash || "", user.languageCode || "en", user.avatarUrl || null, user.isActive !== false]
+        `INSERT INTO users (id, firebase_uid, role, full_name, email, mobile, password_hash, language_code, avatar_url, is_active, date_of_birth, guardian_email, is_guardian_consent_verified)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+        [
+          user.id,
+          user.firebase_uid || user.firebaseUid || null,
+          user.role,
+          user.fullName,
+          user.email,
+          user.mobile || null,
+          user.passwordHash || "",
+          user.languageCode || "en",
+          user.avatarUrl || null,
+          user.isActive !== false,
+          user.dateOfBirth || user.date_of_birth || null,
+          user.guardianEmail || user.guardian_email || null,
+          user.isGuardianConsentVerified || false
+        ]
       );
       return mapUser(res.rows[0]);
     },
@@ -338,8 +356,14 @@ export const postgresRepositories = {
         mobile: "mobile",
         languageCode: "language_code",
         avatarUrl: "avatar_url",
-        isActive: "is_active",
-        passwordHash: "password_hash"
+        passwordHash: "password_hash",
+        dateOfBirth: "date_of_birth",
+        date_of_birth: "date_of_birth",
+        guardianEmail: "guardian_email",
+        guardian_email: "guardian_email",
+        isGuardianConsentVerified: "is_guardian_consent_verified",
+        is_guardian_consent_verified: "is_guardian_consent_verified",
+        isActive: "is_active"
       });
       if (!updates.length) return await this.findById(id);
       values.push(id);

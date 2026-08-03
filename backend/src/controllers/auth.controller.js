@@ -3,13 +3,22 @@ import { badRequest, created, ok, unauthorized } from "../utils/http.js";
 import { requireFields } from "../utils/validation.js";
 
 export async function register({ body }) {
+  if (body.role && body.role !== "user") {
+    return badRequest("Public registration permits role 'user' only.");
+  }
+  const forbiddenPrivileges = ["isActive", "is_active", "verificationStatus", "verification_status", "isGuardianConsentVerified", "is_guardian_consent_verified", "totpSecret", "totp_secret"];
+  const presentForbidden = forbiddenPrivileges.filter((key) => body[key] !== undefined);
+  if (presentForbidden.length > 0) {
+    return badRequest(`Modification of privilege or security fields is forbidden during registration: ${presentForbidden.join(", ")}`);
+  }
+
   const missing = requireFields(body, ["fullName", "password"]);
   if (missing) return badRequest("Missing required registration fields.", missing);
   if (!body.email && !body.mobile) {
     return badRequest("Either email or mobile number must be provided.", { email: "Required", mobile: "Required" });
   }
   try {
-    const user = await authService.createUser({ role: "user", ...body });
+    const user = await authService.createUser({ ...body, role: "user" });
     return created(await authService.createSession(user));
   } catch (err) {
     return badRequest("Registration failed", err.message);

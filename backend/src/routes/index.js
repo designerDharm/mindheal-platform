@@ -86,13 +86,18 @@ export const routes = [
 ];
 
 async function health() {
+  const gitCommit = process.env.RENDER_GIT_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA || "b4174c2";
   return {
     statusCode: 200,
+    headers: {
+      "x-build-revision": gitCommit
+    },
     body: {
       success: true,
       data: {
         status: "ok",
-        service: "mindheal-api"
+        service: "mindheal-api",
+        gitCommit
       }
     }
   };
