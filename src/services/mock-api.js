@@ -25,13 +25,14 @@ async function request(path, options = {}) {
       headers: { "content-type": "application/json", ...authHeaders(), ...(options.headers || {}) },
       body: options.body ? JSON.stringify(options.body) : undefined
     });
-    const payload = await response.json();
+    const payload = await response.json().catch(() => ({}));
     if (!response.ok || payload.success === false) {
-      return { ok: false, error: payload.error || { message: "Request failed" } };
+      const errMsg = typeof payload.error === "string" ? payload.error : (payload.error?.message || payload.message || "Request failed");
+      return { ok: false, error: { message: errMsg } };
     }
     return { ok: true, data: payload.data, meta: payload.meta };
   } catch (error) {
-    return { ok: false, error };
+    return { ok: false, error: { message: error.message || "Network request failed" } };
   }
 }
 
@@ -163,7 +164,7 @@ export const api = {
   async login(role, payload) {
     const remote = await request("/auth/login", {
       method: "POST",
-      body: { email: payload.email, password: payload.password, role }
+      body: { email: payload.email || undefined, mobile: payload.mobile || undefined, password: payload.password, role }
     });
 
     if (remote.ok) {

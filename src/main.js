@@ -27,6 +27,7 @@ const app = document.querySelector("#app");
 
 const state = {
   route: parseRoute(),
+  authError: "",
   navOpen: false,
   language: getSelectedLanguage(),
   panelSection: "overview",
@@ -134,6 +135,7 @@ function initScrollObserver() {
 window.addEventListener("hashchange", () => {
   state.route = parseRoute();
   state.navOpen = false;
+  state.authError = "";
   render();
 });
 
@@ -2107,6 +2109,13 @@ function authPage(role, mode) {
             <div class="eyebrow">${roleTitle} ${isSignup ? "signup" : "login"}</div>
             <h1>${isSignup ? `Create ${roleTitle.toLowerCase()} account` : `Welcome back, ${roleTitle.toLowerCase()}`}</h1>
             <p class="page-subtitle">${authCopy(role, mode)}</p>
+
+            ${state.authError ? html`
+              <div class="auth-error-banner" style="background: #FEF2F2; border: 1px solid #FCA5A5; color: #991B1B; padding: 14px 16px; border-radius: 12px; margin-bottom: 20px; font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 10px;">
+                <i class="ph-fill ph-warning-circle" style="font-size: 20px; color: #DC2626;"></i>
+                <span>${state.authError}</span>
+              </div>
+            ` : ""}
             
             <div class="form-grid">
               ${isSignup ? html`
@@ -3681,12 +3690,17 @@ function attachPageHandlers() {
         return;
       }
       
+      state.authError = "";
       try {
         await api.login(role, payload);
         toast(`${role === "admin" ? "Admin" : role === "counsellor" ? "Counsellor" : "User"} session started.`);
+        state.authError = "";
         navigate(form.dataset.panel);
       } catch (err) {
-        toast(`Authentication failed: ${err.message || "Invalid credentials"}`, "error");
+        const msg = err.message || "Invalid email, password, or role.";
+        state.authError = msg;
+        toast(`Authentication failed: ${msg}`, "error");
+        render();
       }
     });
   });
