@@ -1,4 +1,4 @@
-import { dashboardSeed } from "../data/mindheal-data.js";
+import { appConfig, dashboardSeed } from "../data/mindheal-data.js";
 
 function authHeaders() {
   try {
@@ -11,9 +11,9 @@ function authHeaders() {
 
 function getApiBaseUrl() {
   try {
-    return localStorage.getItem("mindheal-api-base-url") || "http://localhost:4000/api/v1";
+    return localStorage.getItem("mindheal-api-base-url") || appConfig.apiBaseUrl || "https://mindheal-platform.onrender.com/api/v1";
   } catch {
-    return "http://localhost:4000/api/v1";
+    return appConfig.apiBaseUrl || "https://mindheal-platform.onrender.com/api/v1";
   }
 }
 

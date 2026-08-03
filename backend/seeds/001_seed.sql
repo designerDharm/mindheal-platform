@@ -3,11 +3,11 @@ TRUNCATE TABLE ledger_entries, wallets, sessions, availability_slots, counsellor
 
 INSERT INTO users (id, role, full_name, email, mobile, language_code, password_hash)
 VALUES
-  ('usr_demo_user', 'user', 'Demo User', 'user@example.com', '+919999999999', 'en', NULL),
-  ('usr_counsellor_priya', 'counsellor', 'Dr. Priya Mehta', 'priya.counsellor@example.com', '+918888888888', 'en', NULL),
-  ('usr_counsellor_aarav', 'counsellor', 'Aarav Sen', 'aarav.counsellor@example.com', '+917777777777', 'en', NULL),
-  ('usr_counsellor_nisha', 'counsellor', 'Nisha Iyer', 'nisha.counsellor@example.com', '+916666666666', 'en', NULL),
-  ('usr_admin', 'admin', 'MindHeal Admin', 'admin@example.com', NULL, 'en', NULL)
+  ('usr_demo_user', 'user', 'Demo User', 'user@example.com', '+919999999999', 'en', 'pbkdf2_sha256$120000$f95a30a05d97539b4448bd93d0b7cb65$7b49456f67c2eb510c9d1f96468d23a77105da57614398797accfea64bb0b2fc'),
+  ('usr_counsellor_priya', 'counsellor', 'Dr. Priya Mehta', 'priya.counsellor@example.com', '+918888888888', 'en', 'pbkdf2_sha256$120000$e0b9434050a433a755367cfd51b84da0$a130fbe5e9bfe9a6f0eff1989ceea4d06737cc8b128d67485818f01a850234f1'),
+  ('usr_counsellor_aarav', 'counsellor', 'Aarav Sen', 'aarav.counsellor@example.com', '+917777777777', 'en', 'pbkdf2_sha256$120000$e0b9434050a433a755367cfd51b84da0$a130fbe5e9bfe9a6f0eff1989ceea4d06737cc8b128d67485818f01a850234f1'),
+  ('usr_counsellor_nisha', 'counsellor', 'Nisha Iyer', 'nisha.counsellor@example.com', '+916666666666', 'en', 'pbkdf2_sha256$120000$e0b9434050a433a755367cfd51b84da0$a130fbe5e9bfe9a6f0eff1989ceea4d06737cc8b128d67485818f01a850234f1'),
+  ('usr_admin', 'admin', 'MindHeal Admin', 'admin@example.com', NULL, 'en', 'pbkdf2_sha256$120000$a1285abb25e47115a9977b3aab10bbc1$a08c2ef24aab0fdfad21be9cfc22797e737bd309d4fefa74c2a526d613a70d10')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO counsellors (

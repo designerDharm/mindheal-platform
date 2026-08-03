@@ -8,7 +8,7 @@ export const appConfig = {
   currencies: ["INR"],
   defaultLanguage: "en",
   reportUnlockPrice: 49,
-  platformCommissionPercent: 20
+  platformCommissionPercent: 10
 };
 
 export const supportedLanguages = [

@@ -12,7 +12,7 @@ export const appConfig = {
   accessTokenTtlSeconds: 15 * 60,
   refreshTokenTtlSeconds: 30 * 24 * 60 * 60,
   reportUnlockPriceInr: 49,
-  platformCommissionPercent: 20,
+  platformCommissionPercent: 10,
   defaultLanguage: "en",
   supportedRoles: ["user", "counsellor", "admin"],
   allowFirebaseAuthMock: process.env.FIREBASE_AUTH_MOCK_ENABLED === "true" && process.env.NODE_ENV !== "production",
@@ -58,10 +58,13 @@ function resolveAllowedOrigins(currentEnv) {
   }
 
   if (!configured.length) {
-    return ["*"];
+    throw new Error("ALLOWED_ORIGINS must be configured in production.");
+  }
+  if (configured.includes("*")) {
+    throw new Error("ALLOWED_ORIGINS cannot include '*' in production.");
   }
 
-  const invalid = configured.find((origin) => origin !== "*" && !/^https?:\/\/[^,\s]+$/i.test(origin));
+  const invalid = configured.find((origin) => !/^https?:\/\/[^,\s]+$/i.test(origin));
   if (invalid) {
     throw new Error(`ALLOWED_ORIGINS contains an invalid origin: ${invalid}`);
   }

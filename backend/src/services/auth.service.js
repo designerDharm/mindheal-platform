@@ -43,8 +43,7 @@ export async function loginUser({ email, mobile, password, role }) {
     throw new Error("Invalid credentials");
   }
 
-  // Support local password check for legacy or custom auth
-  if (user.passwordHash && !verifyPassword(password, user.passwordHash)) {
+  if (!user.passwordHash || !verifyPassword(password, user.passwordHash)) {
     throw new Error("Invalid credentials");
   }
   
