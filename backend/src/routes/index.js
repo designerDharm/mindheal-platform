@@ -84,8 +84,27 @@ export const routes = [
   route("GET", `${p}/admin/audit-logs`, adminController.auditLogs, ["admin"])
 ];
 
-function health() {
-  return { body: { success: true, data: { status: "ok", service: "mindheal-api" } } };
+async function health() {
+  let dbStatus = "healthy";
+  try {
+    const { pool } = await import("../data/db.js");
+    if (pool) {
+      await pool.query("SELECT 1");
+    }
+  } catch (err) {
+    dbStatus = "unhealthy";
+  }
+
+  return {
+    body: {
+      success: dbStatus === "healthy",
+      data: {
+        status: dbStatus === "healthy" ? "ok" : "degraded",
+        service: "mindheal-api",
+        database: dbStatus
+      }
+    }
+  };
 }
 
 function route(method, path, handler, roles = []) {
