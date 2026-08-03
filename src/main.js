@@ -3662,12 +3662,18 @@ function attachPageHandlers() {
 
   document.querySelectorAll("[data-form='auth']").forEach((form) => {
     form.addEventListener("submit", async (event) => {
-      event.preventDefault();
       const payload = getFormData(form);
       const role = form.dataset.role;
       const mode = form.dataset.mode;
-      
-      if (role !== "admin" && !payload.email && !payload.mobile) {
+      const rawEmail = (payload.email || "").trim();
+      const rawMobile = (payload.mobile || "").trim();
+      const cleanPayload = {
+        ...payload,
+        email: rawEmail ? rawEmail : undefined,
+        mobile: rawMobile ? rawMobile : undefined
+      };
+
+      if (role !== "admin" && !cleanPayload.email && !cleanPayload.mobile) {
         toast("Please provide either an Email address or Mobile number.", "error");
         return;
       }
@@ -3681,9 +3687,9 @@ function attachPageHandlers() {
         // Switch to OTP Verification mode
         state.otpMode = true;
         state.otpRole = role;
-        state.otpTarget = payload.email || payload.mobile;
+        state.otpTarget = cleanPayload.email || cleanPayload.mobile;
         state.otpPanel = form.dataset.panel;
-        state.signupPayload = payload;
+        state.signupPayload = cleanPayload;
         
         toast(`OTP sent successfully to ${state.otpTarget}!`);
         render();
@@ -3692,7 +3698,7 @@ function attachPageHandlers() {
       
       state.authError = "";
       try {
-        await api.login(role, payload);
+        await api.login(role, cleanPayload);
         toast(`${role === "admin" ? "Admin" : role === "counsellor" ? "Counsellor" : "User"} session started.`);
         state.authError = "";
         navigate(form.dataset.panel);

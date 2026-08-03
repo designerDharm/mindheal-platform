@@ -3,11 +3,13 @@ TRUNCATE TABLE ledger_entries, wallets, sessions, availability_slots, counsellor
 
 INSERT INTO users (id, role, full_name, email, mobile, language_code, password_hash)
 VALUES
-  ('usr_demo_user', 'user', 'Demo User', 'user@example.com', '+919999999999', 'en', 'pbkdf2_sha256$120000$f95a30a05d97539b4448bd93d0b7cb65$7b49456f67c2eb510c9d1f96468d23a77105da57614398797accfea64bb0b2fc'),
-  ('usr_counsellor_priya', 'counsellor', 'Dr. Priya Mehta', 'priya.counsellor@example.com', '+918888888888', 'en', 'pbkdf2_sha256$120000$e0b9434050a433a755367cfd51b84da0$a130fbe5e9bfe9a6f0eff1989ceea4d06737cc8b128d67485818f01a850234f1'),
-  ('usr_counsellor_aarav', 'counsellor', 'Aarav Sen', 'aarav.counsellor@example.com', '+917777777777', 'en', 'pbkdf2_sha256$120000$e0b9434050a433a755367cfd51b84da0$a130fbe5e9bfe9a6f0eff1989ceea4d06737cc8b128d67485818f01a850234f1'),
-  ('usr_counsellor_nisha', 'counsellor', 'Nisha Iyer', 'nisha.counsellor@example.com', '+916666666666', 'en', 'pbkdf2_sha256$120000$e0b9434050a433a755367cfd51b84da0$a130fbe5e9bfe9a6f0eff1989ceea4d06737cc8b128d67485818f01a850234f1'),
-  ('usr_admin', 'admin', 'MindHeal Admin', 'admin@example.com', NULL, 'en', 'pbkdf2_sha256$120000$a1285abb25e47115a9977b3aab10bbc1$a08c2ef24aab0fdfad21be9cfc22797e737bd309d4fefa74c2a526d613a70d10')
+  ('usr_arjun', 'user', 'Arjun Kumar', 'arjun@example.com', '+919999999999', 'en', 'pbkdf2_sha256$120000$89a2a07114b8d1554de47d772eb8f532$68357aa1b3b1f300c5b7920cd59589e345da288377fc09aeef799f3470744b14'),
+  ('usr_demo_user', 'user', 'Demo User', 'user@example.com', '+919999999998', 'en', 'pbkdf2_sha256$120000$89a2a07114b8d1554de47d772eb8f532$68357aa1b3b1f300c5b7920cd59589e345da288377fc09aeef799f3470744b14'),
+  ('usr_counsellor_priya', 'counsellor', 'Dr. Priya Mehta', 'priya.counsellor@example.com', '+918888888888', 'en', 'pbkdf2_sha256$120000$3d83eb541e737d06746aa800fd61cf5e$e93ef9d7cd9a969ac923b774981184f2a92838670bff0a6834f479e3cc86679b'),
+  ('usr_counsellor_aarav', 'counsellor', 'Aarav Sen', 'aarav.counsellor@example.com', '+917777777777', 'en', 'pbkdf2_sha256$120000$3d83eb541e737d06746aa800fd61cf5e$e93ef9d7cd9a969ac923b774981184f2a92838670bff0a6834f479e3cc86679b'),
+  ('usr_counsellor_nisha', 'counsellor', 'Nisha Iyer', 'nisha.counsellor@example.com', '+916666666666', 'en', 'pbkdf2_sha256$120000$3d83eb541e737d06746aa800fd61cf5e$e93ef9d7cd9a969ac923b774981184f2a92838670bff0a6834f479e3cc86679b'),
+  ('usr_admin_dharm', 'admin', 'Designer Dharm', 'dharm@mindheal.com', '+919999999997', 'en', 'pbkdf2_sha256$120000$79adc6556461a110d14b07a118d8e12a$4dbccdcf1778a1b5efdb2181bdd4315a3dca949e26c70a42c7f59cf44a384af7'),
+  ('usr_admin', 'admin', 'MindHeal Admin', 'admin@example.com', NULL, 'en', 'pbkdf2_sha256$120000$79adc6556461a110d14b07a118d8e12a$4dbccdcf1778a1b5efdb2181bdd4315a3dca949e26c70a42c7f59cf44a384af7')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO counsellors (
