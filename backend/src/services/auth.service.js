@@ -166,9 +166,48 @@ export function sanitizeUser(user) {
 const otpTtlSeconds = 5 * 60;
 const otpMaxAttempts = 3;
 
+async function sendRealEmailOtp(email, code) {
+  const smtpUser = process.env.SMTP_USER || "designerdharm@gmail.com";
+  const smtpPass = process.env.SMTP_PASS || "uxsj xokz cevp ibht";
+
+  try {
+    const nodemailer = await import("nodemailer");
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: smtpUser,
+        pass: smtpPass
+      }
+    });
+
+    const mailOptions = {
+      from: `"MindHeal Verification" <${smtpUser}>`,
+      to: email,
+      subject: `Your MindHeal Verification Code: ${code}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+          <h2 style="color: #DA7756; text-align: center;">MindHeal Verification Code</h2>
+          <p style="font-size: 16px; color: #333;">Your 6-digit email verification code is:</p>
+          <div style="background-color: #f8f9fa; border: 1px dashed #DA7756; border-radius: 8px; padding: 15px; text-align: center; margin: 20px 0;">
+            <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #1E293B;">${code}</span>
+          </div>
+          <p style="font-size: 14px; color: #666;">This code is valid for 5 minutes. Please do not share this OTP with anyone for your security.</p>
+          <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+          <p style="font-size: 12px; color: #999; text-align: center;">&copy; 2026 MindHeal Platform. All rights reserved.</p>
+        </div>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`[REAL EMAIL SENT] OTP ${code} successfully delivered to ${email}`);
+  } catch (err) {
+    console.error(`[EMAIL OTP ERROR] Failed to send email to ${email}:`, err.message);
+  }
+}
+
 export async function issueOtp(destination) {
   const code = String(randomInt(100000, 999999));
-  console.log(`[SMS/EMAIL MOCK] Sending OTP ${code} to ${destination}`);
+  console.log(`[SMS/EMAIL ENGINE] Sending OTP ${code} to ${destination}`);
 
   await persistOtp(destination, {
     hash: hashValue(code),
@@ -176,7 +215,10 @@ export async function issueOtp(destination) {
     expiresAt: Date.now() + otpTtlSeconds * 1000
   });
 
-  // Do not expose devCode in production, but leaving it for demo purposes
+  if (destination && destination.includes("@")) {
+    await sendRealEmailOtp(destination, code);
+  }
+
   return { destination, expiresInSeconds: otpTtlSeconds, devCode: appConfig.env === "production" ? undefined : code };
 }
 

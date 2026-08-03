@@ -24,6 +24,7 @@
     "crypto": "^1.0.1",
     "dotenv": "^17.4.2",
     "firebase-admin": "^13.10.0",
+    "nodemailer": "^9.0.3",
     "pdfkit": "^0.18.0",
     "pg": "^8.21.0",
     "razorpay": "^2.9.6",
