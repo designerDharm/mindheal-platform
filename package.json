@@ -1,0 +1,21 @@
+{
+  "name": "mindheal-web-platform",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MindHeal public website, user panel, counsellor panel, and admin panel web prototype.",
+  "scripts": {
+    "check": "find src tests \\( -name '*.js' -o -name '*.mjs' \\) -exec node --check {} \\;",
+    "test": "node --test tests/**/*.test.js",
+    "dev": "npx serve . -l 4173",
+    "start": "npx serve . -l 4173"
+  },
+  "keywords": [
+    "mindheal",
+    "mental-wellness",
+    "website",
+    "admin-panel"
+  ],
+  "author": "Prilient Technologies Pvt. Ltd.",
+  "license": "UNLICENSED"
+}

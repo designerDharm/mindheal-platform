@@ -1,0 +1,153 @@
+import os
+
+filepath = '/Users/designerdharm/Public/psychology website/src/utils/i18n.js'
+
+with open(filepath, 'r', encoding='utf-8') as f:
+    content = f.read()
+
+# Telugu translation insertion
+te_target = '"Download the MindHeal app to log moods, chat with AI, and access focus soundscapes on the go.": "మూడ్‌లను లాగ్ చేయడానికి, AIతో చాట్ చేయడానికి మరియు ప్రయాణంలో ఫోకస్ సౌండ్‌స్కేప్‌లను యాక్సెస్ చేయడానికి మైండ్ హీల్ యాప్‌ను డౌน์โหลด చేయండి."'
+te_replacement = te_target + ''',
+    "Rewire Your Brain.": "మీ మెదడును రీవైర్ చేయండి.",
+    "Master Your Mind.": "మీ మనస్సుపై పట్టు సాధించండి.",
+    "Expert-led video courses on psychology and self-improvement.": "మనోవిజ్ఞానం మరియు స్వయం-మెరుగుదలపై నిపుణుల నేతృత్వంలోని వీడియో కోర్సులు.",
+    "Video Course": "వీడియో కోర్సు",
+    "Overcoming Social Anxiety": "సామాజిక ఆందోళనను అధిగమించడం",
+    "6 Modules": "6 మాడ్యూల్స్",
+    "Dr. Sharma": "డాక్టర్ శర్మ",
+    "Healing from Toxic Relationships": "విషపూరిత సంబంధాల నుండి కోలుకోవడం",
+    "8 Modules": "8 మాడ్యూల్స్",
+    "Dr. Verma": "డాక్టర్ వర్మ",
+    "The Science of Deep Sleep": "గాఢ నిద్ర యొక్క శాస్త్రం",
+    "4 Modules": "4 మాడ్యూల్స్",
+    "Dr. Iyer": "డాక్టర్ అయ్యర్",
+    "Emotional Regulation 101": "భావోద్వేగ నియంత్రణ 101",
+    "5 Modules": "5 మాడ్యూల్స్",
+    "Dr. Singh": "డాక్టర్ సింగ్",
+    "Thought Diary": "ఆలోచన డైరీ",
+    "The Thought Record": "ఆలోచన రికార్డు",
+    "Identify cognitive distortions and challenge negative thoughts before they spiral into panic.": "జ్ఞానాత్మక వికారాలను గుర్తించండి మరియు అవి భయాందోళనలుగా మారకముందే ప్రతికూల ఆలోచనలను సవాలు చేయండి.",
+    "Situation": "పరిస్థితి",
+    "My manager asked for a quick meeting.": "నా మేనేజర్ శీఘ్ర సమావేశం కోసం అడిగారు.",
+    "Automatic Thought": "ఆటోమేటిక్ ఆలోచన",
+    "\"I am going to be fired. I'm a failure.\"": "\"నన్ను ఉద్యోగం నుండి తీసేయబోతున్నారు. నేను విఫలమయ్యాను.\"",
+    "Open Diary": "డైరీని తెరువు",
+    "Exposure Hierarchy": "ఎక్స్‌పోజర్ సోపానక్రమం",
+    "Fear Ladder": "భయం నిచ్చెన",
+    "Gradually face your fears in a structured, safe manner to desensitize your anxiety.": "మీ ఆందోళనను తగ్గించడానికి ఒక క్రమబద్ధమైన, సురక్షితమైన పద్ధతిలో మీ భయాలను క్రమంగా ఎదుర్కోండి.",
+    "Goal": "లక్ష్యం",
+    "Attend a crowded social gathering.": "జనసమూహంతో కూడిన సామాజిక సమావేశానికి హాజరుకండి.",
+    "Step 1": "దశ 1",
+    "Say hello to a cashier at the grocery store.": "కిరాణా దుకాణంలో క్యాషియర్‌కి హలో చెప్పండి.",
+    "Build Ladder": "నిచ్చెనను నిర్మించండి",
+    "Behavioral Activation": "ప్రవర్తనా క్రియాశీలత",
+    "Activity Scheduling": "కార్యకలాపాల షెడ్యూలింగ్",
+    "Break the cycle of depression by scheduling small, rewarding activities.": "చిన్న, ప్రయోజనకరమైన కార్యకలాపాలను షెడ్యూల్ చేయడం ద్వారా నిరాశ యొక్క చక్రాన్ని బద్దలు కొట్టండి.",
+    "Current State": "ప్రస్తుత స్థితి",
+    "Staying in bed all weekend feeling unmotivated.": "ప్రేరణ లేనట్లు అనిపించి వారాంతమంతా పడకపైనే ఉండటం.",
+    "Action": "చర్య",
+    "Go for a 10-minute walk outside in the morning.": "ఉదయాన్నే బయట 10 నిమిషాలు నడవండి.",
+    "Schedule Activity": "కార్యకలాపాన్ని షెడ్యూల్ చేయి",
+    "Grounding Techniques": "గ్రౌండింగ్ పద్ధతులు",
+    "The 5-4-3-2-1 Method": "5-4-3-2-1 పద్ధతి",
+    "Anchor yourself in the present moment when experiencing severe anxiety or dissociation.": "తీవ్రమైన ఆందోళన లేదా వేరుపడిన భావనను అనుభవిస్తున్నప్పుడు మిమ్మల్ని ప్రస్తుత క్షణంలో స్థిరపరచుకోండి.",
+    "Panic Trigger": "భయాందోళన ప్రేరేపకం",
+    "Heart racing, feeling completely detached from reality.": "గుండె కొట్టుకోవడం వేగమవ్వడం, వాస్తవికత నుండి పూర్తిగా విడిపోయినట్లు అనిపించడం.",
+    "Grounding Action": "గ్రౌండింగ్ చర్య",
+    "Name 5 things you can see, 4 you can touch...": "మీరు చూడగలిగే 5 విషయాలు, తాకగలిగే 4 విషయాల పేర్లు చెప్పండి...",
+    "Start Grounding": "గ్రౌండింగ్ ప్రారంభించండి",
+    "Worry Time": "ఆందోళన సమయం",
+    "Scheduled Worrying": "షెడ్యూల్ చేసిన ఆందోళన",
+    "Postpone your anxious thoughts to a dedicated 15-minute window each day.": "ప్రతిరోజూ మీ ఆందోళనకరమైన ఆలోచనలను కేటాయించిన 15 నిమిషాల విండోకు వాయిదా వేయండి.",
+    "Intrusive Thought": "అవాంఛిత ఆలోచన",
+    "\"What if I fail my presentation tomorrow?\"": "\"రేపు నా ప్రెజెంటేషన్‌లో నేను విఫలమైతే ఎలా?\"",
+    "Write it down and delay worrying until 6:00 PM.": "దానిని రాసి పెట్టుకోండి మరియు సాయంత్రం 6:00 వరకు ఆందోళన చెందడాన్ని వాయిదా వేయండి.",
+    "Set Worry Time": "ఆందోళన సమయాన్ని సెట్ చేయి",
+    "CBT toolkit": "CBT టూల్‌కిట్",
+    "Evidence-based Cognitive Behavioral self-reflection exercises.": "సాక్ష్యాధారిత ప్రవర్తనా స్వయం-ప్రతిబింబ వ్యాయామాలు.",
+    "Open Daily Diary": "డైలీ డైరీని తెరువు",
+    "Back to Home": "హోమ్‌కి తిరిగి వెళ్లు",
+    "Logout": "లాగ్అవుట్",
+    "API connected": "API కనెక్ట్ చేయబడింది",
+    "Local fallback": "స్థానిక ఫాల్‌బ్యాక్"'''
+
+# Arabic translation insertion
+ar_target = '"Download the MindHeal app to log moods, chat with AI, and access focus soundscapes on the go.": "قم بتنزيل تطبيق MindHeal لتسجيل الحالات المزاجية والدردشة مع الذكاء الاصطناعي والوصول إلى المشاهد الصوتية للتركيز أثناء التنقل."'
+ar_replacement = ar_target + ''',
+    "Rewire Your Brain.": "أعد برمجة عقلك.",
+    "Master Your Mind.": "سيطر على عقلك.",
+    "Expert-led video courses on psychology and self-improvement.": "دورات فيديو يقودها خبراء في علم النفس وتطوير الذات.",
+    "Video Course": "دورة فيديو",
+    "Overcoming Social Anxiety": "التغلب على القلق الاجتماعي",
+    "6 Modules": "6 وحدات",
+    "Dr. Sharma": "د. شارما",
+    "Healing from Toxic Relationships": "التعافي من العلاقات السامة",
+    "8 Modules": "8 وحدات",
+    "Dr. Verma": "د. فيرما",
+    "The Science of Deep Sleep": "علم النوم العميق",
+    "4 Modules": "4 وحدات",
+    "Dr. Iyer": "د. آير",
+    "Emotional Regulation 101": "تنظيم المشاعر 101",
+    "5 Modules": "5 وحدات",
+    "Dr. Singh": "د. سينغ",
+    "Thought Diary": "مفكرة الأفكار",
+    "The Thought Record": "سجل الأفكار",
+    "Identify cognitive distortions and challenge negative thoughts before they spiral into panic.": "حدد التشوهات المعرفية وتحدَّ الأفكار السلبية قبل أن تتطور إلى نوبة هلع.",
+    "Situation": "الموقف",
+    "My manager asked for a quick meeting.": "طلب مني مديري عقد اجتماع سريع.",
+    "Automatic Thought": "الفكرة التلقائية",
+    "\"I am going to be fired. I'm a failure.\"": "\"سيتم طردي. أنا فاشل.\"",
+    "Open Diary": "افتح المفكرة",
+    "Exposure Hierarchy": "تسلسل التعرض للرعب",
+    "Fear Ladder": "سلم الخوف",
+    "Gradually face your fears in a structured, safe manner to desensitize your anxiety.": "واجه مخاوفك تدريجيًا بطريقة منظمة وآمنة لتقليل قلقك.",
+    "Goal": "الهدف",
+    "Attend a crowded social gathering.": "حضور تجمع اجتماعي مزدحم.",
+    "Step 1": "الخطوة 1",
+    "Say hello to a cashier at the grocery store.": "قل مرحبًا لأمين الصندوق في البقالة.",
+    "Build Ladder": "ابنِ السلم",
+    "Behavioral Activation": "التنشيط السلوكي",
+    "Activity Scheduling": "جدولة الأنشطة",
+    "Break the cycle of depression by scheduling small, rewarding activities.": "اكسر حلقة الاكتئاب من خلال جدولة أنشطة صغيرة ومجزية.",
+    "Current State": "الحالة الحالية",
+    "Staying in bed all weekend feeling unmotivated.": "البقاء في السرير طوال عطلة نهاية الأسبوع مع الشعور بالإحباط.",
+    "Action": "الإجراء",
+    "Go for a 10-minute walk outside in the morning.": "اذهب للمشي لمدة 10 دقائق في الخارج في الصباح.",
+    "Schedule Activity": "جدول النشاط",
+    "Grounding Techniques": "تقنيات التثبيت للأرض",
+    "The 5-4-3-2-1 Method": "طريقة 5-4-3-2-1",
+    "Anchor yourself in the present moment when experiencing severe anxiety or dissociation.": "ثبّت نفسك في اللحظة الحالية عند تعرضك لقلق شديد أو انفصال عن الواقع.",
+    "Panic Trigger": "مثير الهلع",
+    "Heart racing, feeling completely detached from reality.": "تسارع ضربات القلب، والشعور بالانفصال التام عن الواقع.",
+    "Grounding Action": "إجراء التثبيت",
+    "Name 5 things you can see, 4 you can touch...": "سمِّ 5 أشياء يمكنك رؤيتها، و4 يمكنك لمسها...",
+    "Start Grounding": "ابدأ التثبيت",
+    "Worry Time": "وقت القلق",
+    "Scheduled Worrying": "القلق المجدول",
+    "Postpone your anxious thoughts to a dedicated 15-minute window each day.": "أجّل أفكارك المقلقة إلى وقت محدد مدته 15 دقيقة يوميًا.",
+    "Intrusive Thought": "الفكرة الدخيلة المزعجة",
+    "\"What if I fail my presentation tomorrow?\"": "\"ماذا لو فشلت في عرضي التقديمي غدًا؟\"",
+    "Write it down and delay worrying until 6:00 PM.": "اكتبها وأجّل القلق حتى الساعة 6:00 مساءً.",
+    "Set Worry Time": "حدد وقت القلق",
+    "CBT toolkit": "أدوات العلاج السلوكي المعرفي",
+    "Evidence-based Cognitive Behavioral self-reflection exercises.": "تمارين التفكير الذاتي السلوكي المعرفي القائمة على الأدلة.",
+    "Open Daily Diary": "افتح المفكرة اليومية",
+    "Back to Home": "العودة للرئيسية",
+    "Logout": "تسجيل الخروج",
+    "API connected": "تم اتصال الـ API",
+    "Local fallback": "الوضع المحلي الاحتياطي"'''
+
+if te_target in content:
+    content = content.replace(te_target, te_replacement)
+    print("Telugu updated successfully")
+else:
+    print("Telugu target not found!")
+
+if ar_target in content:
+    content = content.replace(ar_target, ar_replacement)
+    print("Arabic updated successfully")
+else:
+    print("Arabic target not found!")
+
+with open(filepath, 'w', encoding='utf-8') as f:
+    f.write(content)

@@ -1,0 +1,1518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MindHeal – Full Stack App Blueprint</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0A0E1A;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: #1e2d45;
+    --accent: #4F9EFF;
+    --accent2: #7C5CFF;
+    --accent3: #FF6B6B;
+    --gold: #F5C842;
+    --green: #34D399;
+    --text: #E8EDF5;
+    --muted: #6B7A99;
+    --soft: #C5CDE0;
+    --phone-bg: #0D1117;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── HEADER ── */
+  .page-header {
+    background: linear-gradient(135deg, #0D1B2E 0%, #0A0E1A 60%, #130D2E 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 40px 60px;
+    position: relative;
+    overflow: hidden;
+  }
+  .page-header::before {
+    content:'';
+    position:absolute; top:-80px; right:-80px;
+    width:400px; height:400px;
+    background: radial-gradient(circle, rgba(79,158,255,.12) 0%, transparent 70%);
+    pointer-events:none;
+  }
+  .page-header::after {
+    content:'';
+    position:absolute; bottom:-60px; left:200px;
+    width:300px; height:300px;
+    background: radial-gradient(circle, rgba(124,92,255,.10) 0%, transparent 70%);
+    pointer-events:none;
+  }
+  .header-badge {
+    display:inline-flex; align-items:center; gap:8px;
+    background: rgba(79,158,255,.1); border:1px solid rgba(79,158,255,.25);
+    border-radius:20px; padding:5px 14px; font-size:12px;
+    color:var(--accent); font-family:'JetBrains Mono'; margin-bottom:18px;
+  }
+  .header-badge span { width:7px;height:7px;border-radius:50%;background:var(--accent);
+    animation:pulse 2s infinite; display:block; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.8)} }
+
+  h1.brand {
+    font-family:'Playfair Display'; font-size:52px; font-weight:900;
+    line-height:1.05;
+    background: linear-gradient(135deg, #fff 0%, #a8c8ff 50%, #c4b0ff 100%);
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    margin-bottom:8px;
+  }
+  .brand-sub { color:var(--muted); font-size:16px; font-weight:300; letter-spacing:.5px; }
+  .tech-tags { display:flex; gap:10px; flex-wrap:wrap; margin-top:20px; }
+  .tech-tag {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:6px; padding:4px 12px; font-size:11px;
+    font-family:'JetBrains Mono'; color:var(--soft);
+  }
+  .tech-tag.blue { border-color:rgba(79,158,255,.4); color:var(--accent); background:rgba(79,158,255,.07); }
+  .tech-tag.purple { border-color:rgba(124,92,255,.4); color:var(--accent2); background:rgba(124,92,255,.07); }
+  .tech-tag.green { border-color:rgba(52,211,153,.4); color:var(--green); background:rgba(52,211,153,.07); }
+
+  /* ── LAYOUT ── */
+  .main { max-width:1600px; margin:0 auto; padding:50px 60px; }
+
+  /* ── SECTION TITLES ── */
+  .section-title {
+    font-family:'Playfair Display'; font-size:28px; font-weight:700;
+    color:#fff; margin-bottom:6px;
+  }
+  .section-title span { color:var(--accent); }
+  .section-sub { color:var(--muted); font-size:14px; margin-bottom:32px; }
+  .divider { height:1px; background:var(--border); margin:50px 0; }
+
+  /* ── PHONE MOCKUP ── */
+  .screens-section { margin-bottom:60px; }
+  .screens-grid {
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap:28px;
+  }
+  .phone-wrap { display:flex; flex-direction:column; align-items:center; gap:12px; }
+  .phone-label {
+    font-size:11px; font-family:'JetBrains Mono'; color:var(--muted);
+    text-align:center; letter-spacing:.5px; text-transform:uppercase;
+  }
+  .phone {
+    width:195px; height:390px;
+    background:var(--phone-bg);
+    border-radius:36px;
+    border:2px solid #1e2d45;
+    position:relative; overflow:hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.04) inset,
+                0 2px 4px rgba(255,255,255,.06) inset;
+    cursor:pointer; transition:transform .3s, box-shadow .3s;
+  }
+  .phone:hover { transform:translateY(-6px) scale(1.02);
+    box-shadow: 0 30px 80px rgba(0,0,0,.7), 0 0 40px rgba(79,158,255,.12); }
+  .phone-notch {
+    position:absolute; top:0; left:50%; transform:translateX(-50%);
+    width:70px; height:22px; background:#000;
+    border-bottom-left-radius:14px; border-bottom-right-radius:14px;
+    z-index:10;
+  }
+  .phone-screen { width:100%; height:100%; overflow:hidden; position:relative; }
+
+  /* ── SCREEN 1: SPLASH / ONBOARDING ── */
+  .screen-splash {
+    background: linear-gradient(160deg, #0D1B2E 0%, #0A0E1A 40%, #130D2E 100%);
+    display:flex; flex-direction:column; align-items:center;
+    justify-content:center; height:100%; padding:30px 20px 20px;
+    position:relative; overflow:hidden;
+  }
+  .screen-splash::before {
+    content:''; position:absolute; top:20%; left:50%; transform:translateX(-50%);
+    width:200px; height:200px;
+    background:radial-gradient(circle, rgba(79,158,255,.2) 0%, transparent 70%);
+  }
+  .splash-logo {
+    width:64px; height:64px; border-radius:20px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    display:flex; align-items:center; justify-content:center;
+    font-size:28px; margin-bottom:16px; position:relative; z-index:1;
+    box-shadow:0 8px 24px rgba(79,158,255,.35);
+  }
+  .splash-title { font-family:'Playfair Display'; font-size:22px; font-weight:700;
+    color:#fff; text-align:center; position:relative;z-index:1;line-height:1.2; }
+  .splash-tagline { font-size:10px; color:var(--muted); text-align:center; margin-top:6px;
+    position:relative;z-index:1; line-height:1.5; }
+  .splash-dots { display:flex; gap:6px; margin-top:24px; position:relative;z-index:1; }
+  .splash-dots span { width:7px;height:7px;border-radius:50%;background:var(--border); }
+  .splash-dots span.active { background:var(--accent); width:20px;border-radius:4px; }
+  .splash-btn {
+    margin-top:20px; background:linear-gradient(135deg,var(--accent),var(--accent2));
+    border:none; border-radius:30px; padding:10px 28px;
+    font-size:11px; font-weight:600; color:#fff; cursor:pointer;
+    position:relative;z-index:1;
+  }
+  .carousel-card {
+    background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08);
+    border-radius:16px; padding:16px; text-align:center; margin-bottom:16px;
+    position:relative;z-index:1;
+  }
+  .carousel-icon { font-size:32px; margin-bottom:8px; }
+  .carousel-text { font-size:10px; color:var(--soft); line-height:1.5; }
+
+  /* ── SCREEN 2: AUTH ── */
+  .screen-auth {
+    background:#0D1117;
+    display:flex; flex-direction:column;
+    padding:40px 18px 20px; height:100%;
+  }
+  .auth-back { color:var(--muted); font-size:16px; margin-bottom:20px; }
+  .auth-title { font-family:'Playfair Display'; font-size:18px; font-weight:700;
+    color:#fff; margin-bottom:4px; }
+  .auth-sub { font-size:10px; color:var(--muted); margin-bottom:22px; }
+  .auth-input {
+    background:rgba(255,255,255,.05); border:1px solid var(--border);
+    border-radius:10px; padding:10px 14px; font-size:11px; color:#fff;
+    margin-bottom:10px; width:100%;
+  }
+  .auth-btn {
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    border:none; border-radius:10px; padding:11px;
+    font-size:11px; font-weight:600; color:#fff; width:100%; margin-top:4px;
+    cursor:pointer;
+  }
+  .auth-divider { display:flex; align-items:center; gap:8px; margin:14px 0;
+    font-size:9px; color:var(--muted); }
+  .auth-divider::before,.auth-divider::after { content:'';flex:1;height:1px;background:var(--border); }
+  .google-btn {
+    background:rgba(255,255,255,.05); border:1px solid var(--border);
+    border-radius:10px; padding:10px; font-size:10px; color:var(--soft);
+    width:100%; display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+
+  /* ── SCREEN 3: OTP ── */
+  .screen-otp { background:#0D1117; height:100%; padding:40px 18px 20px;
+    display:flex; flex-direction:column; }
+  .otp-icon { font-size:36px; text-align:center; margin:20px 0 10px; }
+  .otp-title { font-family:'Playfair Display'; font-size:16px; font-weight:700;
+    text-align:center; color:#fff; margin-bottom:6px; }
+  .otp-sub { font-size:9px; color:var(--muted); text-align:center; margin-bottom:24px; }
+  .otp-boxes { display:flex; gap:8px; justify-content:center; margin-bottom:20px; }
+  .otp-box { width:38px;height:44px;background:rgba(255,255,255,.05);
+    border:1px solid var(--border); border-radius:10px;
+    display:flex;align-items:center;justify-content:center;
+    font-size:18px; font-weight:700; color:#fff; }
+  .otp-box.active { border-color:var(--accent); background:rgba(79,158,255,.1); }
+
+  /* ── SCREEN 4: DASHBOARD ── */
+  .screen-dash {
+    background:#0A0E1A; height:100%;
+    display:flex; flex-direction:column;
+    overflow:hidden;
+  }
+  .dash-header {
+    background:linear-gradient(135deg,#0D1B2E,#0A0E1A);
+    padding:30px 16px 16px; border-bottom:1px solid var(--border);
+  }
+  .dash-greeting { font-size:10px; color:var(--muted); }
+  .dash-name { font-family:'Playfair Display'; font-size:16px; color:#fff; font-weight:700; }
+  .dash-chips { display:flex; gap:6px; margin-top:10px; overflow-x:auto; }
+  .dash-chip {
+    flex-shrink:0; background:rgba(255,255,255,.06); border:1px solid var(--border);
+    border-radius:20px; padding:5px 10px; font-size:9px; color:var(--soft);
+    white-space:nowrap;
+  }
+  .dash-chip.active { background:rgba(79,158,255,.15); border-color:var(--accent);
+    color:var(--accent); }
+  .dash-body { flex:1; overflow-y:auto; padding:14px; }
+  .dash-card {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:14px; padding:14px; margin-bottom:12px;
+    position:relative; overflow:hidden;
+  }
+  .dash-card::before {
+    content:''; position:absolute; top:0;left:0;right:0; height:3px;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+  }
+  .dash-card-title { font-size:11px; font-weight:600; color:#fff; margin-bottom:3px; }
+  .dash-card-sub { font-size:9px; color:var(--muted); }
+  .dash-card-icon { font-size:22px; position:absolute; top:14px; right:14px; }
+  .mood-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px; }
+  .mood-item { background:var(--surface); border:1px solid var(--border);
+    border-radius:12px; padding:12px 10px; text-align:center; }
+  .mood-emoji { font-size:20px; }
+  .mood-label { font-size:8px; color:var(--muted); margin-top:4px; }
+
+  /* ── SCREEN 5: COUNSELLOR LIST ── */
+  .screen-counsellors { background:#0A0E1A; height:100%; overflow-y:auto; }
+  .counsel-header { background:linear-gradient(135deg,#0D1B2E,#0A0E1A);
+    padding:30px 16px 14px; }
+  .counsel-title { font-family:'Playfair Display'; font-size:16px; color:#fff; font-weight:700; }
+  .counsel-search { background:rgba(255,255,255,.06); border:1px solid var(--border);
+    border-radius:10px; padding:8px 12px; font-size:10px; color:#fff;
+    width:100%; margin-top:10px; }
+  .counsel-card {
+    background:var(--surface); border-bottom:1px solid var(--border);
+    padding:14px 16px; display:flex; gap:12px; align-items:center;
+  }
+  .counsel-avatar {
+    width:44px;height:44px;border-radius:14px;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;font-size:20px;
+  }
+  .counsel-info { flex:1; }
+  .counsel-name { font-size:11px; font-weight:600; color:#fff; }
+  .counsel-spec { font-size:9px; color:var(--muted); margin-top:1px; }
+  .counsel-meta { display:flex; gap:6px; margin-top:5px; align-items:center; }
+  .counsel-badge {
+    font-size:8px; border-radius:4px; padding:2px 6px;
+    background:rgba(52,211,153,.1); color:var(--green); border:1px solid rgba(52,211,153,.2);
+  }
+  .counsel-price { font-size:9px; color:var(--gold); font-weight:600; }
+  .counsel-actions { display:flex; gap:6px; }
+  .action-btn {
+    width:28px;height:28px; border-radius:8px;
+    display:flex;align-items:center;justify-content:center;
+    font-size:12px; cursor:pointer; border:none;
+  }
+  .action-btn.chat { background:rgba(79,158,255,.2); }
+  .action-btn.call { background:rgba(52,211,153,.2); }
+  .action-btn.video { background:rgba(245,200,66,.2); }
+
+  /* ── SCREEN 6: AI CHAT ── */
+  .screen-aichat { background:#0A0E1A; height:100%; display:flex; flex-direction:column; }
+  .chat-header { background:var(--surface); padding:28px 14px 12px;
+    display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--border); }
+  .ai-avatar { width:36px;height:36px;border-radius:12px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0; }
+  .chat-name { font-size:11px; font-weight:600; color:#fff; }
+  .chat-status { font-size:9px; color:var(--green); }
+  .chat-msgs { flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px; }
+  .msg { max-width:80%; border-radius:12px; padding:9px 11px; font-size:10px; line-height:1.5; }
+  .msg.ai { background:var(--surface); border:1px solid var(--border);
+    color:var(--soft); align-self:flex-start; border-bottom-left-radius:4px; }
+  .msg.user { background:linear-gradient(135deg,var(--accent),var(--accent2));
+    color:#fff; align-self:flex-end; border-bottom-right-radius:4px; }
+  .msg-time { font-size:8px; color:var(--muted); margin-top:3px; }
+  .chat-input-row { padding:10px 14px;
+    background:var(--surface); border-top:1px solid var(--border);
+    display:flex; gap:8px; align-items:center; }
+  .chat-input { flex:1; background:rgba(255,255,255,.06); border:1px solid var(--border);
+    border-radius:20px; padding:8px 12px; font-size:10px; color:#fff; }
+  .send-btn { width:32px;height:32px;border-radius:50%;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    display:flex;align-items:center;justify-content:center;border:none;font-size:14px;cursor:pointer; }
+
+  /* ── SCREEN 7: DREAM ANALYSIS ── */
+  .screen-dream { background:#0A0E1A; height:100%; overflow-y:auto; }
+  .dream-header { background:linear-gradient(160deg,#130D2E,#0A0E1A);
+    padding:30px 16px 16px; }
+  .dream-title { font-family:'Playfair Display'; font-size:16px; color:#fff; font-weight:700; }
+  .dream-sub { font-size:9px; color:var(--muted); margin-top:4px; }
+  .dream-body { padding:14px; }
+  .dream-textarea {
+    width:100%; background:rgba(255,255,255,.05);
+    border:1px solid var(--border); border-radius:12px;
+    padding:12px; font-size:10px; color:#fff; resize:none; height:90px;
+    margin-bottom:10px;
+  }
+  .dream-attach-row { display:flex; gap:8px; margin-bottom:12px; }
+  .dream-attach {
+    flex:1; background:rgba(255,255,255,.05); border:1px solid var(--border);
+    border-radius:10px; padding:8px; text-align:center; font-size:9px; color:var(--muted);
+  }
+  .dream-analyze-btn {
+    width:100%; background:linear-gradient(135deg,var(--accent2),var(--accent));
+    border:none; border-radius:12px; padding:12px;
+    font-size:11px; font-weight:600; color:#fff; cursor:pointer;
+  }
+  .dream-result {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:12px; padding:14px; margin-top:14px;
+  }
+  .dream-result-title { font-size:10px; font-weight:600; color:var(--accent2);
+    margin-bottom:8px; display:flex; align-items:center; gap:6px; }
+  .dream-result-text { font-size:9px; color:var(--soft); line-height:1.6; }
+  .dream-pdf-btn {
+    width:100%; background:rgba(245,200,66,.1); border:1px solid rgba(245,200,66,.3);
+    border-radius:10px; padding:10px; font-size:10px; color:var(--gold);
+    margin-top:10px; cursor:pointer; display:flex;align-items:center;justify-content:center;gap:6px;
+  }
+
+  /* ── SCREEN 8: MY SESSIONS ── */
+  .screen-sessions { background:#0A0E1A; height:100%; overflow-y:auto; }
+  .sess-header { background:linear-gradient(135deg,#0D1B2E,#0A0E1A);
+    padding:30px 16px 14px; }
+  .sess-title { font-family:'Playfair Display'; font-size:16px; color:#fff; font-weight:700; }
+  .sess-tabs { display:flex; gap:0; margin-top:12px;
+    background:rgba(255,255,255,.05); border-radius:10px; padding:3px; }
+  .sess-tab { flex:1; text-align:center; padding:6px; font-size:9px; color:var(--muted);
+    border-radius:8px; cursor:pointer; }
+  .sess-tab.active { background:var(--accent); color:#fff; font-weight:600; }
+  .sess-item { padding:14px 16px; border-bottom:1px solid var(--border);
+    display:flex; gap:10px; align-items:flex-start; }
+  .sess-icon { width:36px;height:36px;border-radius:10px;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;font-size:16px; }
+  .sess-info { flex:1; }
+  .sess-name { font-size:11px; font-weight:600; color:#fff; }
+  .sess-date { font-size:9px; color:var(--muted); margin-top:2px; }
+  .sess-status { font-size:8px; padding:2px 8px; border-radius:4px; }
+  .sess-status.done { background:rgba(52,211,153,.1); color:var(--green); }
+  .sess-status.upcoming { background:rgba(79,158,255,.1); color:var(--accent); }
+
+  /* ── SCREEN 9: WALLET ── */
+  .screen-wallet { background:#0A0E1A; height:100%; overflow-y:auto; }
+  .wallet-hero { background:linear-gradient(160deg,#0D1B2E,#130D2E);
+    padding:30px 16px 24px; text-align:center; }
+  .wallet-balance-label { font-size:9px; color:var(--muted); }
+  .wallet-balance { font-family:'Playfair Display'; font-size:30px; font-weight:900;
+    color:#fff; margin:4px 0; }
+  .wallet-sub { font-size:9px; color:var(--muted); }
+  .wallet-actions { display:flex; gap:10px; justify-content:center; margin-top:16px; }
+  .wallet-action-btn {
+    background:rgba(255,255,255,.07); border:1px solid var(--border);
+    border-radius:12px; padding:8px 14px; font-size:9px; color:var(--soft);
+    display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer;
+  }
+  .wallet-action-btn span.icon { font-size:18px; }
+  .wallet-transactions { padding:14px; }
+  .txn-title { font-size:10px; font-weight:600; color:var(--muted);
+    text-transform:uppercase; letter-spacing:.5px; margin-bottom:10px; }
+  .txn-item { background:var(--surface); border:1px solid var(--border);
+    border-radius:10px; padding:12px; display:flex;
+    align-items:center; gap:10px; margin-bottom:8px; }
+  .txn-icon { width:32px;height:32px;border-radius:8px;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;font-size:14px; }
+  .txn-info { flex:1; }
+  .txn-name { font-size:10px; color:#fff; }
+  .txn-date { font-size:8px; color:var(--muted); }
+  .txn-amount { font-size:11px; font-weight:600; }
+  .txn-amount.debit { color:var(--accent3); }
+  .txn-amount.credit { color:var(--green); }
+
+  /* ── SCREEN 10: GAMES ── */
+  .screen-games { background:#0A0E1A; height:100%; overflow-y:auto; }
+  .games-header { background:linear-gradient(135deg,#0D1B2E,#130D2E);
+    padding:30px 16px 14px; }
+  .games-title { font-family:'Playfair Display'; font-size:16px; color:#fff; font-weight:700; }
+  .games-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:14px; }
+  .game-card { background:var(--surface); border:1px solid var(--border);
+    border-radius:14px; padding:14px; text-align:center;
+    position:relative; overflow:hidden; }
+  .game-card::before { content:''; position:absolute; top:-20px; right:-20px;
+    width:60px; height:60px; border-radius:50%; opacity:.15; }
+  .game-card.blue::before { background:var(--accent); }
+  .game-card.purple::before { background:var(--accent2); }
+  .game-card.green::before { background:var(--green); }
+  .game-card.gold::before { background:var(--gold); }
+  .game-icon { font-size:28px; margin-bottom:8px; }
+  .game-name { font-size:10px; font-weight:600; color:#fff; }
+  .game-tag { font-size:8px; color:var(--muted); margin-top:3px; }
+  .game-free { font-size:8px; color:var(--green); font-weight:600; margin-top:4px; }
+
+  /* ── BOTTOM NAV ── */
+  .bottom-nav {
+    background:var(--surface); border-top:1px solid var(--border);
+    display:flex; justify-content:space-around; padding:8px 4px 10px;
+    position:sticky; bottom:0;
+  }
+  .nav-item { display:flex; flex-direction:column; align-items:center; gap:3px;
+    cursor:pointer; }
+  .nav-icon { font-size:18px; }
+  .nav-label { font-size:7px; color:var(--muted); }
+  .nav-item.active .nav-label { color:var(--accent); }
+  .nav-item.active .nav-icon { filter:drop-shadow(0 0 4px var(--accent)); }
+
+  /* ── ARCHITECTURE SECTION ── */
+  .arch-section { margin-bottom:60px; }
+  .arch-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
+  .arch-card {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:16px; padding:24px;
+    transition:transform .2s, box-shadow .2s;
+  }
+  .arch-card:hover { transform:translateY(-4px);
+    box-shadow:0 12px 40px rgba(0,0,0,.4); }
+  .arch-card-icon { font-size:28px; margin-bottom:12px; }
+  .arch-card-title { font-family:'Playfair Display'; font-size:16px; font-weight:700;
+    color:#fff; margin-bottom:8px; }
+  .arch-card-items { display:flex; flex-direction:column; gap:6px; }
+  .arch-item { font-size:12px; color:var(--soft); display:flex; gap:8px; align-items:flex-start; }
+  .arch-item::before { content:'→'; color:var(--accent); flex-shrink:0; font-size:11px; margin-top:1px; }
+  .arch-item b { color:#fff; }
+
+  /* ── FLOW DIAGRAM ── */
+  .flow-section { margin-bottom:60px; }
+  .flow-container {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:20px; padding:32px; overflow-x:auto;
+  }
+  .flow-row { display:flex; align-items:center; gap:12px; margin-bottom:16px;
+    flex-wrap:wrap; }
+  .flow-node {
+    background:var(--bg); border:1px solid var(--border);
+    border-radius:10px; padding:10px 16px; font-size:12px; color:var(--text);
+    white-space:nowrap;
+  }
+  .flow-node.start { border-color:var(--accent); color:var(--accent);
+    background:rgba(79,158,255,.07); }
+  .flow-node.process { border-color:var(--accent2); color:var(--accent2);
+    background:rgba(124,92,255,.07); }
+  .flow-node.decision { border-color:var(--gold); color:var(--gold);
+    background:rgba(245,200,66,.07); }
+  .flow-node.end { border-color:var(--green); color:var(--green);
+    background:rgba(52,211,153,.07); }
+  .flow-arrow { color:var(--muted); font-size:18px; flex-shrink:0; }
+
+  /* ── DB SCHEMA ── */
+  .schema-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
+  .schema-card {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:14px; overflow:hidden;
+  }
+  .schema-header {
+    background:linear-gradient(135deg,rgba(79,158,255,.15),rgba(124,92,255,.15));
+    padding:12px 16px; border-bottom:1px solid var(--border);
+  }
+  .schema-table-name { font-family:'JetBrains Mono'; font-size:12px;
+    color:var(--accent); font-weight:500; }
+  .schema-fields { padding:12px; }
+  .schema-field { display:flex; gap:8px; padding:4px 0;
+    border-bottom:1px solid rgba(255,255,255,.04); font-size:10px; }
+  .schema-field:last-child { border-bottom:none; }
+  .field-name { font-family:'JetBrains Mono'; color:var(--soft); flex:1; }
+  .field-type { font-family:'JetBrains Mono'; color:var(--muted); font-size:9px; }
+  .field-pk { color:var(--gold); font-size:8px; }
+  .field-fk { color:var(--accent3); font-size:8px; }
+
+  /* ── API ENDPOINTS ── */
+  .api-section { margin-bottom:60px; }
+  .api-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .api-group { background:var(--surface); border:1px solid var(--border);
+    border-radius:14px; overflow:hidden; }
+  .api-group-header { background:rgba(255,255,255,.04); padding:12px 16px;
+    font-size:12px; font-weight:600; color:#fff; border-bottom:1px solid var(--border); }
+  .api-endpoint { padding:10px 16px; border-bottom:1px solid rgba(255,255,255,.04);
+    display:flex; gap:10px; align-items:center; }
+  .api-endpoint:last-child { border-bottom:none; }
+  .http-method { font-family:'JetBrains Mono'; font-size:9px; font-weight:600;
+    padding:2px 6px; border-radius:4px; flex-shrink:0; }
+  .http-method.get { background:rgba(52,211,153,.15); color:var(--green); }
+  .http-method.post { background:rgba(79,158,255,.15); color:var(--accent); }
+  .http-method.put { background:rgba(245,200,66,.15); color:var(--gold); }
+  .http-method.del { background:rgba(255,107,107,.15); color:var(--accent3); }
+  .api-path { font-family:'JetBrains Mono'; font-size:10px; color:var(--soft); flex:1; }
+  .api-desc { font-size:9px; color:var(--muted); }
+
+  /* ── FEATURE MATRIX ── */
+  .matrix-table { width:100%; border-collapse:collapse;
+    background:var(--surface); border-radius:14px; overflow:hidden; }
+  .matrix-table th { background:rgba(79,158,255,.1); padding:12px 16px;
+    text-align:left; font-size:11px; color:var(--accent); border-bottom:1px solid var(--border); }
+  .matrix-table td { padding:11px 16px; font-size:11px; color:var(--soft);
+    border-bottom:1px solid rgba(255,255,255,.04); }
+  .matrix-table tr:last-child td { border-bottom:none; }
+  .matrix-table tr:hover td { background:rgba(255,255,255,.02); }
+  .check { color:var(--green); }
+  .cross { color:var(--accent3); }
+  .paid { color:var(--gold); font-size:10px; }
+
+  /* ── TECH STACK VISUAL ── */
+  .stack-section { margin-bottom:60px; }
+  .stack-layers { display:flex; flex-direction:column; gap:2px; }
+  .stack-layer {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:12px; padding:16px 24px;
+    display:flex; align-items:center; gap:20px;
+  }
+  .stack-label { font-family:'JetBrains Mono'; font-size:11px; color:var(--muted);
+    width:130px; flex-shrink:0; }
+  .stack-items { display:flex; gap:10px; flex-wrap:wrap; }
+  .stack-item {
+    background:var(--bg); border:1px solid var(--border);
+    border-radius:8px; padding:6px 12px; font-size:11px; color:var(--text);
+  }
+  .stack-item.highlight { border-color:var(--accent); color:var(--accent); }
+
+  /* ── NOTIFICATIONS ── */
+  .notif-banner {
+    background:linear-gradient(135deg,rgba(79,158,255,.12),rgba(124,92,255,.12));
+    border:1px solid rgba(79,158,255,.2); border-radius:12px;
+    padding:14px 20px; margin-bottom:16px;
+    display:flex; gap:12px; align-items:center;
+  }
+  .notif-icon { font-size:20px; flex-shrink:0; }
+  .notif-text { font-size:12px; color:var(--soft); line-height:1.5; }
+  .notif-text b { color:#fff; }
+
+  /* ── FOOTER ── */
+  footer {
+    background:var(--surface); border-top:1px solid var(--border);
+    padding:30px 60px; text-align:center; color:var(--muted); font-size:12px;
+  }
+  footer span { color:var(--accent); }
+
+  /* ── RESPONSIVE ── */
+  @media(max-width:900px) {
+    .page-header { padding:30px; }
+    .main { padding:30px; }
+    .arch-grid { grid-template-columns:1fr 1fr; }
+    .schema-grid { grid-template-columns:1fr 1fr; }
+    .api-grid { grid-template-columns:1fr; }
+  }
+  @media(max-width:600px) {
+    .arch-grid,.schema-grid { grid-template-columns:1fr; }
+    .screens-grid { grid-template-columns:1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!--  HEADER                                                              -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<div class="page-header">
+  <div class="header-badge"><span></span> Full Stack Blueprint — User App v1.0</div>
+  <h1 class="brand">MindHeal</h1>
+  <div class="brand-sub">Psychological Counselling & Mental Wellness Platform · Full Stack Mobile App</div>
+  <div class="tech-tags">
+    <div class="tech-tag blue">Flutter (Dart)</div>
+    <div class="tech-tag blue">Google Antigravity</div>
+    <div class="tech-tag blue">Stitch UI</div>
+    <div class="tech-tag purple">Node.js + Express</div>
+    <div class="tech-tag purple">Firebase</div>
+    <div class="tech-tag purple">PostgreSQL</div>
+    <div class="tech-tag green">Claude AI / GPT-4</div>
+    <div class="tech-tag green">WebRTC · Agora</div>
+    <div class="tech-tag green">Razorpay / Stripe</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!--  MAIN CONTENT                                                         -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<div class="main">
+
+  <!-- ── KEY NOTES ── -->
+  <div class="notif-banner">
+    <div class="notif-icon">🧠</div>
+    <div class="notif-text">
+      <b>Architecture Note:</b> This document covers the complete User-facing app. Counsellor App & Admin Dashboard are separate modules covered in their respective blueprints.
+      Tech stack is recommended for Google Antigravity (Flutter/Dart frontend) + Stitch (component-based UI system). All screens below are interactive prototypes.
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!--  SECTION 1: SCREEN DESIGNS                                          -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <div class="section-title">01. <span>Screen Designs</span> — UI Prototype</div>
+  <div class="section-sub">Interactive phone mockups for all major screens. Hover to preview depth effect.</div>
+
+  <div class="screens-section">
+    <div class="screens-grid">
+
+      <!-- SPLASH / ONBOARDING -->
+      <div class="phone-wrap">
+        <div class="phone">
+          <div class="phone-notch"></div>
+          <div class="phone-screen">
+            <div class="screen-splash">
+              <div class="splash-logo">🧠</div>
+              <div class="splash-title">MindHeal</div>
+              <div class="splash-tagline">Your trusted companion<br>for mental wellness</div>
+              <div style="height:20px"></div>
+              <div class="carousel-card" style="width:100%">
+                <div class="carousel-icon">🤝</div>
+                <div class="carousel-text">Talk to licensed human counsellors or our AI companion — anytime, anywhere.</div>
+              </div>
+              <div class="splash-dots">
+                <span class="active"></span><span></span><span></span>
+              </div>
+              <button class="splash-btn">Get Started →</button>
+            </div>
+          </div>
+        </div>
+        <div class="phone-label">Welcome Carousel</div>
+      </div>
+
+      <!-- REGISTRATION -->
+      <div class="phone-wrap">
+        <div class="phone">
+          <div class="phone-notch"></div>
+          <div class="phone-screen">
+            <div class="screen-auth">
+              <div class="auth-back">←</div>
+              <div class="auth-title">Create Account</div>
+              <div class="auth-sub">Join MindHeal — begin your wellness journey</div>
+              <input class="auth-input" placeholder="Full Name" style="background:rgba(255,255,255,.05);border:1px solid #1e2d45;border-radius:10px;padding:9px 12px;font-size:10px;color:#fff;width:100%;margin-bottom:8px;" />
+              <input class="auth-input" placeholder="Email / Mobile Number" style="background:rgba(255,255,255,.05);border:1px solid #1e2d45;border-radius:10px;padding:9px 12px;font-size:10px;color:#fff;width:100%;margin-bottom:8px;" />
+              <button class="auth-btn" style="margin-bottom:8px">Send OTP →</button>
+              <div class="auth-divider">or continue with</div>
+              <button class="google-btn">
+                <span>G</span> Sign up with Google
+              </button>
+              <div style="font-size:9px;color:#6B7A99;text-align:center;margin-top:14px;">
+                Already registered? <span style="color:#4F9EFF">Login</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="phone-label">Registration</div>
+      </div>
+
+      <!-- OTP VERIFICATION -->
+      <div class="phone-wrap">
+        <div class="phone">
+          <div class="phone-notch"></div>
+          <div class="phone-screen">
+            <div class="screen-otp">
+              <div class="otp-icon">📱</div>
+              <div class="otp-title">OTP Verification</div>
+              <div class="otp-sub">We sent a 6-digit code to<br><b style="color:#fff">+91 98765 43210</b></div>
+              <div class="otp-boxes">
+                <div class="otp-box">3</div>
+                <div class="otp-box">7</div>
+                <div class="otp-box active">_</div>
+                <div class="otp-box"></div>
+                <div class="otp-box"></div>
+                <div class="otp-box"></div>
+              </div>
+              <button class="auth-btn">Verify & Continue</button>
+              <div style="font-size:9px;color:#6B7A99;text-align:center;margin-top:14px;">
+                Didn't receive? <span style="color:#4F9EFF">Resend in 0:42</span>
+              </div>
+              <div style="font-size:9px;color:#6B7A99;text-align:center;margin-top:8px;">
+                Change number
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="phone-label">OTP Verify</div>
+      </div>
+
+      <!-- DASHBOARD -->
+      <div class="phone-wrap">
+        <div class="phone">
+          <div class="phone-notch"></div>
+          <div class="phone-screen">
+            <div class="screen-dash">
+              <div class="dash-header">
+                <div class="dash-greeting">Good Morning, 🌤️</div>
+                <div class="dash-name">Arjun Sharma</div>
+                <div class="dash-chips">
+                  <div class="dash-chip active">All Services</div>
+                  <div class="dash-chip">Counselling</div>
+                  <div class="dash-chip">AI Chat</div>
+                  <div class="dash-chip">Dreams</div>
+                </div>
+              </div>
+              <div class="dash-body">
+                <div style="font-size:9px;color:#6B7A99;margin-bottom:8px;font-style:italic">How are you feeling today?</div>
+                <div class="mood-row">
+                  <div class="mood-item"><div class="mood-emoji">😌</div><div class="mood-label">Calm</div></div>
+                  <div class="mood-item"><div class="mood-emoji">😰</div><div class="mood-label">Anxious</div></div>
+                </div>
+                <div class="dash-card">
+                  <div class="dash-card-icon">🤖</div>
+                  <div class="dash-card-title">AI Counsellor</div>
+                  <div class="dash-card-sub">Free · Always available · Confidential</div>
+                </div>
+                <div class="dash-card">
+                  <div class="dash-card-icon">👨‍⚕️</div>
+                  <div class="dash-card-title">Human Experts</div>
+                  <div class="dash-card-sub">12 counsellors available now</div>
+                </div>
+                <div class="dash-card">
+                  <div class="dash-card-icon">🌙</div>
+                  <div class="dash-card-title">Dream Analysis</div>
+                  <div class="dash-card-sub">AI + Expert interpretation</div>
+                </div>
+              </div>
+              <div class="bottom-nav">
+                <div class="nav-item active"><div class="nav-icon">🏠</div><div class="nav-label">Home</div></div>
+                <div class="nav-item"><div class="nav-icon">💬</div><div class="nav-label">Sessions</div></div>
+                <div class="nav-item"><div class="nav-icon">🧩</div><div class="nav-label">Games</div></div>
+                <div class="nav-item"><div class="nav-icon">👛</div><div class="nav-label">Wallet</div></div>
+                <div class="nav-item"><div class="nav-icon">👤</div><div class="nav-label">Profile</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="phone-label">Dashboard</div>
+      </div>
+
+      <!-- COUNSELLORS LIST -->
+      <div class="phone-wrap">
+        <div class="phone">
+          <div class="phone-notch"></div>
+          <div class="phone-screen">
+            <div class="screen-counsellors">
+              <div class="counsel-header">
+                <div class="counsel-title">Find Counsellors</div>
+                <input class="counsel-search" placeholder="🔍  Search by name, specialty…" />
+              </div>
+              <div class="counsel-card">
+                <div class="counsel-avatar" style="background:linear-gradient(135deg,#667eea,#764ba2)">👩‍⚕️</div>
+                <div class="counsel-info">
+                  <div class="counsel-name">Dr. Priya Mehta</div>
+                  <div class="counsel-spec">Anxiety & Depression · 8 yrs</div>
+                  <div class="counsel-meta">
+                    <div class="counsel-badge">🟢 Online</div>
+                    <div class="counsel-price">₹800/hr</div>
+                    <span style="font-size:9px;color:#F5C842">⭐ 4.9</span>
+                  </div>
+                </div>
+                <div class="counsel-actions">
+                  <button class="action-btn chat">💬</button>
+                  <button class="action-btn call">📞</button>
+                  <button class="action-btn video">🎥</button>
+                </div>
+              </div>
+              <div class="counsel-card">
+                <div class="counsel-avatar" style="background:linear-gradient(135deg,#f093fb,#f5576c)">👨‍⚕️</div>
+                <div class="counsel-info">
+                  <div class="counsel-name">Dr. Rahul Singh</div>
+                  <div class="counsel-spec">Trauma & PTSD · 12 yrs</div>
+                  <div class="counsel-meta">
+                    <div class="counsel-badge">🟢 Online</div>
+                    <div class="counsel-price">₹1200/hr</div>
+                    <span style="font-size:9px;color:#F5C842">⭐ 4.8</span>
+                  </div>
+                </div>
+                <div class="counsel-actions">
+                  <button class="action-btn chat">💬</button>
+                  <button class="action-btn call">📞</button>
+                </div>
+              </div>
+              <div class="counsel-card">
+                <div class="counsel-avatar" style="background:linear-gradient(135deg,#4facfe,#00f2fe)">👩‍⚕️</div>
+                <div class="counsel-info">
+                  <div class="counsel-name">Dr. Ananya Roy</div>
+                  <div class="counsel-spec">CBT · Relationships · 6 yrs</div>
+                  <div class="counsel-meta">
+                    <div class="counsel-badge" style="background:rgba(107,122,153,.15);color:#6B7A99;border-color:rgba(107,122,153,.2)">⚫ Busy</div>
+                    <div class="counsel-price">₹900/hr</div>
+                    <span style="font-size:9px;color:#F5C842">⭐ 4.7</span>
+                  </div>
+                </div>
+                <div class="counsel-actions">
+                  <button class="action-btn chat">📅</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="phone-label">Counsellors</div>
+      </div>
+
+      <!-- AI CHAT -->
+      <div class="phone-wrap">
+        <div class="phone">
+          <div class="phone-notch"></div>
+          <div class="phone-screen">
+            <div class="screen-aichat">
+              <div class="chat-header">
+                <div class="ai-avatar">🤖</div>
+                <div>
+                  <div class="chat-name">MindHeal AI</div>
+                  <div class="chat-status">● Always active · Free</div>
+                </div>
+              </div>
+              <div class="chat-msgs">
+                <div class="msg ai">Hello Arjun! I'm here to listen. How has your day been so far?<div class="msg-time">10:02 AM</div></div>
+                <div class="msg user">I've been feeling really anxious lately and can't sleep well.<div class="msg-time">10:03 AM</div></div>
+                <div class="msg ai">I'm sorry to hear that. Anxiety and sleep issues often go hand in hand. Can you tell me a little more about what's been on your mind?<div class="msg-time">10:03 AM</div></div>
+                <div class="msg user">Work pressure mostly. Deadlines are piling up.<div class="msg-time">10:05 AM</div></div>
+                <div class="msg ai">That sounds really overwhelming. Let's try a quick grounding exercise together — it takes just 2 minutes and can help calm your nervous system right now. Ready?<div class="msg-time">10:05 AM</div></div>
+              </div>
+              <div class="chat-input-row">
+                <div class="chat-input" style="background:rgba(255,255,255,.06);border:1px solid #1e2d45;border-radius:20px;padding:8px 12px;font-size:9px;color:#6B7A99;flex:1">Type your message…</div>
+                <button class="send-btn">→</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="phone-label">AI Chat</div>
+      </div>
+
+      <!-- DREAM ANALYSIS -->
+      <div class="phone-wrap">
+        <div class="phone">
+          <div class="phone-notch"></div>
+          <div class="phone-screen">
+            <div class="screen-dream">
+              <div class="dream-header">
+                <div class="dream-title">🌙 Dream Analysis</div>
+                <div class="dream-sub">Describe your dream for AI + Expert insights</div>
+              </div>
+              <div class="dream-body">
+                <textarea class="dream-textarea" placeholder="Describe your dream in detail…">I was flying over a vast ocean. Suddenly the sky turned dark and I started falling but didn't hit the water…</textarea>
+                <div class="dream-attach-row">
+                  <div class="dream-attach">📷 Attach Photo</div>
+                  <div class="dream-attach">🎙️ Voice Record</div>
+                </div>
+                <button class="dream-analyze-btn">✨ Analyze Dream (Free)</button>
+                <div class="dream-result">
+                  <div class="dream-result-title">🧠 AI Analysis</div>
+                  <div class="dream-result-text">Flying dreams often symbolize a desire for freedom or escape from current pressures. The ocean represents your subconscious mind. The sudden darkness and falling may reflect underlying anxieties about losing control in waking life…</div>
+                  <button class="dream-pdf-btn">📄 Unlock Full PDF Report — ₹49</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="phone-label">Dream Analysis</div>
+      </div>
+
+      <!-- MY SESSIONS -->
+      <div class="phone-wrap">
+        <div class="phone">
+          <div class="phone-notch"></div>
+          <div class="phone-screen">
+            <div class="screen-sessions">
+              <div class="sess-header">
+                <div class="sess-title">My Sessions</div>
+                <div class="sess-tabs">
+                  <div class="sess-tab active">Upcoming</div>
+                  <div class="sess-tab">Past</div>
+                  <div class="sess-tab">AI Chats</div>
+                </div>
+              </div>
+              <div class="sess-item">
+                <div class="sess-icon" style="background:rgba(79,158,255,.15)">📅</div>
+                <div class="sess-info">
+                  <div class="sess-name">Dr. Priya Mehta</div>
+                  <div class="sess-date">Tomorrow · 10:00 AM · Video Call</div>
+                  <div style="margin-top:5px"><span class="sess-status upcoming">Upcoming</span></div>
+                </div>
+              </div>
+              <div class="sess-item">
+                <div class="sess-icon" style="background:rgba(52,211,153,.15)">✅</div>
+                <div class="sess-info">
+                  <div class="sess-name">Dr. Rahul Singh</div>
+                  <div class="sess-date">12 Jan · 3:00 PM · Audio Call · 45 min</div>
+                  <div style="margin-top:5px"><span class="sess-status done">Completed</span></div>
+                </div>
+              </div>
+              <div class="sess-item">
+                <div class="sess-icon" style="background:rgba(245,200,66,.15)">🌙</div>
+                <div class="sess-info">
+                  <div class="sess-name">Dream Analysis Report</div>
+                  <div class="sess-date">10 Jan · Flying & Ocean Dream</div>
+                  <div style="margin-top:5px"><span class="sess-status done">PDF Ready</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="phone-label">My Sessions</div>
+      </div>
+
+      <!-- MIND GAMES -->
+      <div class="phone-wrap">
+        <div class="phone">
+          <div class="phone-notch"></div>
+          <div class="phone-screen">
+            <div class="screen-games">
+              <div class="games-header">
+                <div class="games-title">🧩 Mind Training</div>
+                <div style="font-size:9px;color:#6B7A99;margin-top:4px">All games FREE · Boost focus & mental clarity</div>
+              </div>
+              <div class="games-grid">
+                <div class="game-card blue">
+                  <div class="game-icon">🧠</div>
+                  <div class="game-name">Memory Matrix</div>
+                  <div class="game-tag">Recall · Focus</div>
+                  <div class="game-free">FREE</div>
+                </div>
+                <div class="game-card purple">
+                  <div class="game-icon">🎯</div>
+                  <div class="game-name">Focus Flow</div>
+                  <div class="game-tag">Attention · Calm</div>
+                  <div class="game-free">FREE</div>
+                </div>
+                <div class="game-card green">
+                  <div class="game-icon">🔢</div>
+                  <div class="game-name">Stress Sudoku</div>
+                  <div class="game-tag">Logic · Relax</div>
+                  <div class="game-free">FREE</div>
+                </div>
+                <div class="game-card gold">
+                  <div class="game-icon">🌬️</div>
+                  <div class="game-name">Breathe Box</div>
+                  <div class="game-tag">Anxiety · Peace</div>
+                  <div class="game-free">FREE</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="phone-label">Mind Games</div>
+      </div>
+
+      <!-- WALLET -->
+      <div class="phone-wrap">
+        <div class="phone">
+          <div class="phone-notch"></div>
+          <div class="phone-screen">
+            <div class="screen-wallet">
+              <div class="wallet-hero">
+                <div class="wallet-balance-label">MindHeal Wallet</div>
+                <div class="wallet-balance">₹1,240</div>
+                <div class="wallet-sub">Available Balance</div>
+                <div class="wallet-actions">
+                  <div class="wallet-action-btn"><span class="icon">➕</span><span>Add Money</span></div>
+                  <div class="wallet-action-btn"><span class="icon">💸</span><span>Withdraw</span></div>
+                  <div class="wallet-action-btn"><span class="icon">📋</span><span>History</span></div>
+                </div>
+              </div>
+              <div class="wallet-transactions">
+                <div class="txn-title">Recent Transactions</div>
+                <div class="txn-item">
+                  <div class="txn-icon" style="background:rgba(255,107,107,.15)">📞</div>
+                  <div class="txn-info"><div class="txn-name">Dr. Priya Mehta Session</div><div class="txn-date">13 Jan 2025</div></div>
+                  <div class="txn-amount debit">-₹800</div>
+                </div>
+                <div class="txn-item">
+                  <div class="txn-icon" style="background:rgba(52,211,153,.15)">💰</div>
+                  <div class="txn-info"><div class="txn-name">Wallet Top-up</div><div class="txn-date">10 Jan 2025</div></div>
+                  <div class="txn-amount credit">+₹2,000</div>
+                </div>
+                <div class="txn-item">
+                  <div class="txn-icon" style="background:rgba(245,200,66,.15)">🌙</div>
+                  <div class="txn-info"><div class="txn-name">Dream PDF Report</div><div class="txn-date">10 Jan 2025</div></div>
+                  <div class="txn-amount debit">-₹49</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="phone-label">Wallet</div>
+      </div>
+
+    </div><!-- /screens-grid -->
+  </div><!-- /screens-section -->
+
+  <div class="divider"></div>
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!--  SECTION 2: FEATURE MATRIX                                          -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <div class="section-title">02. <span>Feature Matrix</span></div>
+  <div class="section-sub">Complete list of features with access model, pricing type, and tech requirements</div>
+
+  <table class="matrix-table" style="margin-bottom:50px">
+    <thead>
+      <tr>
+        <th>Feature</th>
+        <th>Module</th>
+        <th>Free</th>
+        <th>Paid</th>
+        <th>Auth Required</th>
+        <th>Tech / Integration</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Welcome Carousel</td><td>Onboarding</td><td class="check">✓</td><td>—</td><td>No</td><td>Flutter PageView · Stitch Carousel</td></tr>
+      <tr><td>Email / Phone Registration</td><td>Auth</td><td class="check">✓</td><td>—</td><td>No</td><td>Firebase Auth · OTP via Twilio/MSG91</td></tr>
+      <tr><td>Google Sign-In</td><td>Auth</td><td class="check">✓</td><td>—</td><td>No</td><td>Google OAuth 2.0 · Firebase</td></tr>
+      <tr><td>OTP Verification</td><td>Auth</td><td class="check">✓</td><td>—</td><td>No</td><td>MSG91 / Firebase Phone Auth</td></tr>
+      <tr><td>AI Counselling Chat</td><td>Counselling</td><td class="check">✓ Free</td><td>—</td><td>Yes</td><td>Claude AI / GPT-4 API · WebSocket</td></tr>
+      <tr><td>Human Counsellor Chat</td><td>Counselling</td><td>—</td><td class="paid">💰 Per counsellor</td><td>Yes</td><td>Firebase Realtime DB · Socket.io</td></tr>
+      <tr><td>Audio Call</td><td>Counselling</td><td>—</td><td class="paid">💰 Per counsellor</td><td>Yes</td><td>Agora SDK / WebRTC</td></tr>
+      <tr><td>Video Call</td><td>Counselling</td><td>—</td><td class="paid">💰 Per counsellor</td><td>Yes</td><td>Agora SDK / WebRTC</td></tr>
+      <tr><td>Session Booking</td><td>Counselling</td><td class="check">✓ Browse free</td><td class="paid">💰 Pay to confirm</td><td>Yes</td><td>Custom Scheduler · Razorpay</td></tr>
+      <tr><td>Dream Analysis (AI)</td><td>Analysis</td><td class="check">✓ Summary free</td><td class="paid">💰 ₹49 PDF</td><td>Yes</td><td>AI API · PDF Gen · Voice-to-Text</td></tr>
+      <tr><td>Dream Analysis (Expert)</td><td>Analysis</td><td>—</td><td class="paid">💰 Per counsellor</td><td>Yes</td><td>Session Booking Flow</td></tr>
+      <tr><td>Handwriting Analysis (AI)</td><td>Analysis</td><td class="check">✓ Summary free</td><td class="paid">💰 ₹49 PDF</td><td>Yes</td><td>Vision AI · Image Upload · PDF Gen</td></tr>
+      <tr><td>Handwriting Analysis (Expert)</td><td>Analysis</td><td>—</td><td class="paid">💰 Per counsellor</td><td>Yes</td><td>Session Booking Flow</td></tr>
+      <tr><td>Signature Analysis</td><td>Analysis</td><td class="check">✓ Summary free</td><td class="paid">💰 ₹49 PDF</td><td>Yes</td><td>Vision AI · Image Upload · PDF Gen</td></tr>
+      <tr><td>Mind Training Games</td><td>Wellness</td><td class="check">✓ All Free</td><td>—</td><td>Yes</td><td>Flutter Games Engine</td></tr>
+      <tr><td>Focus Enhancing Tools</td><td>Wellness</td><td class="check">✓ Free</td><td>—</td><td>Yes</td><td>Timer · Binaural Beats · Audio</td></tr>
+      <tr><td>Sounds (Ambient / Sleep)</td><td>Wellness</td><td class="check">✓ Basic</td><td class="paid">💰 Premium packs</td><td>Yes</td><td>Audio Player · CDN hosted</td></tr>
+      <tr><td>Tips & Videos</td><td>Wellness</td><td class="check">✓ Free</td><td>—</td><td>Yes</td><td>YouTube API / Custom CMS</td></tr>
+      <tr><td>My Sessions</td><td>Account</td><td class="check">✓</td><td>—</td><td>Yes</td><td>Session History API</td></tr>
+      <tr><td>My Wallet</td><td>Account</td><td class="check">✓</td><td>—</td><td>Yes</td><td>Razorpay / Stripe · Custom Ledger</td></tr>
+      <tr><td>Profile Setup</td><td>Account</td><td class="check">✓</td><td>—</td><td>Yes</td><td>Firebase Storage · Form API</td></tr>
+      <tr><td>Language Selection</td><td>Account</td><td class="check">✓</td><td>—</td><td>Yes</td><td>Flutter i18n · 10+ Languages</td></tr>
+      <tr><td>Push Notifications</td><td>System</td><td class="check">✓</td><td>—</td><td>Yes</td><td>Firebase FCM</td></tr>
+      <tr><td>PDF View & Download</td><td>Analysis</td><td>—</td><td class="paid">💰 After unlock</td><td>Yes</td><td>PDF.js / In-app PDF Viewer</td></tr>
+    </tbody>
+  </table>
+
+  <div class="divider"></div>
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!--  SECTION 3: ARCHITECTURE                                            -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <div class="section-title">03. <span>System Architecture</span></div>
+  <div class="section-sub">Three-tier architecture: Mobile App → Backend API → Data Layer</div>
+
+  <div class="arch-grid arch-section">
+    <div class="arch-card">
+      <div class="arch-card-icon">📱</div>
+      <div class="arch-card-title">Frontend Layer</div>
+      <div class="arch-card-items">
+        <div class="arch-item"><b>Flutter (Dart)</b> — Cross-platform mobile (iOS + Android)</div>
+        <div class="arch-item"><b>Google Antigravity</b> — Code generation & scaffolding</div>
+        <div class="arch-item"><b>Stitch</b> — UI component design system</div>
+        <div class="arch-item"><b>Provider / Riverpod</b> — State management</div>
+        <div class="arch-item"><b>Agora Flutter SDK</b> — Audio/Video calls</div>
+        <div class="arch-item"><b>Flutter i18n</b> — Multi-language support</div>
+        <div class="arch-item"><b>flutter_pdf_viewer</b> — In-app PDF rendering</div>
+        <div class="arch-item"><b>firebase_messaging</b> — Push notifications</div>
+      </div>
+    </div>
+    <div class="arch-card">
+      <div class="arch-card-icon">⚙️</div>
+      <div class="arch-card-title">Backend Layer</div>
+      <div class="arch-card-items">
+        <div class="arch-item"><b>Node.js + Express.js</b> — REST API server</div>
+        <div class="arch-item"><b>Socket.io</b> — Real-time chat & signaling</div>
+        <div class="arch-item"><b>Firebase Admin SDK</b> — Auth verification</div>
+        <div class="arch-item"><b>Anthropic Claude API</b> — AI counselling & analysis</div>
+        <div class="arch-item"><b>OpenAI Whisper</b> — Voice-to-text transcription</div>
+        <div class="arch-item"><b>PDFKit / Puppeteer</b> — PDF report generation</div>
+        <div class="arch-item"><b>Razorpay SDK</b> — Payments & wallet</div>
+        <div class="arch-item"><b>MSG91</b> — OTP delivery</div>
+        <div class="arch-item"><b>Agora Token Server</b> — Call session management</div>
+      </div>
+    </div>
+    <div class="arch-card">
+      <div class="arch-card-icon">🗄️</div>
+      <div class="arch-card-title">Data Layer</div>
+      <div class="arch-card-items">
+        <div class="arch-item"><b>PostgreSQL</b> — Users, sessions, transactions, reports</div>
+        <div class="arch-item"><b>Firebase Firestore</b> — Real-time chat messages</div>
+        <div class="arch-item"><b>Firebase Storage</b> — Images, voice recordings, PDFs</div>
+        <div class="arch-item"><b>Redis</b> — Session cache, OTP store, rate limiting</div>
+        <div class="arch-item"><b>Firebase Auth</b> — Auth tokens & user identity</div>
+        <div class="arch-item"><b>AWS S3</b> (optional) — Large file / PDF storage</div>
+        <div class="arch-item"><b>CDN</b> — Ambient sounds, videos, static assets</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!--  SECTION 4: USER FLOW                                               -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <div class="section-title">04. <span>User Flow</span> — Key Journeys</div>
+  <div class="section-sub">Primary navigation paths and decision points</div>
+
+  <div class="flow-section">
+    <div class="flow-container">
+
+      <div style="font-size:11px;color:#6B7A99;font-family:'JetBrains Mono';margin-bottom:20px">// Flow 1: Onboarding & Authentication</div>
+      <div class="flow-row">
+        <div class="flow-node start">App Open</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node decision">First Time?</div>
+        <div class="flow-arrow">→ Yes</div>
+        <div class="flow-node process">Welcome Carousel (3 slides)</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node process">Register / Login Screen</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node process">OTP Verification</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node end">Dashboard</div>
+      </div>
+      <div class="flow-row" style="padding-left:140px">
+        <div class="flow-arrow">↓ No</div>
+        <div style="flex:1"></div>
+      </div>
+      <div class="flow-row" style="padding-left:140px; margin-top:-10px">
+        <div class="flow-node process">Login Screen</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node process">OTP / Password</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node end">Dashboard</div>
+      </div>
+
+      <div style="font-size:11px;color:#6B7A99;font-family:'JetBrains Mono';margin:24px 0 16px">// Flow 2: Booking a Human Counsellor Session</div>
+      <div class="flow-row">
+        <div class="flow-node start">Dashboard</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node process">Browse Counsellors</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node process">View Profile & Slots</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node decision">Book / Chat / Call</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node process">Payment (Wallet / UPI)</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node end">Session Confirmed</div>
+      </div>
+
+      <div style="font-size:11px;color:#6B7A99;font-family:'JetBrains Mono';margin:24px 0 16px">// Flow 3: Dream Analysis</div>
+      <div class="flow-row">
+        <div class="flow-node start">Dashboard</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node process">Dream Analysis Screen</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node process">Type / Photo / Voice Input</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node process">AI Analysis (Free Summary)</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node decision">View PDF Report?</div>
+        <div class="flow-arrow">→ Pay ₹49</div>
+        <div class="flow-node end">Full PDF Unlocked</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!--  SECTION 5: TECH STACK                                              -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <div class="section-title">05. <span>Tech Stack</span></div>
+  <div class="section-sub">Layered view of all technologies across the platform</div>
+
+  <div class="stack-section">
+    <div class="stack-layers">
+      <div class="stack-layer">
+        <div class="stack-label">📱 Mobile App</div>
+        <div class="stack-items">
+          <div class="stack-item highlight">Flutter</div>
+          <div class="stack-item highlight">Dart</div>
+          <div class="stack-item highlight">Google Antigravity</div>
+          <div class="stack-item highlight">Stitch UI</div>
+          <div class="stack-item">Riverpod</div>
+          <div class="stack-item">GetIt (DI)</div>
+          <div class="stack-item">Dio (HTTP)</div>
+        </div>
+      </div>
+      <div class="stack-layer">
+        <div class="stack-label">⚙️ Backend API</div>
+        <div class="stack-items">
+          <div class="stack-item highlight">Node.js</div>
+          <div class="stack-item highlight">Express.js</div>
+          <div class="stack-item">Socket.io</div>
+          <div class="stack-item">JWT Auth</div>
+          <div class="stack-item">Helmet.js</div>
+          <div class="stack-item">Joi Validation</div>
+          <div class="stack-item">Winston Logging</div>
+        </div>
+      </div>
+      <div class="stack-layer">
+        <div class="stack-label">🤖 AI Services</div>
+        <div class="stack-items">
+          <div class="stack-item highlight">Anthropic Claude API</div>
+          <div class="stack-item">OpenAI Whisper</div>
+          <div class="stack-item">Google Vision AI</div>
+          <div class="stack-item">LangChain (optional)</div>
+        </div>
+      </div>
+      <div class="stack-layer">
+        <div class="stack-label">📞 Comms</div>
+        <div class="stack-items">
+          <div class="stack-item highlight">Agora SDK</div>
+          <div class="stack-item">WebRTC</div>
+          <div class="stack-item">Firebase Realtime DB</div>
+          <div class="stack-item">MSG91 (OTP)</div>
+          <div class="stack-item">Firebase FCM</div>
+        </div>
+      </div>
+      <div class="stack-layer">
+        <div class="stack-label">💳 Payments</div>
+        <div class="stack-items">
+          <div class="stack-item highlight">Razorpay</div>
+          <div class="stack-item">UPI Integration</div>
+          <div class="stack-item">Custom Wallet Ledger</div>
+          <div class="stack-item">Stripe (intl)</div>
+        </div>
+      </div>
+      <div class="stack-layer">
+        <div class="stack-label">🗄️ Database</div>
+        <div class="stack-items">
+          <div class="stack-item highlight">PostgreSQL</div>
+          <div class="stack-item highlight">Firebase Firestore</div>
+          <div class="stack-item">Redis</div>
+          <div class="stack-item">Firebase Storage</div>
+          <div class="stack-item">AWS S3</div>
+        </div>
+      </div>
+      <div class="stack-layer">
+        <div class="stack-label">🚀 DevOps</div>
+        <div class="stack-items">
+          <div class="stack-item">Docker</div>
+          <div class="stack-item">GitHub Actions CI/CD</div>
+          <div class="stack-item">AWS EC2 / GCP</div>
+          <div class="stack-item">NGINX</div>
+          <div class="stack-item">Sentry (errors)</div>
+          <div class="stack-item">Mixpanel (analytics)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!--  SECTION 6: DATABASE SCHEMA                                         -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <div class="section-title">06. <span>Database Schema</span> — Core Tables</div>
+  <div class="section-sub">PostgreSQL relational tables for the primary data model</div>
+
+  <div class="schema-grid" style="margin-bottom:50px">
+    <div class="schema-card">
+      <div class="schema-header"><div class="schema-table-name">users</div></div>
+      <div class="schema-fields">
+        <div class="schema-field"><span class="field-name">id</span><span class="field-type">UUID</span><span class="field-pk">PK</span></div>
+        <div class="schema-field"><span class="field-name">full_name</span><span class="field-type">VARCHAR</span></div>
+        <div class="schema-field"><span class="field-name">email</span><span class="field-type">VARCHAR</span></div>
+        <div class="schema-field"><span class="field-name">mobile</span><span class="field-type">VARCHAR</span></div>
+        <div class="schema-field"><span class="field-name">auth_provider</span><span class="field-type">ENUM</span></div>
+        <div class="schema-field"><span class="field-name">firebase_uid</span><span class="field-type">VARCHAR</span></div>
+        <div class="schema-field"><span class="field-name">language</span><span class="field-type">VARCHAR</span></div>
+        <div class="schema-field"><span class="field-name">avatar_url</span><span class="field-type">TEXT</span></div>
+        <div class="schema-field"><span class="field-name">wallet_balance</span><span class="field-type">DECIMAL</span></div>
+        <div class="schema-field"><span class="field-name">created_at</span><span class="field-type">TIMESTAMP</span></div>
+      </div>
+    </div>
+    <div class="schema-card">
+      <div class="schema-header"><div class="schema-table-name">counsellors</div></div>
+      <div class="schema-fields">
+        <div class="schema-field"><span class="field-name">id</span><span class="field-type">UUID</span><span class="field-pk">PK</span></div>
+        <div class="schema-field"><span class="field-name">user_id</span><span class="field-type">UUID</span><span class="field-fk">FK</span></div>
+        <div class="schema-field"><span class="field-name">specialization</span><span class="field-type">TEXT[]</span></div>
+        <div class="schema-field"><span class="field-name">experience_yrs</span><span class="field-type">INT</span></div>
+        <div class="schema-field"><span class="field-name">hourly_rate</span><span class="field-type">DECIMAL</span></div>
+        <div class="schema-field"><span class="field-name">rating</span><span class="field-type">FLOAT</span></div>
+        <div class="schema-field"><span class="field-name">chat_enabled</span><span class="field-type">BOOL</span></div>
+        <div class="schema-field"><span class="field-name">audio_enabled</span><span class="field-type">BOOL</span></div>
+        <div class="schema-field"><span class="field-name">video_enabled</span><span class="field-type">BOOL</span></div>
+        <div class="schema-field"><span class="field-name">is_online</span><span class="field-type">BOOL</span></div>
+      </div>
+    </div>
+    <div class="schema-card">
+      <div class="schema-header"><div class="schema-table-name">sessions</div></div>
+      <div class="schema-fields">
+        <div class="schema-field"><span class="field-name">id</span><span class="field-type">UUID</span><span class="field-pk">PK</span></div>
+        <div class="schema-field"><span class="field-name">user_id</span><span class="field-type">UUID</span><span class="field-fk">FK</span></div>
+        <div class="schema-field"><span class="field-name">counsellor_id</span><span class="field-type">UUID</span><span class="field-fk">FK</span></div>
+        <div class="schema-field"><span class="field-name">type</span><span class="field-type">ENUM</span></div>
+        <div class="schema-field"><span class="field-name">mode</span><span class="field-type">ENUM</span></div>
+        <div class="schema-field"><span class="field-name">scheduled_at</span><span class="field-type">TIMESTAMP</span></div>
+        <div class="schema-field"><span class="field-name">duration_min</span><span class="field-type">INT</span></div>
+        <div class="schema-field"><span class="field-name">amount_paid</span><span class="field-type">DECIMAL</span></div>
+        <div class="schema-field"><span class="field-name">status</span><span class="field-type">ENUM</span></div>
+        <div class="schema-field"><span class="field-name">agora_channel</span><span class="field-type">VARCHAR</span></div>
+      </div>
+    </div>
+    <div class="schema-card">
+      <div class="schema-header"><div class="schema-table-name">analysis_reports</div></div>
+      <div class="schema-fields">
+        <div class="schema-field"><span class="field-name">id</span><span class="field-type">UUID</span><span class="field-pk">PK</span></div>
+        <div class="schema-field"><span class="field-name">user_id</span><span class="field-type">UUID</span><span class="field-fk">FK</span></div>
+        <div class="schema-field"><span class="field-name">type</span><span class="field-type">ENUM</span></div>
+        <div class="schema-field"><span class="field-name">input_text</span><span class="field-type">TEXT</span></div>
+        <div class="schema-field"><span class="field-name">input_media_url</span><span class="field-type">TEXT</span></div>
+        <div class="schema-field"><span class="field-name">ai_summary</span><span class="field-type">TEXT</span></div>
+        <div class="schema-field"><span class="field-name">pdf_url</span><span class="field-type">TEXT</span></div>
+        <div class="schema-field"><span class="field-name">is_pdf_paid</span><span class="field-type">BOOL</span></div>
+        <div class="schema-field"><span class="field-name">pdf_amount</span><span class="field-type">DECIMAL</span></div>
+        <div class="schema-field"><span class="field-name">created_at</span><span class="field-type">TIMESTAMP</span></div>
+      </div>
+    </div>
+    <div class="schema-card">
+      <div class="schema-header"><div class="schema-table-name">transactions</div></div>
+      <div class="schema-fields">
+        <div class="schema-field"><span class="field-name">id</span><span class="field-type">UUID</span><span class="field-pk">PK</span></div>
+        <div class="schema-field"><span class="field-name">user_id</span><span class="field-type">UUID</span><span class="field-fk">FK</span></div>
+        <div class="schema-field"><span class="field-name">type</span><span class="field-type">ENUM</span></div>
+        <div class="schema-field"><span class="field-name">amount</span><span class="field-type">DECIMAL</span></div>
+        <div class="schema-field"><span class="field-name">currency</span><span class="field-type">VARCHAR</span></div>
+        <div class="schema-field"><span class="field-name">reference_id</span><span class="field-type">VARCHAR</span></div>
+        <div class="schema-field"><span class="field-name">gateway</span><span class="field-type">ENUM</span></div>
+        <div class="schema-field"><span class="field-name">status</span><span class="field-type">ENUM</span></div>
+        <div class="schema-field"><span class="field-name">meta</span><span class="field-type">JSONB</span></div>
+        <div class="schema-field"><span class="field-name">created_at</span><span class="field-type">TIMESTAMP</span></div>
+      </div>
+    </div>
+    <div class="schema-card">
+      <div class="schema-header"><div class="schema-table-name">ai_chat_sessions</div></div>
+      <div class="schema-fields">
+        <div class="schema-field"><span class="field-name">id</span><span class="field-type">UUID</span><span class="field-pk">PK</span></div>
+        <div class="schema-field"><span class="field-name">user_id</span><span class="field-type">UUID</span><span class="field-fk">FK</span></div>
+        <div class="schema-field"><span class="field-name">session_title</span><span class="field-type">VARCHAR</span></div>
+        <div class="schema-field"><span class="field-name">messages</span><span class="field-type">JSONB</span></div>
+        <div class="schema-field"><span class="field-name">mood_start</span><span class="field-type">VARCHAR</span></div>
+        <div class="schema-field"><span class="field-name">mood_end</span><span class="field-type">VARCHAR</span></div>
+        <div class="schema-field"><span class="field-name">total_tokens</span><span class="field-type">INT</span></div>
+        <div class="schema-field"><span class="field-name">created_at</span><span class="field-type">TIMESTAMP</span></div>
+        <div class="schema-field"><span class="field-name">ended_at</span><span class="field-type">TIMESTAMP</span></div>
+      </div>
+    </div>
+    <div class="schema-card">
+      <div class="schema-header"><div class="schema-table-name">slots</div></div>
+      <div class="schema-fields">
+        <div class="schema-field"><span class="field-name">id</span><span class="field-type">UUID</span><span class="field-pk">PK</span></div>
+        <div class="schema-field"><span class="field-name">counsellor_id</span><span class="field-type">UUID</span><span class="field-fk">FK</span></div>
+        <div class="schema-field"><span class="field-name">date</span><span class="field-type">DATE</span></div>
+        <div class="schema-field"><span class="field-name">start_time</span><span class="field-type">TIME</span></div>
+        <div class="schema-field"><span class="field-name">end_time</span><span class="field-type">TIME</span></div>
+        <div class="schema-field"><span class="field-name">is_booked</span><span class="field-type">BOOL</span></div>
+        <div class="schema-field"><span class="field-name">session_id</span><span class="field-type">UUID</span><span class="field-fk">FK</span></div>
+      </div>
+    </div>
+    <div class="schema-card">
+      <div class="schema-header"><div class="schema-table-name">notifications</div></div>
+      <div class="schema-fields">
+        <div class="schema-field"><span class="field-name">id</span><span class="field-type">UUID</span><span class="field-pk">PK</span></div>
+        <div class="schema-field"><span class="field-name">user_id</span><span class="field-type">UUID</span><span class="field-fk">FK</span></div>
+        <div class="schema-field"><span class="field-name">title</span><span class="field-type">VARCHAR</span></div>
+        <div class="schema-field"><span class="field-name">body</span><span class="field-type">TEXT</span></div>
+        <div class="schema-field"><span class="field-name">type</span><span class="field-type">ENUM</span></div>
+        <div class="schema-field"><span class="field-name">is_read</span><span class="field-type">BOOL</span></div>
+        <div class="schema-field"><span class="field-name">reference_id</span><span class="field-type">UUID</span></div>
+        <div class="schema-field"><span class="field-name">created_at</span><span class="field-type">TIMESTAMP</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!--  SECTION 7: API ENDPOINTS                                           -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <div class="section-title">07. <span>API Endpoints</span> — REST Design</div>
+  <div class="section-sub">Core API routes for the User App — Base URL: /api/v1</div>
+
+  <div class="api-grid api-section">
+    <div class="api-group">
+      <div class="api-group-header">🔐 Auth</div>
+      <div class="api-endpoint"><span class="http-method post">POST</span><span class="api-path">/auth/register</span><span class="api-desc">Email/phone register</span></div>
+      <div class="api-endpoint"><span class="http-method post">POST</span><span class="api-path">/auth/login</span><span class="api-desc">Login existing user</span></div>
+      <div class="api-endpoint"><span class="http-method post">POST</span><span class="api-path">/auth/send-otp</span><span class="api-desc">Send OTP via MSG91</span></div>
+      <div class="api-endpoint"><span class="http-method post">POST</span><span class="api-path">/auth/verify-otp</span><span class="api-desc">Verify OTP + issue JWT</span></div>
+      <div class="api-endpoint"><span class="http-method post">POST</span><span class="api-path">/auth/google</span><span class="api-desc">Google OAuth callback</span></div>
+      <div class="api-endpoint"><span class="http-method post">POST</span><span class="api-path">/auth/refresh-token</span><span class="api-desc">Refresh JWT token</span></div>
+      <div class="api-endpoint"><span class="http-method post">POST</span><span class="api-path">/auth/logout</span><span class="api-desc">Invalidate session</span></div>
+    </div>
+    <div class="api-group">
+      <div class="api-group-header">👤 User Profile</div>
+      <div class="api-endpoint"><span class="http-method get">GET</span><span class="api-path">/user/me</span><span class="api-desc">Get own profile</span></div>
+      <div class="api-endpoint"><span class="http-method put">PUT</span><span class="api-path">/user/me</span><span class="api-desc">Update profile</span></div>
+      <div class="api-endpoint"><span class="http-method post">POST</span><span class="api-path">/user/avatar</span><span class="api-desc">Upload avatar</span></div>
+      <div class="api-endpoint"><span class="http-method put">PUT</span><span class="api-path">/user/language</span><span class="api-desc">Change app language</span></div>
+      <div class="api-endpoint"><span class="http-method get">GET</span><span class="api-path">/user/notifications</span><span class="api-desc">List notifications</span></div>
+    </div>
+    <div class="api-group">
+      <div class="api-group-header">👨‍⚕️ Counsellors</div>
+      <div class="api-endpoint"><span class="http-method get">GET</span><span class="api-path">/counsellors</span><span class="api-desc">List + filter counsellors</span></div>
+      <div class="api-endpoint"><span class="http-method get">GET</span><span class="api-path">/counsellors/:id</span><span class="api-desc">Counsellor profile</span></div>
+      <div class="api-endpoint"><span class="http-method get">GET</span><span class="api-path">/counsellors/:id/slots</span><span class="api-desc">Available time slots</span></div>
+      <div class="api-endpoint"><span class="http-method post">POST</span><span class="api-path">/sessions/book</span><span class="api-desc">Book a session</span></div>
+      <div class="api-endpoint"><span class="http-method post">POST</span><span class="api-path">/sessions/call/token</span><span class="api-desc">Get Agora call token</span></div>
+      <div class="api-endpoint"><span class="http-method get">GET</span><span class="api-path">/sessions/my</span><span class="api-desc">User session history</span></div>
+      <div class="api-endpoint"><span class="http-method post">POST</span><span class="api-path">/sessions/:id/review</span><span class="api-desc">Submit review</span></div>
+    </div>
+    <div class="api-group">
+      <div class="api-group-header">🤖 AI Services</div>
+      <div class="api-endpoint"><span class="http-method post">POST</span><span class="api-path">/ai/chat</span><span class="api-desc">Send message to AI</span></div>
+      <div class="api-endpoint"><span class="http-method get">GET</span><span class="api-path">/ai/sessions</span><span class="api-desc">AI chat history</span></div>
+      <div class="api-endpoint"><span class="http-method post">POST</span><span class="api-path">/analysis/dream</span><span class="api-desc">Submit dream for analysis</span></div>
+      <div class="api-endpoint"><span class="http-method post">POST</span><span class="api-path">/analysis/handwriting</span><span class="api-desc">Submit handwriting image</span></div>
+      <div class="api-endpoint"><span class="http-method post">POST</span><span class="api-path">/analysis/signature</span><span class="api-desc">Submit signature image</span></div>
+      <div class="api-endpoint"><span class="http-method post">POST</span><span class="api-path">/analysis/:id/unlock-pdf</span><span class="api-desc">Pay & unlock PDF</span></div>
+      <div class="api-endpoint"><span class="http-method get">GET</span><span class="api-path">/analysis/:id/pdf</span><span class="api-desc">Download PDF report</span></div>
+    </div>
+    <div class="api-group">
+      <div class="api-group-header">💳 Wallet & Payments</div>
+      <div class="api-endpoint"><span class="http-method get">GET</span><span class="api-path">/wallet/balance</span><span class="api-desc">Get wallet balance</span></div>
+      <div class="api-endpoint"><span class="http-method post">POST</span><span class="api-path">/wallet/topup/init</span><span class="api-desc">Init Razorpay order</span></div>
+      <div class="api-endpoint"><span class="http-method post">POST</span><span class="api-path">/wallet/topup/verify</span><span class="api-desc">Verify payment</span></div>
+      <div class="api-endpoint"><span class="http-method get">GET</span><span class="api-path">/wallet/transactions</span><span class="api-desc">Transaction history</span></div>
+      <div class="api-endpoint"><span class="http-method post">POST</span><span class="api-path">/payments/webhook</span><span class="api-desc">Razorpay webhook</span></div>
+    </div>
+    <div class="api-group">
+      <div class="api-group-header">🧩 Wellness</div>
+      <div class="api-endpoint"><span class="http-method get">GET</span><span class="api-path">/games</span><span class="api-desc">List mind games</span></div>
+      <div class="api-endpoint"><span class="http-method get">GET</span><span class="api-path">/sounds</span><span class="api-desc">Ambient sounds list</span></div>
+      <div class="api-endpoint"><span class="http-method get">GET</span><span class="api-path">/tips</span><span class="api-desc">Mental health tips</span></div>
+      <div class="api-endpoint"><span class="http-method get">GET</span><span class="api-path">/videos</span><span class="api-desc">Focus/wellness videos</span></div>
+      <div class="api-endpoint"><span class="http-method post">POST</span><span class="api-path">/mood/log</span><span class="api-desc">Log mood entry</span></div>
+      <div class="api-endpoint"><span class="http-method get">GET</span><span class="api-path">/mood/history</span><span class="api-desc">Mood trend chart</span></div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!--  SECTION 8: DEVELOPMENT PHASES                                       -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <div class="section-title">08. <span>Development Roadmap</span></div>
+  <div class="section-sub">Phased delivery plan — from MVP to full product</div>
+
+  <div class="arch-grid" style="margin-bottom:50px">
+    <div class="arch-card" style="border-color:rgba(79,158,255,.3)">
+      <div class="arch-card-icon">🚀</div>
+      <div class="arch-card-title">Phase 1 — MVP</div>
+      <div style="font-size:10px;color:#4F9EFF;font-family:'JetBrains Mono';margin-bottom:12px">Weeks 1–8</div>
+      <div class="arch-card-items">
+        <div class="arch-item">Auth (email, mobile, Google + OTP)</div>
+        <div class="arch-item">Welcome carousel & onboarding</div>
+        <div class="arch-item">Dashboard & profile setup</div>
+        <div class="arch-item">AI Counselling chat (free)</div>
+        <div class="arch-item">Counsellor listing & profiles</div>
+        <div class="arch-item">Basic session booking</div>
+        <div class="arch-item">Text chat with counsellors</div>
+        <div class="arch-item">Wallet top-up & payments</div>
+      </div>
+    </div>
+    <div class="arch-card" style="border-color:rgba(124,92,255,.3)">
+      <div class="arch-card-icon">⚡</div>
+      <div class="arch-card-title">Phase 2 — Core Features</div>
+      <div style="font-size:10px;color:#7C5CFF;font-family:'JetBrains Mono';margin-bottom:12px">Weeks 9–16</div>
+      <div class="arch-card-items">
+        <div class="arch-item">Audio & video calls (Agora)</div>
+        <div class="arch-item">Dream Analysis (AI + PDF unlock)</div>
+        <div class="arch-item">Handwriting & signature analysis</div>
+        <div class="arch-item">Voice input for dream recording</div>
+        <div class="arch-item">Push notifications (FCM)</div>
+        <div class="arch-item">Session history & My Sessions</div>
+        <div class="arch-item">Multi-language support</div>
+        <div class="arch-item">Review & rating system</div>
+      </div>
+    </div>
+    <div class="arch-card" style="border-color:rgba(52,211,153,.3)">
+      <div class="arch-card-icon">✨</div>
+      <div class="arch-card-title">Phase 3 — Full Product</div>
+      <div style="font-size:10px;color:#34D399;font-family:'JetBrains Mono';margin-bottom:12px">Weeks 17–24</div>
+      <div class="arch-card-items">
+        <div class="arch-item">Mind training games (4 games)</div>
+        <div class="arch-item">Focus tools & binaural beats</div>
+        <div class="arch-item">Ambient sounds library</div>
+        <div class="arch-item">Mental health tips & videos</div>
+        <div class="arch-item">Mood tracker & charts</div>
+        <div class="arch-item">Counsellor App (separate module)</div>
+        <div class="arch-item">Admin Dashboard</div>
+        <div class="arch-item">Analytics & reporting</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!--  FOOTER                                                               -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<footer>
+  <b style="color:#fff">MindHeal</b> — Full Stack Blueprint v1.0 &nbsp;·&nbsp;
+  <span>User App</span> &nbsp;·&nbsp;
+  Built with Flutter + Stitch UI + Google Antigravity &nbsp;·&nbsp;
+  Next: Counsellor App Blueprint →
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,3457 @@
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+
+MINDHEAL
+Psychological Wellness Platform
+FULL STACK DEVELOPER BLUEPRINT
+Complete Architecture, API Design, Database Schema, Feature Specification
+& Development Roadmap for All Three Applications
+
+USER APP
+
+COUNSELLOR APP
+
+ADMIN PANEL
+
+Flutter / Dart
+
+Flutter / Dart
+
+React.js / Web App
+
+Version 1.0 | Classification: Confidential | For Development Use Only
+
+1. PROJECT OVERVIEW
+1.1 Platform Summary
+MindHeal is a full-stack psychological wellness platform consisting of three interconnected applications: a User
+Mobile App, a Counsellor Mobile App, and a Web-based Admin Panel. The platform connects users seeking
+mental health support with licensed human counsellors and AI-powered counselling services. All monetary
+transactions are in Indian Rupees (INR).
+
+1.1.1 Application Breakdown
+Application
+
+Platform
+
+Primary Users
+
+Tech Stack
+
+User App
+
+iOS + Android
+
+End users seeking
+counselling
+
+Flutter, Dart, Firebase
+
+Counsellor App
+
+iOS + Android
+
+Psychologists, therapists,
+organisations
+
+Flutter, Dart, Firebase
+
+MindHeal | Developer Blueprint | Page 1 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+
+Admin Panel
+
+Web Browser
+
+Platform administrators
+
+React.js, Node.js,
+PostgreSQL
+
+1.2 Core Technology Stack
+Layer
+
+Technology
+
+Purpose
+
+Mobile Frontend
+
+Flutter (Dart)
+
+Cross-platform iOS & Android apps
+
+Web Frontend
+
+React.js + TypeScript
+
+Admin Panel web application
+
+Backend API
+
+Node.js + Express.js
+
+REST API + WebSocket server
+
+Realtime
+
+Socket.io + Firebase Realtime DB
+
+Chat, presence, notifications
+
+Primary DB
+
+PostgreSQL
+
+Users, sessions, transactions, reports
+
+Auth & Storage
+
+Firebase Auth + Firebase Storage
+
+Authentication, media files, push
+notifications
+
+Cache
+
+Redis
+
+OTP store, session cache, rate
+limiting
+
+AI Services
+
+Gemini API (Free & Paid Tiers)
+
+Counselling, analysis, PDF
+generation
+
+Audio/Video Calls
+
+Agora SDK or 100ms
+
+In-app audio and video calling
+
+Payments
+
+Razorpay
+
+Wallet top-up, session payments
+(INR)
+
+OTP / SMS
+
+MSG91 or Firebase Phone Auth
+
+OTP delivery via SMS
+
+Maps
+
+Google Maps SDK + Places API
+
+Counsellor & clinic location map
+
+PDF Generation
+
+PDFKit (Node.js backend)
+
+Analysis reports, prescriptions
+
+Notifications
+
+Firebase Cloud Messaging (FCM)
+
+Push notifications to both apps
+
+Hosting
+
+AWS EC2 / GCP Cloud Run + NGINX
+
+Backend + Admin Panel hosting
+
+MindHeal | Developer Blueprint | Page 2 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+
+2. USER MOBILE APP
+2.1 Onboarding & Authentication
+2.1.1 Welcome Carousel
+Displayed only on first launch. Three slides using Flutter PageView with smooth transitions:
+•
+•
+•
+•
+•
+
+Slide 1: Platform introduction — AI & human counselling
+Slide 2: Privacy & confidentiality assurance
+Slide 3: Key features overview — Dream Analysis, Games, Healing Maps
+Skip button available on all slides
+"Get Started" CTA on final slide
+
+2.1.2 Registration & Login
+Three registration methods, all requiring OTP verification:
+Method
+
+Flow
+
+OTP Channel
+
+Email
+
+Enter email → Send OTP → Verify → Set
+name/password → Dashboard
+
+Email (SMTP / SendGrid)
+
+Mobile Number
+
+Enter number → Send OTP → Verify →
+Set name → Dashboard
+
+SMS via MSG91
+
+Google Account
+
+Google OAuth → Firebase Auth → Profile
+check → Dashboard
+
+Not required
+
+INFO: OTP is mandatory in all registration and login flows. OTP expires in 5 minutes. Maximum 3
+attempts before a 30-minute lockout. Store OTP hash in Redis with TTL.
+
+2.2 Dashboard
+The main landing screen after login. Contains:
+•
+•
+•
+•
+•
+•
+•
+
+Mood check-in prompt (daily, dismissible)
+Quick access grid: AI Chat, Find Counsellor, Dream Analysis, Handwriting Analysis, Games, Healing Map
+Upcoming sessions widget
+Mental health tip of the day (fetched from CMS)
+Recently viewed counsellors
+Notification bell with badge count
+Language selector (top bar)
+
+MindHeal | Developer Blueprint | Page 3 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+
+2.3 AI Counselling Chat
+2.3.1 Functionality
+•
+•
+•
+•
+•
+•
+•
+
+Completely free for all registered users
+Powered by Gemini Free Tier API
+Persistent conversation history stored per user session
+System prompt configured via Admin Panel (admin can modify)
+Mood tracking at start and end of session
+Crisis detection: if user expresses self-harm intent, system shows emergency helpline numbers
+Admin can swap AI model from Admin Panel without code deployment
+
+2.3.2 API Configuration (Admin-Controlled)
+INFO: All AI API keys and model names are stored in the Admin Panel database. The backend fetches
+the active configuration at runtime. No API keys are hardcoded in the app or backend codebase.
+Admin-configurable fields for AI Chat:
+•
+•
+•
+•
+•
+•
+
+API Provider: Gemini / OpenAI / Custom
+Model Name: e.g., gemini-1.5-flash
+API Key: encrypted and stored in database
+System Prompt: editable rich text in Admin Panel
+Max tokens per message
+Temperature setting
+
+2.4 Human Counsellor Services
+2.4.1 Browse & Filter Counsellors
+•
+•
+•
+•
+
+Search by name, specialization, language
+Filter by availability, price range, rating, session type
+View counsellor profile: bio, education, experience, reviews, pricing, available services
+See online/offline/busy status in real time (via Firebase Presence)
+
+2.4.2 Communication Modes
+Mode
+
+Implementation
+
+Pricing
+
+Scheduling
+
+Text Chat
+
+Firebase Realtime DB +
+Socket.io
+
+Per minute or per
+session
+
+Instant or
+scheduled
+
+Audio Call
+
+Agora SDK (RTC)
+
+Per minute (set by
+counsellor)
+
+Scheduled only
+
+MindHeal | Developer Blueprint | Page 4 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+
+Video Call
+
+Agora SDK (RTC)
+
+Per minute (set by
+counsellor)
+
+Scheduled only
+
+NOTE: Each counsellor individually enables or disables chat, audio call, and video call from their app
+settings. User sees only enabled options on that counsellor's profile.
+
+2.4.3 Session Booking Flow
+1. User selects counsellor and views available slots
+2. User selects date, time, duration, and session type
+3. System calculates fee = counsellor rate x duration
+4. User confirms and pays from wallet (amount held/deducted)
+5. System sends FCM notification to counsellor
+6. Counsellor accepts or declines (with reason)
+7. If declined, wallet amount is refunded instantly
+8. Both parties receive reminders 30 min and 10 min before session
+9. Post-session: user rates counsellor (1-5 stars + review text)
+
+2.5 Analytical Services
+2.5.1 Dream Analysis
+Input methods (user can use one or combine):
+• Typed text description of dream
+• Attach photo (handwritten paper or drawn diagram)
+• Voice recording (transcribed by Gemini Multimodal / Whisper)
+Processing flow:
+10.
+11.
+12.
+13.
+14.
+15.
+16.
+17.
+
+Input received and uploaded to Firebase Storage
+Backend sends to Gemini Paid Tier API with dream analysis system prompt
+AI generates brief summary (free, shown immediately in app)
+Backend generates detailed PDF report using PDFKit
+PDF stored in Firebase Storage with user-specific signed URL
+User pays nominal fee (set by admin, e.g., INR 49) to unlock full PDF
+After payment: PDF view in-app, download option, and "Get Expert Review" button
+"Get Expert Review" links to booking flow with counsellors offering dream analysis
+
+2.5.2 Handwriting & Signature Analysis
+Same functional flow as Dream Analysis with these differences:
+• Input: image upload only (photo of handwriting or signature sample)
+• Processed by Gemini Vision (Paid Tier) with graphology system prompt
+MindHeal | Developer Blueprint | Page 5 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+
+• AI summary shown free; detailed PDF report unlocked via payment
+• Expert review option available post-payment
+
+2.5.3 AI Analysis API Configuration (Admin-Controlled)
+Admin Panel allows separate API key and model configuration per service:
+Service
+
+Suggested Model
+
+API Tier
+
+Admin Editable
+
+AI Chat (counselling)
+
+gemini-1.5-flash
+
+Free Tier
+
+Yes — full config
+
+Dream Analysis Summary
+
+gemini-1.5-flash
+
+Free Tier
+
+Yes
+
+Dream Analysis PDF (detailed)
+
+gemini-1.5-pro
+
+Paid Tier
+
+Yes
+
+Voice Transcription
+
+Gemini Multimodal
+
+Paid Tier
+
+Yes
+
+Handwriting Analysis
+
+gemini-1.5-provision
+
+Paid Tier
+
+Yes
+
+Signature Analysis
+
+gemini-1.5-provision
+
+Paid Tier
+
+Yes
+
+Custom Future Service
+
+Admin sets
+
+Admin sets
+
+Yes
+
+2.6 Wellness & Mind Training
+2.6.1 Mind Training Games (All Free)
+Games targeting specific mental health conditions:
+Game
+
+Target Condition
+
+Description
+
+Memory Matrix
+
+Focus, ADHD
+
+Pattern recognition and recall grid game
+
+Breathe Box
+
+Anxiety, Panic
+
+Guided box breathing exercise with visual
+animation
+
+Focus Flow
+
+Procrastination
+
+Pomodoro-style focus timer with microrewards
+
+Gratitude Journal
+
+Depression
+
+Daily structured gratitude prompts with
+streak tracking
+
+Emotion Wheel
+
+Emotional awareness
+
+Interactive emotion identification and
+naming exercise
+
+Stress Sudoku
+
+Stress, rumination
+
+Logic puzzles calibrated to distract from
+
+MindHeal | Developer Blueprint | Page 6 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+
+anxious thoughts
+Trauma Grounding
+
+PTSD, Trauma
+
+5-4-3-2-1 sensory grounding exercise with
+voice guidance
+
+CBT Thought Log
+
+Depression, Anxiety
+
+Structured cognitive behavioural thought
+record tool
+
+2.6.2 Focus Enhancement Tools
+•
+•
+•
+•
+•
+
+Binaural beats player (focus, sleep, meditation frequencies)
+Ambient sound library (rain, forest, white noise, cafe)
+Pomodoro timer with custom work/break intervals
+Guided meditation audio (free basic, premium via payment)
+Daily habit tracker integrated with mood log
+
+2.6.3 Tips & Educational Content
+•
+•
+•
+•
+
+Mental health tips fetched from Admin CMS
+Psychologist-curated video tutorials (YouTube embed via counsellors)
+Condition-specific guides: Anxiety, Depression, Procrastination, Trauma, OCD, ADHD
+Admin can add/edit/delete tip categories and content from Admin Panel
+
+2.7 Healing Location Map
+2.7.1 Map Features
+•
+•
+•
+•
+•
+•
+
+Google Maps SDK integration showing:
+Registered counsellor clinics (individual practitioners)
+Registered rehabilitation centres
+Psychological healing and wellness centres
+Only shows entities that have opted in for offline services in their profile
+Tap on marker shows: name, address, working hours, specializations, distance, "Book Appointment"
+button
+• Filter by: type (clinic/rehab/wellness), distance, specialty, rating
+• Search by city or current location (GPS)
+NOTE: Entities appear on map only after admin account approval AND after counsellor/organisation
+enables "Show on Map for Offline Services" toggle in their app settings.
+
+2.8 Wallet System
+• INR-only wallet linked to user account
+MindHeal | Developer Blueprint | Page 7 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+
+•
+•
+•
+•
+•
+•
+•
+
+Top-up via Razorpay: UPI, Net Banking, Credit/Debit Card
+Wallet balance displayed on dashboard and wallet screen
+Spend on: session bookings, PDF report unlock, premium sound packs
+Transaction history with filter: all / credit / debit / refunds
+Automatic refund on cancelled/declined sessions
+Counsellor earnings managed separately in counsellor wallet
+Admin controls platform commission percentage per service type
+
+2.9 Profile & Settings
+•
+•
+•
+•
+•
+•
+•
+•
+
+Full name, profile photo, date of birth, gender
+Contact: email, mobile (both can be linked)
+Language preference (affects entire app UI)
+Notification preferences: session reminders, tips, promotions
+Privacy settings: data sharing consent
+Account: change password, linked accounts, delete account
+My Sessions: upcoming and past sessions with replay/notes
+My Reports: all generated analysis PDF reports
+
+2.10 Language Support
+The app UI fully translates based on user language selection. Supported languages:
+Indian Languages
+
+International Languages
+
+Hindi, Bengali, Telugu, Marathi, Tamil, Gujarati,
+Kannada, Malayalam, Punjabi, Odia, Urdu,
+Assamese
+
+English, Arabic, French, Spanish, German,
+Portuguese, Japanese, Korean, Mandarin
+Chinese
+
+NOTE: All static UI strings stored in Flutter ARB (Application Resource Bundle) files. One ARB file per
+language. Admin Panel allows adding new languages. AI responses are prompted to reply in the user's
+selected language.
+
+3. COUNSELLOR MOBILE APP
+3.1 Account Types
+Type
+
+Individual Account
+
+Organisation Account
+
+MindHeal | Developer Blueprint | Page 8 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+
+Who
+
+Solo psychologist, therapist,
+psychiatrist, counsellor
+
+Mental health clinic, rehab centre,
+wellness organisation
+
+Profile
+
+Personal bio, education,
+certifications, license number
+
+Organisation details, GST, team of
+professionals
+
+Map Listing
+
+Optional: show clinic address on
+map
+
+Required for offline services; shows
+on healing map
+
+Team
+
+N/A
+
+Admin can add multiple counsellors
+under organisation
+
+Verification
+
+License + ID document upload for
+admin review
+
+Registration certificate + team
+member licenses
+
+IMPORTANT: ALL counsellor accounts (individual and organisation) must be verified and approved by
+platform admin before going live. Pending accounts cannot accept clients or appear in search.
+
+3.2 Registration & Verification Flow
+18.
+19.
+20.
+21.
+22.
+23.
+24.
+25.
+26.
+27.
+
+Counsellor downloads app and selects "Register as Professional"
+Chooses account type: Individual or Organisation
+Fills multi-step registration form (see fields below)
+Uploads verification documents
+Account status set to: Pending Review
+Admin receives notification in Admin Panel
+Admin reviews documents; Approves or Declines with reason
+Counsellor receives push notification + email of decision
+If approved: account goes live, visible in search
+If declined: counsellor can edit and resubmit
+
+3.2.1 Registration Form Fields
+Individual Account
+• Full legal name
+• Mobile number + OTP verification
+• Email address
+• Profile photo (high resolution, professional)
+• Gender, date of birth
+• Specializations (multi-select): Anxiety, Depression, Trauma, PTSD, CBT, Marriage Counselling, Child
+Psychology, Addiction, OCD, ADHD, etc.
+MindHeal | Developer Blueprint | Page 9 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+
+•
+•
+•
+•
+•
+•
+•
+•
+•
+•
+
+Years of experience
+Education: degree, institution, year of passing (add multiple)
+Certifications: name, issuing body, year (add multiple)
+Professional License Number + license document upload
+Government ID upload (Aadhaar / PAN for Indian; Passport for international)
+Clinic address (optional — for map listing)
+Languages spoken (multi-select from language list)
+Pricing: per session rate (INR), per-minute rate for calls
+Prescription authority: YES/NO (requires valid medical license)
+Available session types: Chat / Audio / Video (individually toggle-able)
+
+Organisation Account (additional fields)
+• Organisation name and type (Clinic / Rehab / Wellness Centre / NGO)
+• GST number (Indian organisations)
+• Registration certificate upload
+• Organisation logo
+• Physical address (mandatory, shown on healing map)
+• Working hours per day
+• Team members: invite by email or add manually
+
+3.3 Dashboard (Counsellor)
+•
+•
+•
+•
+•
+•
+•
+
+Today's scheduled sessions summary
+Pending session requests (accept/decline with one tap)
+Earnings this week / this month
+Unread chat messages count
+New analysis review requests
+Rating summary and recent reviews
+Quick toggle: Online / Busy / Offline status
+
+3.4 Client Services
+3.4.1 Chat with Clients
+•
+•
+•
+•
+
+Real-time text chat via Firebase Realtime DB
+File sharing: images, documents (PDF, JPG)
+Session notes: private notes visible only to counsellor
+Message encryption at rest and in transit (TLS + Firebase rules)
+
+MindHeal | Developer Blueprint | Page 10 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+
+3.4.2 Audio & Video Calls
+•
+•
+•
+•
+•
+
+Agora SDK integration for RTC (Real-Time Communication)
+Call starts at scheduled session time
+Timer visible during call showing elapsed duration and estimated fee
+Session recording option (with user consent — both parties notified)
+Call summary auto-saved after session ends
+
+3.4.3 Review AI Chat Transcripts
+• With user consent (explicit toggle in user profile), counsellor can view past AI chat sessions
+• Counsellor can add professional annotations to AI conversation
+• Used as context before starting a human counselling session
+
+3.4.4 Analysis Report Review Services
+•
+•
+•
+•
+
+Dream Analysis Review: counsellor receives AI-generated report, adds professional interpretation
+Handwriting/Signature Review: same flow as dream analysis
+Counsellor sets fee for expert review service (separate from session fee)
+User pays review fee, counsellor delivers written or video response
+
+3.4.5 Prescription & Medication (Licensed Only)
+• Available only if counsellor registered with valid medical license and admin approved prescription
+authority
+• Counsellor can write digital prescriptions within app
+• Prescription PDF generated and sent to user's My Reports section
+• Prescription includes: medication, dosage, frequency, duration, warnings, counsellor signature
+IMPORTANT: Prescription functionality is restricted by admin. Only accounts with verified medical
+licenses and admin-granted prescription authority can access this feature.
+
+3.5 Group & Healing Sessions
+•
+•
+•
+•
+•
+•
+
+Counsellor can create group healing sessions (up to 50 participants)
+Types: Anxiety Support Group, Grief Counselling, Addiction Recovery, etc.
+Set session fee or mark as free
+Users browse and join sessions from dashboard
+Session conducted via Agora Group Video/Audio
+Counsellor can share screen and upload materials during session
+
+3.6 Content Management
+• Upload video tutorials: paste YouTube URL, add title, description, tags
+MindHeal | Developer Blueprint | Page 11 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+
+• Videos appear in user app Tips & Videos section after admin review
+• Write mental health articles (rich text editor in app)
+• Articles admin-reviewed before publishing
+
+3.7 Slot & Availability Management
+•
+•
+•
+•
+•
+
+Weekly schedule builder: set available hours per day
+Block specific dates (holidays, vacations)
+View booked slots vs. available slots in calendar view
+Buffer time setting between sessions
+Maximum daily sessions limit
+
+3.8 Earnings & Wallet (Counsellor)
+•
+•
+•
+•
+•
+
+Earnings dashboard: today, this week, this month, all time
+Commission deducted by platform (admin-configured %)
+Withdraw earnings to linked bank account via Razorpay Payout
+Transaction history: session payments, review payments, refunds
+Tax summary: downloadable monthly earnings statement
+
+4. ADMIN PANEL (WEB APPLICATION)
+INFO: The Admin Panel is a React.js web application. It is the central control system for the entire
+platform. Every critical configuration — including all API keys, AI models, commission rates, and service
+toggles — is managed here.
+
+4.1 Admin Authentication
+• Separate admin login (email + strong password + 2FA via TOTP — e.g., Google Authenticator)
+• Role-based: Super Admin, Support Admin, Finance Admin, Content Admin
+• All admin actions logged in audit trail with timestamp and admin ID
+
+4.2 User Account Management
+• View all registered users with filters: date joined, status, language, activity
+• Search by name, email, mobile
+MindHeal | Developer Blueprint | Page 12 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+
+•
+•
+•
+•
+•
+
+View individual user profile: personal info, sessions, transactions, reports
+Actions: Suspend, Activate, Delete user account
+Manually adjust user wallet balance with reason log
+Send direct push notification to specific user or group
+View user's mood history and session activity (aggregated analytics)
+
+4.3 Counsellor Account Management
+•
+•
+•
+•
+•
+•
+•
+•
+
+View all counsellor registrations with status: Pending / Active / Suspended / Rejected
+Review submitted documents: photo, license, ID, certificates
+One-click Approve or Decline with optional reason message
+Grant or revoke prescription authority per counsellor
+Grant or revoke organisation team management access
+Edit counsellor profile data if needed (e.g., correction of details)
+View counsellor earnings, sessions, and review history
+Suspend or permanently ban counsellors with reason
+
+4.4 AI Configuration Panel (Core Feature)
+This is the most critical admin section. All AI-related configurations are stored in the database and fetched at
+runtime. No hardcoded API keys exist anywhere in the codebase.
+
+4.4.1 API Key Manager
+Service / Task
+
+API Provider Field
+
+Model Field
+
+AI Counselling Chat
+
+Dropdown: Gemini /
+OpenAI / Custom
+
+Text input (e.g.,
+gemini-1.5-flash)
+
+Encrypted text input
+
+Dream Analysis —
+Summary
+
+Dropdown
+
+Text input
+
+Encrypted text input
+
+Dream Analysis — PDF
+Report
+
+Dropdown
+
+Text input
+
+Encrypted text input
+
+Voice Transcription
+
+Dropdown
+
+Text input
+
+Encrypted text input
+
+Handwriting Analysis
+
+Dropdown
+
+Text input
+
+Encrypted text input
+
+Signature Analysis
+
+Dropdown
+
+Text input
+
+Encrypted text input
+
+Maps (Google Maps)
+
+Fixed: Google
+
+N/A
+
+Encrypted text input
+
+OTP (SMS Gateway)
+
+Dropdown: MSG91 /
+
+N/A
+
+Encrypted text input
+
+MindHeal | Developer Blueprint | Page 13 of 34
+
+API Key Field
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+
+Twilio / Firebase
+Payment Gateway
+
+Dropdown: Razorpay /
+Stripe
+
+N/A
+
+Key ID + Secret
+(encrypted)
+
+Custom Future Service
+
+Free text
+
+Free text
+
+Encrypted text input
+
+NOTE: API keys are encrypted using AES-256 before storage. They are never returned in plaintext to the
+frontend. Backend decrypts at runtime only when making outbound API calls.
+
+4.4.2 System Prompt Editor
+•
+•
+•
+•
+
+Separate rich text system prompt for each AI service
+Live preview of prompt before saving
+Version history: last 10 prompts with rollback option
+Test prompt: admin can type a test message and see AI response within Admin Panel
+
+4.4.3 AI Model Parameters
+•
+•
+•
+•
+•
+
+Temperature (0.0 – 1.0)
+Max tokens per response
+Top-p sampling value
+Safety filter settings per service
+Rate limit per user per day (e.g., max 50 AI messages/day)
+
+4.5 Service Management
+Admin can dynamically add, edit, enable, or disable any service shown in both apps.
+
+4.5.1 Service Configuration Table
+Service
+
+Status Toggle
+
+Price (INR)
+
+AI Config Link
+
+AI Counselling Chat
+
+ON / OFF
+
+Free
+
+AI Config Panel
+
+Dream Analysis — Free
+Summary
+
+ON / OFF
+
+Free
+
+AI Config Panel
+
+Dream Analysis — PDF
+Report
+
+ON / OFF
+
+Editable INR amount
+
+AI Config Panel
+
+Handwriting Analysis
+
+ON / OFF
+
+Editable INR amount
+
+AI Config Panel
+
+Signature Analysis
+
+ON / OFF
+
+Editable INR amount
+
+AI Config Panel
+
+MindHeal | Developer Blueprint | Page 14 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+
+Mind Games
+
+ON / OFF
+
+Free
+
+N/A
+
+Ambient Sounds —
+Premium
+
+ON / OFF
+
+Editable INR amount
+
+N/A
+
+Group Healing Sessions
+
+ON / OFF
+
+Set by counsellor
+
+N/A
+
+New Custom Service (add
+new row)
+
+ON / OFF
+
+Editable
+
+Configurable
+
+4.6 Financial Management
+•
+•
+•
+•
+•
+•
+•
+•
+
+View all transactions across both apps: deposits, session payments, refunds, withdrawals
+Platform commission configuration: set % per service type
+Counsellor payout management: pending / paid / failed payouts
+Wallet balance overview for all users and counsellors
+Dispute management: raise refund for a specific transaction with reason
+Revenue reports: daily, weekly, monthly, annual
+Export reports as CSV or PDF
+GST report generation for Indian tax compliance
+
+4.7 Content Management System (CMS)
+•
+•
+•
+•
+•
+•
+
+Mental health tips: add, edit, delete, categorize
+Games library: add/remove games (link to Flutter module)
+Ambient sounds: upload, categorize (free / premium), delete
+Focus tool content: breathing exercises, meditation scripts
+Onboarding carousel content: edit text, images per slide
+Notification templates: email and push notification text templates
+
+4.8 Push Notification Center
+•
+•
+•
+•
+•
+•
+
+Send push notifications to: All Users, All Counsellors, Specific User, Specific Counsellor
+Segment by: language, activity status, subscription level
+Notification types: Promotional, Reminder, System Alert, New Feature
+Schedule notifications for future delivery
+Track delivery status and open rates
+Bulk import user IDs for targeted campaigns (CSV)
+
+MindHeal | Developer Blueprint | Page 15 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+
+4.9 Analytics Dashboard
+Metric Category
+
+Data Points
+
+User Metrics
+
+Daily/Monthly Active Users, New Registrations, Retention Rate,
+Churn, Language Distribution
+
+Session Metrics
+
+Sessions per day, Chat vs Audio vs Video split, Average duration,
+Counsellor utilization rate
+
+Revenue Metrics
+
+Gross Revenue, Net Revenue (after payouts), Commission earned,
+Wallet top-ups, Refund rate
+
+AI Usage
+
+AI messages per day, tokens consumed, analysis requests, PDF
+unlocks
+
+Counsellor Metrics
+
+Active counsellors, Pending approvals, Average rating, Payout
+amounts
+
+Geographic
+
+User location distribution, Counsellor density map, Top cities
+
+5. DATABASE SCHEMA (POSTGRESQL)
+INFO: All primary relational data is stored in PostgreSQL. Firebase Firestore handles real-time chat
+messages only. Firebase Storage handles all media files. Redis stores OTPs and session cache.
+
+5.1 Core Tables
+Table: users
+Column
+
+Type
+
+Constraints
+
+Description
+
+id
+
+UUID
+
+PK, DEFAULT
+gen_random_uuid()
+
+Primary key
+
+firebase_uid
+
+VARCHAR(128)
+
+UNIQUE, NOT NULL
+
+Firebase Auth UID
+
+full_name
+
+VARCHAR(255)
+
+NOT NULL
+
+User display name
+
+email
+
+VARCHAR(255)
+
+UNIQUE, NULLABLE
+
+Email address
+
+mobile
+
+VARCHAR(20)
+
+UNIQUE, NULLABLE
+
+Mobile with country code
+
+MindHeal | Developer Blueprint | Page 16 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+auth_provider
+
+ENUM
+
+('email','mobile','goo
+gle')
+
+Registration method
+
+language_code
+
+VARCHAR(10)
+
+DEFAULT 'en'
+
+App UI language
+
+avatar_url
+
+TEXT
+
+NULLABLE
+
+Firebase Storage URL
+
+wallet_balance
+
+DECIMAL(12,2)
+
+DEFAULT 0.00
+
+INR wallet balance
+
+is_active
+
+BOOLEAN
+
+DEFAULT TRUE
+
+Account status
+
+fcm_token
+
+TEXT
+
+NULLABLE
+
+Push notification token
+
+created_at
+
+TIMESTAMPTZ
+
+DEFAULT NOW()
+
+Registration timestamp
+
+updated_at
+
+TIMESTAMPTZ
+
+DEFAULT NOW()
+
+Last update timestamp
+
+Table: counsellors
+Column
+
+Type
+
+Constraints
+
+Description
+
+id
+
+UUID
+
+PK
+
+Primary key
+
+user_id
+
+UUID
+
+FK → users.id
+
+Linked user account
+
+account_type
+
+ENUM
+
+('individual','organis
+ation')
+
+Account category
+
+display_name
+
+VARCHAR(255)
+
+NOT NULL
+
+Professional/org name
+
+bio
+
+TEXT
+
+NULLABLE
+
+About/description
+
+specializations
+
+TEXT[]
+
+NOT NULL
+
+Array of specialties
+
+languages_spoken
+
+VARCHAR(10)[]
+
+NOT NULL
+
+Language codes
+
+experience_years
+
+INTEGER
+
+DEFAULT 0
+
+Years of experience
+
+license_number
+
+VARCHAR(100)
+
+NULLABLE
+
+Professional license
+
+has_prescription_au
+th
+
+BOOLEAN
+
+DEFAULT FALSE
+
+Can write prescriptions
+
+hourly_rate_inr
+
+DECIMAL(10,2)
+
+NOT NULL
+
+Hourly rate in INR
+
+per_minute_rate_inr
+
+DECIMAL(8,2)
+
+NULLABLE
+
+Per-minute call rate
+
+chat_enabled
+
+BOOLEAN
+
+DEFAULT TRUE
+
+Text chat toggle
+
+audio_enabled
+
+BOOLEAN
+
+DEFAULT FALSE
+
+Audio call toggle
+
+MindHeal | Developer Blueprint | Page 17 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+video_enabled
+
+BOOLEAN
+
+DEFAULT FALSE
+
+Video call toggle
+
+show_on_map
+
+BOOLEAN
+
+DEFAULT FALSE
+
+Offline location map
+
+location_lat
+
+DECIMAL(10,8)
+
+NULLABLE
+
+GPS latitude
+
+location_lng
+
+DECIMAL(11,8)
+
+NULLABLE
+
+GPS longitude
+
+address
+
+TEXT
+
+NULLABLE
+
+Physical address
+
+rating_avg
+
+DECIMAL(3,2)
+
+DEFAULT 0.00
+
+Average rating (0-5)
+
+rating_count
+
+INTEGER
+
+DEFAULT 0
+
+Total ratings received
+
+verification_status
+
+ENUM
+
+('pending','approved',
+'rejected','suspended'
+)
+
+Admin approval status
+
+wallet_balance
+
+DECIMAL(12,2)
+
+DEFAULT 0.00
+
+Counsellor earnings
+
+is_online
+
+BOOLEAN
+
+DEFAULT FALSE
+
+Current online status
+
+fcm_token
+
+TEXT
+
+NULLABLE
+
+Push notification token
+
+created_at
+
+TIMESTAMPTZ
+
+DEFAULT NOW()
+
+Registration timestamp
+
+Table: sessions
+Column
+
+Type
+
+Constraints
+
+Description
+
+id
+
+UUID
+
+PK
+
+Session ID
+
+user_id
+
+UUID
+
+FK → users.id
+
+Client user
+
+counsellor_id
+
+UUID
+
+FK → counsellors.id
+
+Assigned counsellor
+
+session_type
+
+ENUM
+
+('chat','audio','video
+','group')
+
+Communication mode
+
+service_type
+
+ENUM
+
+('counselling','dream_
+review','hw_review','h
+ealing_session')
+
+Service category
+
+status
+
+ENUM
+
+('pending','confirmed'
+,'in_progress','comple
+ted','cancelled','decl
+ined')
+
+Session lifecycle
+
+scheduled_at
+
+TIMESTAMPTZ
+
+NOT NULL
+
+Booked start time
+
+duration_minutes
+
+INTEGER
+
+NOT NULL
+
+Planned duration
+
+MindHeal | Developer Blueprint | Page 18 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+actual_duration_min
+
+INTEGER
+
+NULLABLE
+
+Actual call duration
+
+amount_charged_inr
+
+DECIMAL(10,2)
+
+NOT NULL
+
+Total fee charged
+
+platform_commission
+_inr
+
+DECIMAL(10,2)
+
+NOT NULL
+
+Platform's cut
+
+counsellor_earning_
+inr
+
+DECIMAL(10,2)
+
+NOT NULL
+
+Counsellor payout
+
+agora_channel_id
+
+VARCHAR(255)
+
+NULLABLE
+
+Agora RTC channel
+
+notes_counsellor
+
+TEXT
+
+NULLABLE
+
+Private counsellor notes
+
+recording_url
+
+TEXT
+
+NULLABLE
+
+Session recording (consent)
+
+decline_reason
+
+TEXT
+
+NULLABLE
+
+If counsellor declines
+
+created_at
+
+TIMESTAMPTZ
+
+DEFAULT NOW()
+
+Booking timestamp
+
+Table: analysis_reports
+Column
+
+Type
+
+Constraints
+
+Description
+
+id
+
+UUID
+
+PK
+
+Report ID
+
+user_id
+
+UUID
+
+FK → users.id
+
+Report owner
+
+report_type
+
+ENUM
+
+('dream','handwriting'
+,'signature')
+
+Analysis category
+
+input_text
+
+TEXT
+
+NULLABLE
+
+Typed description
+
+input_media_url
+
+TEXT
+
+NULLABLE
+
+Firebase Storage URL
+
+voice_transcript
+
+TEXT
+
+NULLABLE
+
+Transcribed voice input
+
+ai_summary
+
+TEXT
+
+NOT NULL
+
+Free brief summary
+
+ai_full_report
+
+TEXT
+
+NULLABLE
+
+Detailed AI report text
+
+pdf_url
+
+TEXT
+
+NULLABLE
+
+Firebase Storage signed
+URL
+
+is_pdf_unlocked
+
+BOOLEAN
+
+DEFAULT FALSE
+
+Payment status
+
+pdf_unlock_fee_inr
+
+DECIMAL(8,2)
+
+NOT NULL
+
+Fee charged for unlock
+
+expert_review_sessi
+on_id
+
+UUID
+
+FK → sessions.id
+NULLABLE
+
+Linked expert session
+
+MindHeal | Developer Blueprint | Page 19 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+ai_model_used
+
+VARCHAR(100)
+
+NOT NULL
+
+Model at time of
+generation
+
+created_at
+
+TIMESTAMPTZ
+
+DEFAULT NOW()
+
+Creation timestamp
+
+Table: transactions
+Column
+
+Type
+
+Constraints
+
+Description
+
+id
+
+UUID
+
+PK
+
+Transaction ID
+
+user_id
+
+UUID
+
+FK → users.id NULLABLE
+
+User (if user txn)
+
+counsellor_id
+
+UUID
+
+FK → counsellors.id
+NULLABLE
+
+Counsellor (if payout)
+
+txn_type
+
+ENUM
+
+('wallet_topup','sessi
+on_payment','pdf_unloc
+k','refund','payout','
+commission')
+
+Transaction category
+
+direction
+
+ENUM
+
+('credit','debit')
+
+Money direction
+
+amount_inr
+
+DECIMAL(12,2)
+
+NOT NULL
+
+Transaction amount
+
+reference_id
+
+VARCHAR(255)
+
+NULLABLE
+
+Razorpay reference
+
+payment_gateway
+
+ENUM
+
+('razorpay','wallet','
+stripe')
+
+Payment method
+
+gateway_status
+
+ENUM
+
+('pending','success','
+failed','refunded')
+
+Payment gateway status
+
+related_session_id
+
+UUID
+
+FK → sessions.id
+NULLABLE
+
+Linked session
+
+related_report_id
+
+UUID
+
+FK →
+analysis_reports.id
+NULLABLE
+
+Linked report
+
+notes
+
+TEXT
+
+NULLABLE
+
+Admin or system note
+
+created_at
+
+TIMESTAMPTZ
+
+DEFAULT NOW()
+
+Transaction timestamp
+
+Additional Tables (Summary)
+Table Name
+
+Key Columns & Purpose
+
+counsellor_slots
+
+id, counsellor_id, date, start_time, end_time, is_booked, session_id
+— Availability slots
+
+reviews
+
+id, session_id, user_id, counsellor_id, rating (1-5), review_text,
+MindHeal | Developer Blueprint | Page 20 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+
+created_at
+ai_chat_sessions
+
+id, user_id, title, messages (JSONB), mood_start, mood_end,
+ai_model_used, token_count, created_at, ended_at
+
+notifications
+
+id, recipient_id, recipient_type (user/counsellor), title, body, type,
+is_read, reference_id, created_at
+
+api_configurations
+
+id, service_name, provider, model_name, api_key_encrypted,
+system_prompt, parameters (JSONB), is_active, updated_by,
+updated_at — Central API config table
+
+services_catalog
+
+id, name, description, icon, is_active, price_inr, is_free, api_config_id,
+created_at — Admin-managed service list
+
+mood_logs
+
+id, user_id, mood_score (1-10), mood_label, notes, logged_at
+
+prescriptions
+
+id, session_id, counsellor_id, user_id, medication_list (JSONB),
+instructions, pdf_url, issued_at
+
+group_sessions
+
+id, counsellor_id, title, description, max_participants, fee_inr,
+agora_channel, scheduled_at, status, created_at
+
+group_session_participants
+
+id, group_session_id, user_id, joined_at, payment_txn_id
+
+admin_users
+
+id, email, password_hash, role (super/support/finance/content),
+totp_secret, is_active, last_login, created_at
+
+audit_logs
+
+id, admin_id, action, entity_type, entity_id, old_value (JSONB),
+new_value (JSONB), ip_address, created_at
+
+cms_content
+
+id, content_type (tip/video/article/sound), title, body, media_url,
+category, language_code, is_active, created_by, created_at
+
+documents_verification
+
+id, counsellor_id, doc_type, file_url, status
+(pending/approved/rejected), reviewed_by, review_note,
+uploaded_at, reviewed_at
+
+6. REST API ENDPOINTS
+INFO: Base URL: /api/v1 | All routes require Authorization: Bearer <JWT> header except public auth
+routes | Rate limiting applied via Redis
+
+MindHeal | Developer Blueprint | Page 21 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+
+6.1 Authentication (/api/v1/auth)
+Method
+
+Endpoint
+
+Description
+
+POST
+
+/auth/register
+
+Register new user (email or mobile). Triggers OTP send.
+
+POST
+
+/auth/register/google
+
+Register or login via Google OAuth token from Firebase
+
+POST
+
+/auth/send-otp
+
+Send OTP to email or mobile number (MSG91 or SMTP)
+
+POST
+
+/auth/verify-otp
+
+Verify OTP. Returns JWT access token + refresh token on
+success
+
+POST
+
+/auth/login
+
+Login with email/mobile. Triggers OTP send
+
+POST
+
+/auth/refresh-token
+
+Exchange refresh token for new access token
+
+POST
+
+/auth/logout
+
+Invalidate refresh token (blacklist in Redis)
+
+POST
+
+/auth/counsellor/
+register
+
+Register new counsellor account (starts as Pending)
+
+6.2 User Profile (/api/v1/user)
+Method
+
+Endpoint
+
+Description
+
+GET
+
+/user/me
+
+Get own profile
+
+PUT
+
+/user/me
+
+Update profile (name, avatar, language, notification prefs)
+
+POST
+
+/user/avatar
+
+Upload avatar to Firebase Storage, update URL in DB
+
+PUT
+
+/user/language
+
+Update language preference (language_code)
+
+GET
+
+/user/notifications
+
+List notifications with pagination. Accepts ?unread=true
+
+PUT
+
+/user/
+notifications/:id/read
+
+Mark notification as read
+
+GET
+
+/user/mood/history
+
+Get mood log history for charts
+
+POST
+
+/user/mood/log
+
+Log a mood entry
+
+DELETE
+
+/user/me
+
+Soft delete own account (sets is_active = false)
+
+MindHeal | Developer Blueprint | Page 22 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+
+6.3 Counsellors (/api/v1/counsellors)
+Method
+
+Endpoint
+
+Description
+
+GET
+
+/counsellors
+
+List counsellors. Query: ?
+specialty=&language=&min_rate=&max_rate=&availabl
+e=&type=
+
+GET
+
+/counsellors/:id
+
+Get counsellor public profile with education and
+certifications
+
+GET
+
+/counsellors/:id/slots
+
+Get available booking slots for next 30 days
+
+GET
+
+/counsellors/:id/reviews
+
+Get paginated reviews for counsellor
+
+GET
+
+/counsellors/map
+
+Get all counsellors with show_on_map=true (for map
+screen)
+
+GET
+
+/counsellors/me
+
+Get own counsellor profile (counsellor only)
+
+PUT
+
+/counsellors/me
+
+Update own profile, rates, service toggles (counsellor
+only)
+
+POST
+
+/counsellors/me/slots
+
+Create/update availability slots (counsellor only)
+
+DELETE
+
+/counsellors/me/slots/:id
+
+Delete a slot (counsellor only)
+
+PUT
+
+/counsellors/me/status
+
+Update online/busy/offline status (counsellor only)
+
+6.4 Sessions (/api/v1/sessions)
+Method
+
+Endpoint
+
+Description
+
+POST
+
+/sessions/book
+
+Book a session. Deducts from wallet and sends FCM to
+counsellor
+
+GET
+
+/sessions/my
+
+List user sessions. Query: ?status=&type=&page=
+
+GET
+
+/sessions/:id
+
+Get session details including agora channel info
+
+PUT
+
+/sessions/:id/cancel
+
+Cancel session (user). Triggers refund if within policy
+
+PUT
+
+/sessions/:id/accept
+
+Counsellor accepts session request
+
+PUT
+
+/sessions/:id/decline
+
+Counsellor declines with reason. Triggers user refund
+
+POST
+
+/sessions/:id/call/token
+
+Generate Agora RTC token for audio/video call
+
+MindHeal | Developer Blueprint | Page 23 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+PUT
+
+/sessions/:id/complete
+
+Mark session as completed (counsellor triggers)
+
+POST
+
+/sessions/:id/review
+
+User submits rating and review after completed session
+
+GET
+
+/sessions/me/counsellor
+
+Counsellor view of their sessions. Query: ?
+status=&date=
+
+6.5 AI Services (/api/v1/ai)
+Method
+
+Endpoint
+
+Description
+
+POST
+
+/ai/chat
+
+Send message to AI counsellor. Returns AI response.
+Saves to ai_chat_sessions
+
+GET
+
+/ai/chat/sessions
+
+List user AI chat session history
+
+GET
+
+/ai/chat/sessions/:id
+
+Get full AI chat session with all messages
+
+POST
+
+/analysis/dream
+
+Submit dream for analysis. Accepts text + file upload
+
+POST
+
+/analysis/handwriting
+
+Submit handwriting image for analysis
+
+POST
+
+/analysis/signature
+
+Submit signature image for analysis
+
+GET
+
+/analysis/reports
+
+List all analysis reports for logged-in user
+
+GET
+
+/analysis/reports/:id
+
+Get single report (summary only if not paid)
+
+POST
+
+/analysis/reports/:id/
+unlock
+
+Pay to unlock full PDF report
+
+GET
+
+/analysis/reports/:id/pdf
+
+Download PDF (only if unlocked). Returns signed
+Firebase URL
+
+6.6 Wallet & Payments (/api/v1/wallet)
+Method
+
+Endpoint
+
+Description
+
+GET
+
+/wallet/balance
+
+Get current wallet balance
+
+POST
+
+/wallet/topup/initiate
+
+Create Razorpay order. Returns order_id for client SDK
+
+POST
+
+/wallet/topup/verify
+
+Verify Razorpay payment signature. Credits wallet on
+success
+
+GET
+
+/wallet/transactions
+
+Paginated transaction history. Query: ?type=&direction=
+
+MindHeal | Developer Blueprint | Page 24 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+POST
+
+/payments/webhook
+
+Razorpay webhook handler (public, signature-verified)
+
+GET
+
+/wallet/counsellor/
+earnings
+
+Counsellor earnings summary (counsellor only)
+
+POST
+
+/wallet/counsellor/
+withdraw
+
+Initiate payout to bank via Razorpay (counsellor only)
+
+6.7 Admin API (/api/v1/admin)
+Method
+
+Endpoint
+
+Description
+
+GET
+
+/admin/users
+
+List all users with filters and pagination
+
+PUT
+
+/admin/users/:id/status
+
+Activate or suspend user account
+
+GET
+
+/admin/counsellors
+
+List all counsellors with verification status filter
+
+PUT
+
+/admin/counsellors/:id/
+verify
+
+Approve or decline counsellor. Body: {action,
+reason}
+
+PUT
+
+/admin/counsellors/:id/
+prescription
+
+Grant or revoke prescription authority
+
+GET
+
+/admin/api-config
+
+Get all API configurations (keys masked)
+
+PUT
+
+/admin/api-config/:service
+
+Update API key, model, or system prompt for
+service
+
+POST
+
+/admin/api-config/test
+
+Test AI config with a sample prompt
+
+GET
+
+/admin/services
+
+List all services from services_catalog
+
+PUT
+
+/admin/services/:id
+
+Update service (enable/disable, price, AI config link)
+
+POST
+
+/admin/services
+
+Add a new service to catalog
+
+DELETE
+
+/admin/services/:id
+
+Remove service from catalog
+
+GET
+
+/admin/transactions
+
+All transactions across both apps with filters
+
+POST
+
+/admin/transactions/refund
+
+Issue manual refund
+
+GET
+
+/admin/analytics/summary
+
+Platform KPI summary for dashboard
+
+POST
+
+/admin/notifications/send
+
+Send push notification to targeted users/counsellors
+
+GET
+
+/admin/audit-logs
+
+View admin action audit trail
+
+MindHeal | Developer Blueprint | Page 25 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+
+7. PROJECT FOLDER STRUCTURE
+7.1 Backend (Node.js + Express)
+mindheal-backend/ ├── src/ │
+├── config/ │
+│
+├── database.js
+# PostgreSQL
+connection (pg pool) │
+│
+├── firebase.js
+# Firebase Admin SDK init │
+│
+├──
+redis.js
+# Redis client init │
+│
+└── apiConfig.js
+# Fetches AI configs
+from DB at runtime │
+├── controllers/ │
+│
+├── auth.controller.js │
+│
+├──
+user.controller.js │
+│
+├── counsellor.controller.js │
+│
+├── session.controller.js │
+│
+├── ai.controller.js │
+│
+├── analysis.controller.js │
+│
+├── wallet.controller.js │
+│
+├── notification.controller.js │
+│
+└── admin.controller.js │
+├── middleware/ │
+│
+├──
+auth.middleware.js
+# JWT verification │
+│
+├── role.middleware.js
+# User / counsellor /
+admin role check │
+│
+├── rateLimit.middleware.js │
+│
+└── upload.middleware.js # Multer
+for file uploads │
+├── routes/ │
+│
+├── auth.routes.js │
+│
+├── user.routes.js │
+│
+├── counsellor.routes.js │
+│
+├── session.routes.js │
+│
+├── ai.routes.js │
+│
+├──
+wallet.routes.js │
+│
+└── admin.routes.js │
+├── services/ │
+│
+├── gemini.service.js
+# Calls Gemini API with runtime key from DB │
+│
+├── pdf.service.js
+# PDFKit report
+generation │
+│
+├── razorpay.service.js │
+│
+├── agora.service.js
+# Agora token
+generation │
+│
+├── fcm.service.js
+# Firebase Cloud Messaging │
+│
+├──
+otp.service.js
+# MSG91 / Firebase OTP │
+│
+├── storage.service.js
+# Firebase Storage
+operations │
+│
+└── maps.service.js
+# Google Maps Places │
+├── models/ │
+│
+└──
+index.js
+# PostgreSQL query helpers │
+├── utils/ │
+│
+├── encryption.js
+# AES-256 for API key encrypt/decrypt │
+│
+├── validators.js
+# Joi schemas │
+│
+├──
+logger.js
+# Winston logger │
+│
+└── helpers.js │
+├── sockets/ │
+│
+└──
+chat.socket.js
+# Socket.io event handlers │
+└── app.js
+# Express app
+setup ├── migrations/
+# PostgreSQL schema migrations ├── seeds/
+# Initial data seeds ├── .env.example
+# Template (no real keys) ├── .env
+# Real keys (gitignored) ├── server.js
+# Entry point package.json
+
+7.2 Flutter App Structure (Shared Pattern for Both Apps)
+mindheal_user_app/ (or mindheal_counsellor_app/) ├── lib/ │
+├── main.dart │
+├── config/ │
+│
+├── app_config.dart
+# Base API URL, environment flags │
+│
+├── routes.dart
+# Named routes / GoRouter config │
+│
+└── themes.dart
+# App theme, colors, text
+styles │
+├── l10n/
+# Localisation ARB files │
+│
+├── app_en.arb │
+│
+├── app_hi.arb │
+│
+└── ... (one per language) │
+├── models/
+# Dart model
+classes (User, Session, Report...) │
+├── providers/
+# Riverpod state providers │
+│
+├── auth_provider.dart │
+│
+├── session_provider.dart │
+│
+├── ai_chat_provider.dart │
+│
+└── wallet_provider.dart │
+├── repositories/
+# API call abstraction layer │
+│
+├── auth_repository.dart │
+│
+├── session_repository.dart │
+│
+└── ... │
+├── screens/ │
+│
+├── onboarding/ │
+│
+├── auth/ │
+│
+├── dashboard/ │
+│
+├── counsellors/ │
+│
+├── ai_chat/ │
+│
+├── analysis/
+# Dream, handwriting, signature │
+│
+├── games/
+│
+│
+├── map/ │
+│
+├── wallet/ │
+│
+├── sessions/ │
+│
+└── profile/ │
+├── widgets/
+# Reusable UI components │
+└── utils/ │
+├── dio_client.dart
+# Dio HTTP client with
+interceptors │
+├── secure_storage.dart # flutter_secure_storage for JWT │
+└──
+helpers.dart ├── assets/ │
+├── images/ │
+├── sounds/ │
+└── animations/
+#
+Lottie json files ├── pubspec.yaml
+
+7.3 Admin Panel (React.js + TypeScript)
+mindheal-admin/ ├── src/ │
+├── api/
+# Axios API call functions │
+├──
+components/
+# Reusable React components │
+├── pages/ │
+│
+├── Dashboard.tsx
+# Analytics overview │
+│
+├── Users.tsx
+# User management │
+│
+├──
+
+MindHeal | Developer Blueprint | Page 26 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+Counsellors.tsx
+# Counsellor management + approval │
+│
+├── ApiConfig.tsx
+# API
+key manager (core page) │
+│
+├── Services.tsx
+# Service catalog management │
+│
+├── Transactions.tsx
+# Financial management │
+│
+├── Notifications.tsx
+# Push
+notification center │
+│
+├── CMS.tsx
+# Content management │
+│
+└──
+AuditLog.tsx
+# Admin action trail │
+├── store/
+# Redux Toolkit or
+Zustand │
+├── hooks/ │
+├── utils/ │
+└── App.tsx ├── public/ ├── .env
+# REACT_APP_API_URL only package.json
+
+8. SECURITY & COMPLIANCE
+8.1 Authentication & Authorisation
+•
+•
+•
+•
+•
+
+Firebase Auth for identity management (token issuance and verification)
+Custom JWT (access token: 15 min, refresh token: 30 days) issued by backend
+Refresh tokens stored in Redis (revocable on logout)
+Role-based middleware: USER / COUNSELLOR / ADMIN roles enforced on every protected route
+Admin routes protected by 2FA (TOTP) in addition to password
+
+8.2 Data Security
+•
+•
+•
+•
+•
+•
+•
+•
+•
+
+All API keys encrypted with AES-256 before storage in PostgreSQL
+Encryption key stored in backend environment variable (never in DB or codebase)
+Firebase Storage rules: users can only access their own files
+Firebase Firestore rules: users can only read/write their own chat rooms
+HTTPS enforced everywhere (TLS 1.2+)
+Passwords hashed with bcrypt (minimum 10 rounds)
+OTP stored as SHA-256 hash in Redis with 5-minute TTL
+Input validation with Joi on all API endpoints
+SQL injection prevention via parameterised queries (pg library)
+
+8.3 Rate Limiting
+•
+•
+•
+•
+•
+
+OTP send: max 3 requests per mobile/email per 10 minutes
+Login attempts: max 5 failures per IP per 15 minutes (then 30-min block)
+AI chat messages: admin-configurable daily limit per user (default 50)
+API endpoints: 100 requests per minute per authenticated user
+File upload: max 10MB per file, validated MIME types
+
+MindHeal | Developer Blueprint | Page 27 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+
+8.4 Privacy & Compliance
+•
+•
+•
+•
+•
+•
+
+DPDP Act (India) compliance: explicit consent for data processing
+Users can request data export and account deletion
+Counsellor document uploads accessible only to admin (signed URLs with 1-hour expiry)
+AI chat sessions shown to counsellors only with explicit user consent toggle
+Session recordings stored only with documented consent from both parties
+No data sold to third parties
+
+9. DEVELOPMENT ROADMAP
+Phase
+
+Duration
+
+Phase 1 MVP
+
+Weeks 1 – 8
+
+Foundation
+
+Deliverables
+
+Backend:
+• PostgreSQL schema + migrations
+• Auth module (email, mobile, Google, OTP)
+• User and counsellor CRUD APIs
+• Counsellor verification flow (admin approve/decline)
+• Wallet top-up and session payment with Razorpay
+• Basic FCM push notifications
+User App:
+• Onboarding carousel + auth screens (register, login, OTP)
+• Dashboard with quick access grid
+• AI Chat screen (Gemini Free Tier integration)
+• Counsellor browse, profile view, session booking
+• Text chat with counsellors
+• Wallet screen
+Counsellor App:
+• Registration form (individual + organisation)
+• Counsellor dashboard and session management
+• Accept/decline session requests
+• Text chat with clients
+Admin Panel:
+•
+•
+•
+•
+
+Admin auth with 2FA
+User management table
+Counsellor verification workflow
+API Configuration panel (key manager + system prompt
+
+MindHeal | Developer Blueprint | Page 28 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+
+editor)
+• Basic analytics dashboard
+Phase 2 Core
+Services
+
+Weeks 9 –
+16
+
+Backend:
+• Agora token server for audio/video calls
+• AI analysis pipeline (dream, handwriting, signature)
+• PDFKit report generation and Firebase Storage upload
+• Voice transcription via Gemini Multimodal
+• Razorpay webhook handler + payout API
+User App:
+• Audio and video call screens (Agora SDK)
+• Dream Analysis screen (text + photo + voice input)
+• Handwriting and signature analysis screens
+• PDF viewer (in-app) and download
+• My Sessions history screen
+• My Reports screen
+• Language selection (ARB files for 10 languages)
+Counsellor App:
+• Audio/video call functionality
+• Analysis report review service
+• Slot management calendar
+• Earnings dashboard
+Admin Panel:
+• Financial management and transaction tables
+• Service catalog management
+• Push notification center
+
+Phase 3 Full
+Platform
+
+Weeks 17 –
+24
+
+User App:
+• Mind training games (8 games with Flutter game engine)
+• Ambient sounds player (free + premium packs)
+• Focus tools (binaural beats, pomodoro, breathe box)
+• Healing location map (Google Maps with counsellor markers)
+• Tips, articles, and video tutorials section
+• Group healing session browse and join
+• Mood tracker with charts
+Counsellor App:
+•
+•
+•
+•
+
+Group session creation and hosting
+Video tutorial upload (YouTube link embed)
+Prescription writing and PDF generation
+AI chat transcript review with annotations
+
+MindHeal | Developer Blueprint | Page 29 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+
+• Withdrawal to bank via Razorpay payout
+Admin Panel:
+•
+•
+•
+•
+•
+Phase 4 QA &
+Launch
+
+Weeks 25 –
+28
+
+CMS for tips, sounds, and content
+Audit log viewer
+GST report generation
+Advanced analytics and segment filtering
+All languages (21 total) fully integrated
+
+•
+•
+•
+•
+•
+•
+•
+
+End-to-end QA testing across all three applications
+Penetration testing and security audit
+Performance testing (API load testing with Artillery or k6)
+App Store (Apple) and Google Play submission
+Production infrastructure setup (AWS / GCP + NGINX + SSL)
+CI/CD pipeline (GitHub Actions) for backend and admin panel
+Monitoring setup: Sentry (errors), Mixpanel (analytics),
+Uptime robot
+• Admin onboarding and platform configuration walkthrough
+
+10. ENVIRONMENT & DEPLOYMENT
+10.1 Environment Variables (Backend .env)
+NOTE: This file must NEVER be committed to version control. Add .env to .gitignore. Use .env.example
+with empty values as a template for developers.
+# ── SERVER ────────────────────────────────────────── NODE_ENV=production PORT=4000
+APP_URL=https://api.mindheal.in # ── POSTGRESQL ───────────────────────────────────────
+DATABASE_URL=postgresql://user:password@host:5432/mindheal # ── REDIS
+──────────────────────────────────────────── REDIS_URL=redis://:password@host:6379 # ── JWT
+────────────────────────────────────────────── JWT_ACCESS_SECRET=<long-random-string>
+JWT_REFRESH_SECRET=<different-long-random-string> JWT_ACCESS_EXPIRY=15m JWT_REFRESH_EXPIRY=30d
+# ── FIREBASE ───────────────────────────────────────── FIREBASE_PROJECT_ID=mindheal-prod
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxx@mindheal.iam.gserviceaccount.com # ── ENCRYPTION
+(for API keys stored in DB) ─────────── ENCRYPTION_KEY=<32-byte-hex-string>
+# AES-256 # ──
+RAZORPAY ───────────────────────────────────────── RAZORPAY_KEY_ID=rzp_live_xxxx
+RAZORPAY_KEY_SECRET=xxxx RAZORPAY_WEBHOOK_SECRET=xxxx # ── AGORA
+──────────────────────────────────────────── AGORA_APP_ID=xxxx AGORA_APP_CERTIFICATE=xxxx #
+NOTE: Gemini, MSG91, Google Maps API keys are stored # in the admin_configurations DB table
+(encrypted), # NOT in this .env file. Admin pastes them via UI.
+
+MindHeal | Developer Blueprint | Page 30 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+
+10.2 Deployment Architecture
+Component
+
+Hosting
+
+Notes
+
+Backend API (Node.js)
+
+AWS EC2 (t3.medium) or GCP
+Cloud Run
+
+NGINX reverse proxy, PM2
+process manager
+
+PostgreSQL Database
+
+AWS RDS PostgreSQL or Supabase
+
+Automated backups, Multi-AZ for
+production
+
+Redis Cache
+
+AWS ElastiCache or Redis Cloud
+
+Persistent for refresh token
+storage
+
+Admin Panel (React)
+
+Vercel or Netlify or S3 + CloudFront
+
+Static build, served via CDN
+
+File Storage
+
+Firebase Storage
+
+Media, PDFs, documents
+
+Real-time Chat
+
+Firebase Realtime Database
+
+Socket.io fallback for complex
+events
+
+SSL Certificates
+
+Let's Encrypt (Certbot)
+
+Auto-renew via cron
+
+CI/CD
+
+GitHub Actions
+
+Auto-deploy on merge to main
+branch
+
+Error Monitoring
+
+Sentry
+
+Backend + Admin Panel + both
+Flutter apps
+
+11. KEY FLUTTER DEPENDENCIES (pubspec.yaml)
+Package
+
+Version (approx)
+
+Purpose
+
+flutter_riverpod
+
+^2.4.0
+
+State management
+
+go_router
+
+^13.0.0
+
+Declarative routing
+
+dio
+
+^5.4.0
+
+HTTP client with interceptors
+
+flutter_secure_storage
+
+^9.0.0
+
+Secure JWT token storage
+
+firebase_core
+
+^2.24.0
+
+Firebase core initialisation
+
+firebase_auth
+
+^4.16.0
+
+Authentication
+
+MindHeal | Developer Blueprint | Page 31 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+firebase_messaging
+
+^14.7.0
+
+Push notifications (FCM)
+
+cloud_firestore
+
+^4.14.0
+
+Real-time chat messages
+
+firebase_storage
+
+^11.6.0
+
+File uploads
+
+google_sign_in
+
+^6.2.0
+
+Google OAuth sign-in
+
+agora_rtc_engine
+
+^6.3.0
+
+Audio and video calls
+
+google_maps_flutter
+
+^2.5.0
+
+Map screen
+
+image_picker
+
+^1.0.7
+
+Photo / gallery picker
+
+file_picker
+
+^6.1.1
+
+Document file picker
+
+record
+
+^5.1.0
+
+Voice recording
+
+just_audio
+
+^0.9.36
+
+Ambient sounds player
+
+flutter_pdfview
+
+^1.3.2
+
+In-app PDF viewer
+
+razorpay_flutter
+
+^1.3.6
+
+Razorpay payment SDK
+
+flutter_localizations
+
+SDK
+
+Internationalisation support
+
+intl
+
+^0.19.0
+
+Date/number formatting per locale
+
+socket_io_client
+
+^2.0.3
+
+Socket.io real-time connection
+
+lottie
+
+^3.0.0
+
+Animation files (.json)
+
+cached_network_image
+
+^3.3.1
+
+Image caching
+
+fl_chart
+
+^0.66.0
+
+Mood tracker charts
+
+shared_preferences
+
+^2.2.2
+
+Local non-sensitive data
+
+permission_handler
+
+^11.3.0
+
+Camera, mic, location permissions
+
+12. QUICK REFERENCE SUMMARY
+
+MindHeal | Developer Blueprint | Page 32 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+
+12.1 Admin API Configuration Checklist
+After platform deployment, the admin must configure the following in the Admin Panel API Config screen before
+any AI features are live:
+
+Item to Configure
+
+Admin Action
+
+Priority
+
+Gemini Free Tier API Key
+
+Paste key in AI Config → AI Chat
+service
+
+Critical
+
+Gemini Paid Tier API Key
+
+Paste key in AI Config → Dream
+PDF, Handwriting, Signature
+
+Critical
+
+AI Chat System Prompt
+
+Write/paste in System Prompt
+Editor → AI Chat
+
+Critical
+
+Dream Analysis Prompts
+
+Write for Summary and Full Report
+separately
+
+Critical
+
+Handwriting/Signature Prompts
+
+Configure in AI Config for each
+service
+
+High
+
+Razorpay Keys
+
+Enter Key ID and Secret in
+Payments Config
+
+Critical
+
+Google Maps API Key
+
+Enter in Maps Config section
+
+High
+
+MSG91 API Key
+
+Enter in OTP Config section
+
+High
+
+PDF Report Unlock Price
+
+Set INR amount in Services Catalog
+
+High
+
+Platform Commission %
+
+Set per service type in Financial
+Config
+
+High
+
+Welcome Carousel Content
+
+Edit in CMS → Onboarding section
+
+Medium
+
+Initial Tips & Content
+
+Add in CMS → Tips section
+
+Medium
+
+12.2 AI Tier Mapping Reference
+Feature
+
+API Tier
+
+Rationale
+
+AI Counselling Chat
+
+FREE
+
+High volume, low-cost generation; flash
+model sufficient
+
+Dream Analysis — Free
+
+FREE
+
+Brief output; free model adequate
+
+MindHeal | Developer Blueprint | Page 33 of 34
+
+MindHeal Platform | Full Stack Developer Blueprint | Confidential
+
+Summary
+Dream Analysis — Full PDF
+Report
+
+PAID
+
+Detailed long-form content; revenuegated feature
+
+Voice-to-Text Transcription
+
+PAID
+
+Multimodal API; paid tier required
+
+Handwriting Image Analysis
+
+PAID
+
+Vision API; revenue-gated feature
+
+Signature Image Analysis
+
+PAID
+
+Vision API; revenue-gated feature
+
+END OF DOCUMENT
+MindHeal Platform — Full Stack Developer Blueprint v1.0
+All rights reserved. For development use only.
+
+MindHeal | Developer Blueprint | Page 34 of 34
+
+

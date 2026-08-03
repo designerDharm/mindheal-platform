@@ -1,0 +1,1089 @@
+================================================================================
+MINDHEAL — USER APP
+COMPLETE UI STYLE GUIDE
+Light Mode + Dark Mode
+Version 1.0
+For Mobile App UI Application
+Prilient Technologies Pvt. Ltd.
+================================================================================
+
+
+--------------------------------------------------------------------------------
+SECTION 1 — PRIMARY COLOURS
+--------------------------------------------------------------------------------
+
+These are the dominant colours that define the main actions, interactive
+elements, and brand identity of the MindHeal User App.
+
+
+PRIMARY 1 — Warm Coral Orange
+The most recognisable colour of the app. Appears on primary action buttons,
+active states, send button, and key interactive elements.
+
+Light Mode
+  Main:               #DA7756
+  Light tint:         #F2C4B2
+  Dark shade:         #B85A3A
+  Background tint:    #FDF0EB
+  Text on this colour:#FFFFFF
+
+Dark Mode
+  Main:               #E8866A
+  Light tint:         #F5C4B2
+  Dark shade:         #C06040
+  Background tint:    rgba(218,119,86,0.15)
+  Text on this colour:#FFFFFF
+
+Usage:
+Primary CTA buttons, send button, active toggles, selected states,
+progress indicators, key highlights, focus ring colour.
+
+
+PRIMARY 2 — Deep Warm Charcoal
+Primary text and surface colour. Warm-toned dark — never cold black.
+
+Light Mode
+  Main:               #1A1A18
+  Surface variant:    #2D2D2A
+  Muted:              #4A4A46
+
+Dark Mode
+  Main:               #FAFAF8
+  Surface variant:    #E8E6E0
+  Muted:              #A8A49C
+
+Usage:
+Body text, headings, primary content, icons, navigation text.
+
+
+--------------------------------------------------------------------------------
+SECTION 2 — SECONDARY COLOURS
+--------------------------------------------------------------------------------
+
+Supporting colours used for backgrounds, cards, surfaces, and secondary
+interactions throughout the MindHeal User App.
+
+
+SECONDARY 1 — Warm Cream White
+Primary background colour. Never pure white — always slightly warm.
+
+Light Mode
+  Main:               #FAFAF8
+  Card surface:       #F5F4F0
+  Subtle tint:        #EFEDE8
+
+Dark Mode
+  Main:               #1A1A18
+  Card surface:       #242420
+  Subtle tint:        #2E2E2A
+
+Usage:
+App background, screen base, modal backgrounds, page canvas.
+
+
+SECONDARY 2 — Warm Mid Grey
+Used for secondary text, placeholders, dividers, and inactive elements.
+
+Light Mode
+  Main:               #8A8880
+  Light:              #C8C6C0
+  Dark:               #5A5855
+
+Dark Mode
+  Main:               #706E68
+  Light:              #4A4A46
+  Dark:               #A8A49C
+
+Usage:
+Placeholder text, secondary labels, dividers, inactive nav items,
+metadata text, timestamps, helper text.
+
+
+SECONDARY 3 — Soft Parchment
+A warm off-white for input field backgrounds and subtle card differentiation.
+
+Light Mode
+  Main:               #F0EDE8
+  Hover:              #E8E4DE
+  Border:             #D8D4CE
+
+Dark Mode
+  Main:               #2A2A26
+  Hover:              #323230
+  Border:             #3E3E3A
+
+Usage:
+Input field backgrounds, code block backgrounds, quote blocks, tag pills,
+subtle section separators.
+
+
+--------------------------------------------------------------------------------
+SECTION 3 — ACCENT COLOURS
+--------------------------------------------------------------------------------
+
+Used sparingly for semantic meaning, status indicators, and decorative moments.
+Never use more than 2 accent colours on the same screen.
+
+
+ACCENT 1 — Terracotta Amber
+For warnings, highlights, and warm emphasis moments.
+
+Light Mode
+  Main:               #C8752A
+  Background tint:    #FEF3E8
+
+Dark Mode
+  Main:               #D88A40
+  Background tint:    rgba(200,117,42,0.15)
+
+Usage: Warning toasts, pending states, attention-required badges.
+
+
+ACCENT 2 — Sage Olive Green
+For success states and positive confirmations.
+
+Light Mode
+  Main:               #5A8A5A
+  Background tint:    #EEF5EE
+
+Dark Mode
+  Main:               #72A872
+  Background tint:    rgba(90,138,90,0.15)
+
+Usage: Success toasts, completed session badges, verified states,
+       confirmed booking indicators.
+
+
+ACCENT 3 — Dusty Lavender
+For AI-specific interactions, thinking/loading states, and decorative use.
+
+Light Mode
+  Main:               #8A84B8
+  Background tint:    #F2F0F8
+
+Dark Mode
+  Main:               #A09AC8
+  Background tint:    rgba(138,132,184,0.15)
+
+Usage: AI chat bubble backgrounds, thinking animation, dream analysis
+       screen accents, AI-generated content indicators.
+
+
+ACCENT 4 — Muted Red
+Used ONLY for errors, destructive actions, and critical warnings.
+
+Light Mode
+  Main:               #C85A5A
+  Background tint:    #FEF0F0
+
+Dark Mode
+  Main:               #D87070
+  Background tint:    rgba(200,90,90,0.15)
+
+Usage: Error states, delete confirmation, form validation errors,
+       critical alert banners.
+
+
+--------------------------------------------------------------------------------
+SECTION 4 — SURFACE AND BACKGROUND SYSTEM
+--------------------------------------------------------------------------------
+
+A layered surface system that creates depth and visual hierarchy.
+Always layer in order — never skip levels.
+
+
+LIGHT MODE SURFACES
+  Layer 0 — Page background:   #FAFAF8
+  Layer 1 — Default card:      #F5F4F0
+  Layer 2 — Elevated card:     #FFFFFF
+  Layer 3 — Modal / sheet:     #FFFFFF
+  Layer 4 — Overlay scrim:     rgba(26,26,24,0.45)
+  Input background:            #F0EDE8
+  Input border default:        #D8D4CE
+  Input border focus:          #DA7756
+  Divider:                     #E4E2DC
+  Shadow colour:               rgba(26,26,24,0.08)
+
+
+DARK MODE SURFACES
+  Layer 0 — Page background:   #1A1A18
+  Layer 1 — Default card:      #242420
+  Layer 2 — Elevated card:     #2E2E2A
+  Layer 3 — Modal / sheet:     #323230
+  Layer 4 — Overlay scrim:     rgba(0,0,0,0.6)
+  Input background:            #2A2A26
+  Input border default:        #3E3E3A
+  Input border focus:          #E8866A
+  Divider:                     #333330
+  Shadow colour:                rgba(0,0,0,0.3)
+
+
+--------------------------------------------------------------------------------
+SECTION 5 — TYPOGRAPHY
+--------------------------------------------------------------------------------
+
+MindHeal uses a humanist serif paired with a clean geometric sans-serif.
+The combination feels intelligent, warm, and highly readable on mobile.
+
+
+DISPLAY FONT — For headings and hero text
+  Name (paid):        Tiempos Text
+  Name (free alt):    Lora  (Google Fonts — closest free match)
+  Style:              Humanist serif, old-style numerals
+  Weights used:       Regular 400, Medium 500
+  Use for:            Hero headings, screen titles, onboarding headings,
+                      empty state headings, large pull quotes
+  Fallback stack:     Georgia, "Times New Roman", serif
+
+
+BODY FONT — For all UI text
+  Name (paid):        Söhne
+  Name (free alt):    Plus Jakarta Sans  (Google Fonts — recommended)
+                      Inter is also acceptable as secondary fallback
+  Style:              Geometric humanist sans-serif
+  Weights used:       Light 300, Regular 400, Medium 500, Semibold 600
+  Use for:            Body text, UI labels, buttons, navigation,
+                      inputs, metadata, all functional copy
+  Fallback stack:     -apple-system, BlinkMacSystemFont,
+                      "Helvetica Neue", Arial, sans-serif
+
+
+MONOSPACE FONT — For technical strings and code
+  Name (paid):        Berkeley Mono
+  Name (free alt):    JetBrains Mono  (Google Fonts)
+  Use for:            Code blocks, API strings, OTP digit inputs,
+                      transaction reference IDs
+  Fallback stack:     Consolas, "Courier New", monospace
+
+
+MOBILE TYPE SCALE
+
+  Display Large
+    Size:             32px
+    Font:             Tiempos Text / Lora
+    Weight:           400
+    Line height:      1.15
+    Letter spacing:   -0.02em
+    Use:              Welcome headings, hero onboarding screens
+
+  Display Medium
+    Size:             26px
+    Font:             Tiempos Text / Lora
+    Weight:           400
+    Line height:      1.2
+    Letter spacing:   -0.015em
+    Use:              Screen titles, onboarding slide headings
+
+  Display Small
+    Size:             22px
+    Font:             Tiempos Text / Lora
+    Weight:           400
+    Line height:      1.25
+    Letter spacing:   -0.01em
+    Use:              Card section headings, feature titles
+
+  Title Large
+    Size:             18px
+    Font:             Plus Jakarta Sans / Inter
+    Weight:           600
+    Line height:      1.3
+    Use:              Navigation bar titles, modal headers
+
+  Title Medium
+    Size:             16px
+    Font:             Plus Jakarta Sans / Inter
+    Weight:           600
+    Line height:      1.35
+    Use:              Card titles, list item headings, drawer headers
+
+  Title Small
+    Size:             14px
+    Font:             Plus Jakarta Sans / Inter
+    Weight:           600
+    Line height:      1.4
+    Use:              Label headings, group titles, section sub-labels
+
+  Body Large
+    Size:             16px
+    Font:             Plus Jakarta Sans / Inter
+    Weight:           400
+    Line height:      1.65
+    Use:              Primary reading content, service descriptions,
+                      counsellor bio text
+
+  Body Medium
+    Size:             14px
+    Font:             Plus Jakarta Sans / Inter
+    Weight:           400
+    Line height:      1.6
+    Use:              Secondary content, card descriptions, chat messages
+
+  Body Small
+    Size:             12px
+    Font:             Plus Jakarta Sans / Inter
+    Weight:           400
+    Line height:      1.55
+    Use:              Metadata, timestamps, helper text, terms copy
+
+  Label / Eyebrow
+    Size:             11px
+    Font:             Plus Jakarta Sans / Inter
+    Weight:           500
+    Line height:      1.4
+    Letter spacing:   0.06em
+    Transform:        UPPERCASE
+    Use:              Tag pills, status badges, section eyebrow caps,
+                      input field labels placed above the field
+
+  Caption
+    Size:             10px
+    Font:             Plus Jakarta Sans / Inter
+    Weight:           400
+    Letter spacing:   0.04em
+    Use:              Smallest annotations only. Never go below 10px.
+
+  Button Text
+    Size:             14px
+    Font:             Plus Jakarta Sans / Inter
+    Weight:           500
+    Letter spacing:   0.01em
+    Use:              All button labels, CTA text
+
+  Code / OTP
+    Size:             13px
+    Font:             JetBrains Mono / Berkeley Mono
+    Weight:           400
+    Line height:      1.6
+    Use:              Code blocks, OTP input boxes, reference IDs
+
+
+--------------------------------------------------------------------------------
+SECTION 6 — ILLUSTRATION STYLE
+--------------------------------------------------------------------------------
+
+MindHeal illustrations are warm, minimal, and conceptual. They avoid literal
+or cartoonish representations and instead use abstract, metaphorical visuals
+that feel intelligent and emotionally resonant.
+
+
+OVERALL AESTHETIC
+  Direction:          Abstract editorial with warm organic shapes.
+                      Think thoughtful book cover, not app store icon.
+  Mood:               Calm, intelligent, slightly poetic.
+                      Never playful-bubbly. Never corporate-cold.
+  Complexity:         Low to medium detail. Negative space is generous
+                      and intentional. Illustrations should breathe.
+  Colours per piece:  Maximum 3 colours. Always from the brand palette.
+                      Coral, warm cream, dusty lavender, sage.
+                      Never introduce external colours.
+
+
+SHAPE LANGUAGE
+  Primary shapes:     Soft organic forms. Rounded irregular blobs rather
+                      than perfect geometric circles. Slightly imperfect
+                      curves that feel considered even when fully vector.
+  Secondary shapes:   Clean simple line work at 1.5px to 2px stroke weight.
+                      Minimal outlines on select elements only.
+  Corners:            No hard corners anywhere. Even rectangular shapes
+                      need a minimum 8px corner radius.
+  Layering:           2 to 3 overlapping semi-transparent shapes create
+                      depth. Use multiply blend mode at 60 to 80% opacity
+                      for overlapping areas.
+
+
+WHAT TO ILLUSTRATE
+  Use abstract representations of concepts.
+  A conversation shown as overlapping speech forms, not two people talking.
+  Thinking shown as layered translucent planes, not a literal brain.
+  Memory shown as soft stacked forms, not filing cabinets.
+  Growth shown as a single upward organic curve, not a bar chart.
+  Healing shown as an open soft shape with warm light at its centre.
+
+  Avoid:              Human figures unless absolutely necessary, faces,
+                      hands, literal product mockups, clipart-adjacent
+                      imagery, and anything that could feel medical
+                      or clinical.
+
+
+COLOUR USAGE IN ILLUSTRATIONS
+  Background shape:   Warm cream #F5F4F0 or coral tint at 8% opacity
+  Primary form:       Coral #DA7756 at 70 to 85% opacity
+  Secondary form:     Dusty lavender #8A84B8 or sage #5A8A5A at 50 to 65%
+  Line work:          Deep charcoal #1A1A18 at 40 to 60% opacity
+  Highlight accent:   White #FFFFFF at 30 to 45% for inner glow or edge
+                      catch-light effect
+
+
+ILLUSTRATION SIZES FOR MOBILE
+  Hero (onboarding, empty states):
+    Width:            280px maximum, centred
+    Breathing room:   40px vertical above and below minimum
+
+  Card illustration (feature cards, service blocks):
+    Size:             80 to 120px
+    Position:         Top-right corner of card, partially cropped at edge
+
+  Icon illustration (small UI moments):
+    Size:             40 to 56px
+    Complexity:       Simple, 2 colours maximum
+
+
+REALISTIC PHOTOGRAPHY STYLE (for onboarding screens)
+  Subject:            Indian people, diverse ages and skin tones,
+                      natural candid or near-candid poses
+  Setting:            Real everyday environments — homes, parks, cafes,
+                      therapy spaces. Not staged studios.
+  Lighting:           Natural light preferred. Warm afternoon or soft
+                      window light. Avoid harsh flash or clinical white.
+  Colour grade:       Warm tone, slightly lifted shadows, gentle vignette.
+                      Desaturation kept minimal to preserve skin warmth.
+  Overlay:            Bottom 15 to 20% of photo fades to page background
+                      using CSS linear-gradient overlay. No hard cut.
+  License:            All photography must be commercially licensed
+                      with model release. Commission local or use
+                      licensed stock from Getty / Pexels Pro.
+
+
+--------------------------------------------------------------------------------
+SECTION 7 — ICON STYLE
+--------------------------------------------------------------------------------
+
+STYLE DIRECTION
+  Base library:       Lucide Icons or Phosphor Icons (Regular weight)
+  Stroke weight:      1.5px on 24x24 grid
+                      Use 1.8px for icons displayed below 20px
+  Cap and join style: Round caps and round joins throughout.
+                      Never flat or square ends.
+  Corner radius:      2px minimum on geometric shapes within icons
+  Fill usage:         Outline only by default.
+                      Fill version used only for active or selected states
+                      and only when the filled icon communicates clearly.
+  Optical correction: Visually centre all icons within bounding box.
+                      Trust your eye over the mathematical grid.
+
+
+ICON SIZES
+  Navigation bar icons:           24px display, 44x44 tap target
+  Action icons (buttons, inline): 20px display
+  Small inline icons (tags, rows):16px display
+  Hero icons (empty states):      40 to 48px, stroke 1.8px
+
+
+ICON COLOURS
+  Default inactive light:   #8A8880
+  Default inactive dark:    #706E68
+  Active or selected light: #DA7756
+  Active or selected dark:  #E8866A
+  Destructive action light: #C85A5A
+  Destructive action dark:  #D87070
+  On dark filled surface:   #FAFAF8 at 90% opacity
+  On primary coral button:  #FFFFFF
+  Disabled state:           35% opacity of the default colour
+
+
+CUSTOM ICONS TO BE DESIGNED
+The following icons cannot be sourced from standard libraries and must be
+custom designed matching the stroke style above:
+
+  Brain with neural path lines     — AI counselling feature
+  Speech bubble with sparkle       — AI chat screen
+  Moon with abstract cloud         — Dream analysis feature
+  Handwriting pen line             — Handwriting analysis feature
+  Lotus or leaf mark               — Wellness and healing section
+  Map pin with heart cutout        — Healing location map
+  Wallet with rupee symbol         — Wallet and payments
+  Group circle with pulse          — Group healing sessions
+
+
+--------------------------------------------------------------------------------
+SECTION 8 — SPACING AND LAYOUT
+--------------------------------------------------------------------------------
+
+BASE UNIT: 4px
+All spacing values are multiples of 4. Never use arbitrary values.
+
+
+SPACING SCALE
+  2px    Hairline gap between icon and its label only
+  4px    Minimum internal padding
+  8px    Tight spacing between related inline elements
+  12px   Default internal card padding top and bottom
+  16px   Standard gap between list items and between form fields
+  20px   Card internal padding left and right
+  24px   Section spacing within a screen
+  32px   Major section separator
+  40px   Top padding on screens below the status bar
+  48px   Bottom padding above home indicator / safe area
+
+
+CORNER RADIUS SCALE
+  4px    Small tags, badges, tiny chips
+  8px    Input fields, small buttons, inline code blocks
+  12px   Standard buttons, small cards
+  16px   Default card radius
+  24px   Large cards, bottom sheets
+  32px   Modal sheets, full-width feature cards
+  100px  Pill buttons, rounded tags, avatar borders
+
+
+ELEVATION AND SHADOW
+
+Light Mode
+  Level 0 — Flat, no shadow
+    Used for: page background elements, full-width list items
+
+  Level 1 — Subtle
+    Value:  0 1px 4px rgba(26,26,24,0.06), 0 2px 8px rgba(26,26,24,0.04)
+    Used for: default cards, inline components
+
+  Level 2 — Raised
+    Value:  0 4px 16px rgba(26,26,24,0.08), 0 2px 6px rgba(26,26,24,0.05)
+    Used for: elevated cards, dropdowns, popovers
+
+  Level 3 — Floating
+    Value:  0 8px 32px rgba(26,26,24,0.12), 0 4px 12px rgba(26,26,24,0.07)
+    Used for: modals, bottom sheets, floating action buttons
+
+Dark Mode
+  Level 1:  0 1px 4px rgba(0,0,0,0.20)
+  Level 2:  0 4px 16px rgba(0,0,0,0.30)
+  Level 3:  0 8px 32px rgba(0,0,0,0.45)
+
+
+--------------------------------------------------------------------------------
+SECTION 9 — COMPONENT TOKENS
+--------------------------------------------------------------------------------
+
+
+BUTTONS
+
+  Primary Button
+    Background light:   #DA7756
+    Background dark:    #E8866A
+    Text:               #FFFFFF
+    Border radius:      12px
+    Height:             52px
+    Font:               14px, weight 500
+    Padding:            0 24px
+    Pressed state:      scale(0.97), brightness(0.92)
+    Disabled:           opacity 0.38, no pointer events
+
+  Secondary Button
+    Background light:   #F0EDE8
+    Background dark:    #2A2A26
+    Text light:         #1A1A18
+    Text dark:          #FAFAF8
+    Border light:       1px solid #D8D4CE
+    Border dark:        1px solid #3E3E3A
+    Border radius:      12px
+    Height:             52px
+    Font:               14px, weight 500
+
+  Ghost Button
+    Background:         transparent
+    Border light:       1.5px solid #DA7756
+    Border dark:        1.5px solid #E8866A
+    Text light:         #DA7756
+    Text dark:          #E8866A
+    Border radius:      12px
+    Height:             52px
+    Font:               14px, weight 500
+
+  Destructive Button
+    Background light:   #C85A5A
+    Background dark:    #D87070
+    Text:               #FFFFFF
+    Border radius:      12px
+    Height:             52px
+
+
+INPUTS
+
+  Default state
+    Background light:   #F0EDE8
+    Background dark:    #2A2A26
+    Border light:       1.5px solid #D8D4CE
+    Border dark:        1.5px solid #3E3E3A
+    Border radius:      12px
+    Height:             52px
+    Font size:          15px, weight 400
+    Placeholder colour: #8A8880 light, #706E68 dark
+    Padding:            0 16px
+    Label placement:    Above field, 6px gap below label
+    Label style:        11px, weight 500, letter-spacing 0.06em, UPPERCASE
+
+  Focus state
+    Border light:       1.5px solid #DA7756
+    Border dark:        1.5px solid #E8866A
+    Glow light:         0 0 0 3px rgba(218,119,86,0.15)
+    Glow dark:          0 0 0 3px rgba(232,134,106,0.20)
+
+  Error state
+    Border:             1.5px solid #C85A5A (both modes)
+    Glow:               0 0 0 3px rgba(200,90,90,0.12)
+    Helper text:        #C85A5A, 12px, placed 5px below field
+
+  Disabled state
+    Opacity:            0.45
+    Background:         same as default
+    No pointer events
+
+
+CARDS
+
+  Default card
+    Background light:   #F5F4F0
+    Background dark:    #242420
+    Border light:       1px solid #E4E2DC
+    Border dark:        1px solid #333330
+    Border radius:      16px
+    Padding:            20px
+    Shadow:             Level 1
+
+  Elevated card
+    Background light:   #FFFFFF
+    Background dark:    #2E2E2A
+    Border light:       1px solid #E4E2DC
+    Border dark:        1px solid #3A3A36
+    Border radius:      16px
+    Padding:            20px
+    Shadow:             Level 2
+
+  Feature highlight card (used on dashboard service blocks)
+    Background light:   Coral tint #FDF0EB
+    Background dark:    rgba(218,119,86,0.12)
+    Border light:       1px solid #F2C4B2
+    Border dark:        1px solid rgba(218,119,86,0.25)
+    Border radius:      20px
+    Padding:            20px
+    Left accent bar:    4px solid #DA7756, no border radius on that edge
+
+
+TAG PILLS AND BADGES
+
+  Default tag
+    Background light:   #F0EDE8
+    Background dark:    #2A2A26
+    Border light:       1px solid #D8D4CE
+    Border dark:        1px solid #3E3E3A
+    Text light:         #4A4A46
+    Text dark:          #A8A49C
+    Font:               11px, weight 500, UPPERCASE, letter-spacing 0.06em
+    Border radius:      100px
+    Padding:            4px 10px
+
+  Status badge — Active / Online
+    Background:         Sage tint #EEF5EE light, rgba(90,138,90,0.15) dark
+    Border:             1px solid #5A8A5A
+    Text:               #5A8A5A both modes
+    Dot indicator:      6px filled circle, #5A8A5A, pulse-ring animation
+
+  Status badge — Pending / Busy
+    Background:         Amber tint #FEF3E8 light, rgba(200,117,42,0.15) dark
+    Border:             1px solid #C8752A
+    Text:               #C8752A light, #D88A40 dark
+
+  Status badge — Free service
+    Background:         Lavender tint #F2F0F8 light, rgba(138,132,184,0.15) dark
+    Border:             1px solid #8A84B8
+    Text:               #8A84B8 light, #A09AC8 dark
+
+
+BOTTOM NAVIGATION BAR
+
+  Background light:     #FFFFFF with Level 2 top shadow
+  Background dark:      #242420 with Level 2 top shadow
+  Height:               56px plus bottom safe area padding
+  Icon size:            24px
+  Label font:           10px, weight 500
+  Active icon colour:   #DA7756 light, #E8866A dark
+  Inactive icon colour: #8A8880 light, #706E68 dark
+  Active label colour:  #DA7756 light, #E8866A dark
+  Inactive label colour:#8A8880 light, #706E68 dark
+  Active indicator:     Small 4px wide 2px tall pill above the icon,
+                        coral colour, centred horizontally
+
+
+BOTTOM SHEET
+
+  Background light:     #FFFFFF
+  Background dark:      #2E2E2A
+  Border radius:        32px top-left and top-right only
+  Drag handle:          32px wide, 4px tall, #D8D4CE light, #3E3E3A dark,
+                        centred, 12px from top of sheet
+  Overlay behind:       Layer 4 scrim value
+  Animate in:           translateY(100%) to translateY(0), 400ms,
+                        cubic-bezier(0.0, 0.0, 0.2, 1)
+  Animate out:          translateY(0) to translateY(100%), 280ms,
+                        cubic-bezier(0.4, 0.0, 1, 1)
+
+
+TOAST AND NOTIFICATION BANNERS
+
+  Success toast
+    Background light:   #EEF5EE
+    Background dark:    rgba(90,138,90,0.18)
+    Border left:        4px solid #5A8A5A, no radius on left edge
+    Icon:               Check circle, #5A8A5A, 18px
+    Title font:         13px, weight 600, #1A1A18 light, #FAFAF8 dark
+    Body font:          12px, weight 400, #5A5855 light, #A8A49C dark
+
+  Warning toast
+    Background light:   #FEF3E8
+    Background dark:    rgba(200,117,42,0.18)
+    Border left:        4px solid #C8752A
+    Icon:               Alert circle, #C8752A, 18px
+
+  Error toast
+    Background light:   #FEF0F0
+    Background dark:    rgba(200,90,90,0.18)
+    Border left:        4px solid #C85A5A
+    Icon:               X circle, #C85A5A, 18px
+
+  Info / AI toast
+    Background light:   #F2F0F8
+    Background dark:    rgba(138,132,184,0.18)
+    Border left:        4px solid #8A84B8
+    Icon:               Info or sparkle, #8A84B8, 18px
+
+  All toasts
+    Border radius:      12px (except left edge where border colour bar sits)
+    Padding:            14px 16px
+    Shadow:             Level 2
+    Position:           Top of screen, 16px from top, 16px side margins
+    Animation in:       translateY(-8px) + opacity 0 to 1, 350ms ease
+    Animation out:      opacity 1 to 0, 250ms ease
+    Auto dismiss:       4 seconds unless user interacts
+
+
+--------------------------------------------------------------------------------
+SECTION 10 — MOTION AND ANIMATION
+--------------------------------------------------------------------------------
+
+GUIDING PRINCIPLE
+Motion should feel like a breath, never a jolt. Every animation should have
+a reason. If removing it does not hurt the experience, remove it.
+
+
+EASING FUNCTIONS
+  Standard:            cubic-bezier(0.4, 0.0, 0.2, 1)
+                       Used for most transitions and state changes
+
+  Decelerate (enter):  cubic-bezier(0.0, 0.0, 0.2, 1)
+                       Elements entering the screen, coming in fast
+                       then slowing to rest
+
+  Accelerate (exit):   cubic-bezier(0.4, 0.0, 1, 1)
+                       Elements leaving the screen, starting slow
+                       then accelerating out
+
+  Bounce (emphasis):   cubic-bezier(0.34, 1.56, 0.64, 1)
+                       Used sparingly — success states, final CTA
+                       button on onboarding, positive confirmations
+
+
+DURATION SCALE
+  Instant:             100ms   Colour changes, opacity micro-transitions
+  Fast:                200ms   Button press feedback, icon state changes
+  Standard:            300ms   Card expansions, dropdown opens, tab switches
+  Moderate:            400ms   Screen element entrances, bottom sheet appear
+  Slow:                500ms   Full screen transitions, modal entrances
+  Deliberate:          600ms   Onboarding sequences, hero entrances
+
+
+CORE ANIMATION PATTERNS
+
+  Screen entrance
+    Effect:             Slide from right + fade in
+    Transform:          translateX(24px) to translateX(0)
+    Opacity:            0 to 1
+    Duration:           350ms
+    Easing:             Decelerate
+
+  Screen exit
+    Effect:             Slide left slightly + fade out
+    Transform:          translateX(0) to translateX(-12px)
+    Opacity:            1 to 0
+    Duration:           250ms
+    Easing:             Accelerate
+
+  Card entrance
+    Transform:          translateY(8px) to translateY(0)
+    Opacity:            0 to 1
+    Duration:           400ms
+    Easing:             Standard
+    Stagger:            60ms between multiple cards
+
+  Button press
+    Press:              scale(0.97) over 100ms
+    Release:            scale(1) over 150ms
+
+  Bottom sheet open
+    Transform:          translateY(100%) to translateY(0)
+    Duration:           400ms
+    Easing:             Decelerate
+
+  Bottom sheet close
+    Transform:          translateY(0) to translateY(100%)
+    Duration:           280ms
+    Easing:             Accelerate
+
+  AI thinking / loading animation
+    Three dots in sequence. Each dot:
+    Transform:          scale(0.6) to scale(1) to scale(0.6)
+    Duration:           1.2s per dot
+    Stagger:            0.2s between each dot
+    Colour:             Coral #DA7756 light, #E8866A dark
+
+  Success checkmark
+    Effect:             SVG stroke-dashoffset draw-on animation
+    Duration:           500ms
+    Easing:             Bounce
+    Colour:             Sage green #5A8A5A
+
+  Error shake
+    Transform:          translateX(0, 6px, -6px, 4px, -4px, 2px, -2px, 0)
+    Duration:           400ms
+    Applied to:         The input field or containing card
+
+  Breathe (for ambient elements)
+    Transform:          scale(1) to scale(1.12) to scale(1)
+    Duration:           6 to 8 seconds
+    Easing:             ease-in-out
+    Loop:               Infinite
+    Used for:           Glow orbs, loading orb on splash screen,
+                        meditation and focus tool animations
+
+  Pulse ring (for live indicators)
+    Effect:             Box-shadow expands and fades
+    From:               0 0 0 0 rgba(218,119,86,0.45)
+    To:                 0 0 0 12px rgba(218,119,86,0)
+    Duration:           2s
+    Loop:               Infinite
+    Used for:           Online status dots, active session indicators,
+                        OTP active input box, map pin animations
+
+
+REDUCED MOTION
+Always implement prefers-reduced-motion media query.
+
+When prefers-reduced-motion: reduce is active:
+  Replace all translate and scale animations with opacity only.
+  Maximum duration for all transitions: 150ms.
+  Pause all looping animations (breathe, pulse, shimmer).
+  Carousel transitions become instant crossfades with no slide effect.
+  Loading dots remain visible but static.
+
+
+--------------------------------------------------------------------------------
+SECTION 11 — DARK MODE SYSTEM
+--------------------------------------------------------------------------------
+
+MODE DETECTION
+  Default:              Follow system preference via prefers-color-scheme
+  Manual override:      Toggle in app Settings screen
+  Save preference:      Persist to local storage or app shared preferences
+  On launch:            Apply immediately, no flash of wrong theme
+
+TRANSITION WHEN SWITCHING
+  Transition property:  background-color, color, border-color only
+  Duration:             300ms standard easing
+  Do not transition:    box-shadow, opacity — causes visual artifacts
+
+STATUS BAR
+  Light mode:           Dark content (dark icons on light background)
+  Dark mode:            Light content (light icons on dark background)
+
+IMAGES IN DARK MODE
+  User photos and avatars:     No filter applied. Never alter user content.
+  Decorative app illustrations: brightness(0.88) filter applied softly.
+  Photography on onboarding:   brightness(0.85) to blend better with
+                                dark surfaces behind gradient fade.
+
+
+--------------------------------------------------------------------------------
+SECTION 12 — VOICE AND TONE
+--------------------------------------------------------------------------------
+
+These principles must be applied to all in-app copy across the MindHeal
+User App — buttons, labels, empty states, toasts, errors, and onboarding.
+
+
+CORE PRINCIPLES
+  Write like a thoughtful friend who happens to know a lot.
+  Never like a product manual. Never like a legal document.
+  Use contractions naturally — "You're" not "You are".
+  Keep sentences short. One idea per sentence in UI copy.
+  Never start instructions with the word "Please" — it reads as filler.
+  Never blame the user. Errors are the system's problem, not theirs.
+  Use "I" for the app voice in conversational contexts.
+  Always tell the user what to do next after an error.
+
+
+SPECIFIC COPY RULES
+
+  Empty states
+    Write as invitation, not failure notice.
+    Good:  "Your sessions will appear here once you book one."
+    Bad:   "No sessions found."
+
+  Error messages
+    Explain what happened and what to do next.
+    Good:  "We couldn't connect. Check your internet and try again."
+    Bad:   "Error 503. Request failed."
+
+  Loading states
+    Be specific and contextual, not generic.
+    Good:  "Finding counsellors near you..."
+    Bad:   "Loading..."
+
+  Success confirmations
+    Warm and personal.
+    Good:  "Done. See you at 4pm."
+    Bad:   "Session confirmed successfully."
+
+  Buttons
+    Use active verb phrases. Never passive.
+    Good:  "Book Session", "Get Started", "Send OTP", "View Report"
+    Bad:   "Submit", "OK", "Proceed", "Continue to next step"
+
+  Destructive actions
+    Always name what is being destroyed.
+    Good:  "Delete this session?"
+    Bad:   "Are you sure?"
+
+  Payments and money
+    Always show the amount and what it is for in the same line.
+    Good:  "Pay ₹800 for 1 hour with Dr. Priya Mehta"
+    Bad:   "Confirm payment"
+
+  AI chat responses
+    Warm, present-tense, uses "I".
+    Good:  "I'm here. Take your time."
+    Bad:   "The AI assistant is ready to respond."
+
+
+WORDS TO AVOID ENTIRELY IN UI COPY
+  "Please"          — corporate filler
+  "Access"          — cold and transactional
+  "Utilise"         — overly formal
+  "Platform"        — internal product language
+  "Solution"        — meaningless
+  "Services"        — clinical, prefer "support" or "help"
+  "Successfully"    — redundant in positive confirmations
+  "Invalid"         — blaming, replace with "We didn't recognise that"
+  "Failed"          — harsh, replace with "Something went wrong"
+
+
+WORDS TO USE
+  "You", "your", "we", "together"
+  "Safe", "private", "yours"
+  "Here for you", "whenever you're ready"
+  "Let's", "ready when you are"
+  "Take your time"
+
+
+--------------------------------------------------------------------------------
+SECTION 13 — LOCALISATION NOTES
+--------------------------------------------------------------------------------
+
+The MindHeal User App supports 21 languages. Apply the following rules
+when designing and developing localised screens.
+
+
+TEXT EXPANSION
+  Allow for 40% text expansion in all UI elements for languages like
+  German, French, and Hindi transliterations. Buttons and labels must
+  never clip text — use flexible widths, not fixed.
+
+  Minimum touch target: 44x44px regardless of text length.
+
+RTL LANGUAGES (Arabic, Urdu)
+  Mirror the entire layout horizontally.
+  Back arrows become forward arrows.
+  Icons on left move to right and vice versa.
+  Progress bars fill from right to left.
+  Text alignment switches to right-aligned.
+  Flutter handles this automatically with Directionality widget.
+
+NUMERALS
+  Use locale-aware numeral formatting via Intl package.
+  Indian numbering system (lakhs, crores) for INR amounts.
+  Example: ₹1,00,000 not ₹100,000 for Indian locale.
+
+FONTS FOR INDIAN SCRIPTS
+  Hindi and Devanagari:   Noto Sans Devanagari
+  Tamil:                  Noto Sans Tamil
+  Telugu:                 Noto Sans Telugu
+  Bengali:                Noto Sans Bengali
+  Gujarati:               Noto Sans Gujarati
+  Kannada:                Noto Sans Kannada
+  Malayalam:              Noto Sans Malayalam
+  Punjabi (Gurmukhi):     Noto Sans Gurmukhi
+  All Noto fonts are free via Google Fonts.
+  Load only the scripts needed for the user's selected language.
+  Do not load all scripts at startup — lazy load on language selection.
+
+
+--------------------------------------------------------------------------------
+SECTION 14 — QUICK REFERENCE — COLOUR HEX CODES
+--------------------------------------------------------------------------------
+
+All colours in one place for fast developer reference.
+
+PRIMARY
+  Coral main light:           #DA7756
+  Coral main dark:            #E8866A
+  Coral tint:                 #F2C4B2
+  Coral shade:                #B85A3A
+  Coral bg tint light:        #FDF0EB
+  Charcoal main light:        #1A1A18
+  Charcoal main dark:         #FAFAF8
+
+SECONDARY
+  Cream bg light:             #FAFAF8
+  Cream card light:           #F5F4F0
+  Cream bg dark:              #1A1A18
+  Cream card dark:            #242420
+  Mid grey light:             #8A8880
+  Mid grey dark:              #706E68
+  Parchment light:            #F0EDE8
+  Parchment dark:             #2A2A26
+  Parchment border light:     #D8D4CE
+  Parchment border dark:      #3E3E3A
+
+ACCENTS
+  Amber light:                #C8752A
+  Amber dark:                 #D88A40
+  Sage light:                 #5A8A5A
+  Sage dark:                  #72A872
+  Lavender light:             #8A84B8
+  Lavender dark:              #A09AC8
+  Red light:                  #C85A5A
+  Red dark:                   #D87070
+
+SURFACES LIGHT
+  Page bg:                    #FAFAF8
+  Card default:               #F5F4F0
+  Card elevated:              #FFFFFF
+  Input bg:                   #F0EDE8
+  Divider:                    #E4E2DC
+  Scrim:                      rgba(26,26,24,0.45)
+
+SURFACES DARK
+  Page bg:                    #1A1A18
+  Card default:               #242420
+  Card elevated:              #2E2E2A
+  Modal:                      #323230
+  Input bg:                   #2A2A26
+  Divider:                    #333330
+  Scrim:                      rgba(0,0,0,0.6)
+
+
+--------------------------------------------------------------------------------
+
+MINDHEAL USER APP — STYLE GUIDE v1.0
+Prilient Technologies Pvt. Ltd.
+For internal design and development use only.
+
+================================================================================
