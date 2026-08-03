@@ -83,36 +83,8 @@ export const api = {
     const latestMood = sortedHistory.at(-1);
 
     let auth = myProfile.ok ? myProfile.data : null;
-    const token = localStorage.getItem("mindheal-access-token");
-    if (!auth && token && token.startsWith("mock-")) {
-      const parts = token.split("-");
-      const role = parts[1] || "user";
-      const emailEnc = parts[2] || "";
-      let email = `${role}@example.com`;
-      try { if (emailEnc && emailEnc !== "token") email = decodeURIComponent(emailEnc); } catch (e) {}
-
-      const demoRegistry = {
-        // Users
-        "arjun@example.com": { name: "Arjun Kumar", role: "user" },
-        "neha.s@example.com": { name: "Neha Sharma", role: "user" },
-        "demo.user@example.com": { name: "Demo User", role: "user" },
-        // Counsellors
-        "priya.counsellor@example.com": { name: "Dr. Priya Mehta", role: "counsellor" },
-        "dr.rajesh@example.com": { name: "Dr. Rajesh Singh", role: "counsellor" },
-        // Admin
-        "dharm@mindheal.com": { name: "Designer Dharm", role: "admin" },
-        "admin@example.com": { name: "System Admin", role: "admin" }
-      };
-
-      const matched = demoRegistry[email] || { name: `${role.charAt(0).toUpperCase() + role.slice(1)} (Demo)`, role: role };
-
-      auth = {
-        id: `usr_mock_${Math.random().toString(36).substr(2, 9)}`,
-        role: matched.role,
-        fullName: matched.name,
-        email: email,
-        language: "en"
-      };
+    if (!auth) {
+      localStorage.removeItem("mindheal-access-token");
     }
 
     return {
