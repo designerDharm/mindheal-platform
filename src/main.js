@@ -336,6 +336,17 @@ async function resolvePage(path) {
   if (path === "/careers") return careersPage();
   if (path === "/press") return pressPage();
   if (path === "/contact") return contactPage();
+  
+  // Legal Centre Routes (PART A - Document 2. Required legal centre)
+  if (path === "/legal" || path === "/legal/user-terms") return legalUserTermsPage();
+  if (path === "/legal/user-privacy") return legalUserPrivacyPage();
+  if (path === "/legal/professional-terms") return legalProfessionalTermsPage();
+  if (path === "/legal/professional-privacy") return legalProfessionalPrivacyPage();
+  if (path === "/legal/ai-notice") return legalAiNoticePage();
+  if (path === "/legal/refunds") return legalRefundsPage();
+  if (path === "/legal/cookies") return legalCookiesPage();
+  if (path === "/legal/safety") return legalSafetyPage();
+  if (path === "/legal/subprocessors") return legalSubprocessorsPage();
   if (path === "/auth/user-login") return authPage("user", "login");
   if (path === "/auth/user-signup") return authPage("user", "signup");
   if (path === "/auth/counsellor-login") return authPage("counsellor", "login");
@@ -545,12 +556,14 @@ function siteFooter() {
           </div>
         </div>
       </div>
-      <div class="container" style="border-top:1px solid rgba(255,255,255,0.1);padding-top:32px;display:flex;justify-content:space-between;align-items:center;font-size:14px;">
-        <div>&copy; 2026 MindHeal. All rights reserved.</div>
-        <div style="display:flex;gap:24px;">
-          <a href="#" style="color:rgba(255,255,255,0.6);text-decoration:none;" class="hover-opacity">Privacy Policy</a>
-          <a href="#" style="color:rgba(255,255,255,0.6);text-decoration:none;" class="hover-opacity">Terms of Service</a>
-          <a href="#" style="color:rgba(255,255,255,0.6);text-decoration:none;" class="hover-opacity">Cookie Policy</a>
+      <div class="container" style="border-top:1px solid rgba(255,255,255,0.1);padding-top:32px;display:flex;justify-content:space-between;align-items:center;font-size:14px;flex-wrap:wrap;gap:16px;">
+        <div>&copy; 2026 MindHeal (Prilient Technologies Pvt. Ltd.). All rights reserved.</div>
+        <div style="display:flex;gap:20px;flex-wrap:wrap;">
+          <a href="#/legal/user-privacy" style="color:rgba(255,255,255,0.6);text-decoration:none;" class="hover-opacity">Privacy Notice</a>
+          <a href="#/legal/user-terms" style="color:rgba(255,255,255,0.6);text-decoration:none;" class="hover-opacity">User Terms</a>
+          <a href="#/legal/professional-terms" style="color:rgba(255,255,255,0.6);text-decoration:none;" class="hover-opacity">Counsellor Terms</a>
+          <a href="#/legal/cookies" style="color:rgba(255,255,255,0.6);text-decoration:none;" class="hover-opacity">Cookie Policy</a>
+          <a href="#/legal/safety" style="color:rgba(255,255,255,0.6);text-decoration:none;" class="hover-opacity">Clinical Safety</a>
         </div>
       </div>
     </footer>
@@ -1939,6 +1952,129 @@ function otpVerificationScreen(role, target, panelPath) {
     </div>
   `;
 }
+
+function legalHeaderNav(activeType) {
+  const links = [
+    ["user-terms", "User Terms"],
+    ["user-privacy", "User Privacy"],
+    ["professional-terms", "Counsellor Terms"],
+    ["professional-privacy", "Counsellor Privacy"],
+    ["ai-notice", "AI Notice"],
+    ["refunds", "Refund Policy"],
+    ["cookies", "Cookie Policy"],
+    ["safety", "Clinical Safety"],
+    ["subprocessors", "Subprocessors"]
+  ];
+
+  return html`
+    <nav style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:32px;padding:16px;background:var(--color-cream);border-radius:16px;border:1px solid var(--color-border);">
+      ${links.map(([id, label]) => `
+        <a href="#/legal/${id}" class="btn secondary ${activeType === id ? 'active' : ''}" style="font-size:13px;padding:8px 16px;border-radius:10px;text-decoration:none;${activeType === id ? 'background:var(--color-charcoal);color:white;' : ''}">
+          ${label}
+        </a>
+      `).join("")}
+    </nav>
+  `;
+}
+
+function legalUserTermsPage() {
+  return html`
+    <main class="page" style="padding:100px 0 80px 0;">
+      <div class="container" style="max-width:840px;margin:0 auto;padding:0 24px;">
+        <span class="status-pill warning" style="margin-bottom:12px;display:inline-block;font-weight:700;">LEGAL CENTRE • DRAFT 0.9</span>
+        <h1 class="page-title" style="font-family:var(--font-serif);font-size:42px;margin-bottom:12px;">User Terms of Use</h1>
+        <p style="color:var(--color-text-muted);font-size:14px;margin-bottom:24px;">
+          Operator: Prilient Technologies Pvt. Ltd. (trading as MindHeal) | Effective: August 3, 2026
+        </p>
+
+        ${legalHeaderNav("user-terms")}
+
+        <div style="background:white;border-radius:20px;padding:40px;border:1px solid var(--color-border);line-height:1.8;color:var(--color-charcoal);">
+          <div style="background:var(--color-cream);padding:24px;border-radius:16px;border-left:4px solid var(--color-coral);margin-bottom:32px;">
+            <h3 style="margin-bottom:8px;font-size:18px;">Plain-Language Summary</h3>
+            <ul style="padding-left:20px;font-size:14px;display:flex;flex-direction:column;gap:6px;">
+              <li>MindHeal is a technology platform and marketplace connecting users to self-help tools, AI features, and independent clinicians.</li>
+              <li>MindHeal is NOT an emergency service. In crisis, call 112 or Tele-MANAS (14416).</li>
+              <li>AI outputs & screening scores are for self-reflection and care navigation — NOT medical diagnosis.</li>
+              <li>Independent human Professionals are solely responsible for their diagnosis, therapy, and prescriptions.</li>
+              <li>Users aged 15–17 require verified guardian consent and cannot access AI chat/interpretation tools.</li>
+            </ul>
+          </div>
+
+          <h2 style="font-size:22px;margin:28px 0 12px 0;">1. Acceptance & Operator Info</h2>
+          <p>These Terms form a binding agreement between the user and Prilient Technologies Pvt. Ltd. By creating an account or using MindHeal, you confirm acceptance of these terms.</p>
+
+          <h2 style="font-size:22px;margin:28px 0 12px 0;">2. Eligibility & Minors (15–17 Age Policy)</h2>
+          <p>Users must be at least 15 years old. Users aged 15–17 may use MindHeal only after a verified parent or lawful guardian accepts these terms. Restricted AI chat and AI interpretation features remain strictly limited to users aged 18+.</p>
+
+          <h2 style="font-size:22px;margin:28px 0 12px 0;">3. Emergency & Crisis Disclaimer</h2>
+          <p>MindHeal does not provide continuous medical monitoring. If in immediate danger of self-harm or medical emergency, call 112 or Tele-MANAS (14416 / 1-800-891-4416) immediately.</p>
+
+          <h2 style="font-size:22px;margin:28px 0 12px 0;">4. Independent Professionals & Prescriptions</h2>
+          <p>Counsellors and psychologists act in their independent professional capacity. Prescriptions may only be issued by legally authorised Registered Medical Practitioners (RMPs) with active platform capability.</p>
+
+          <h2 style="font-size:22px;margin:28px 0 12px 0;">5. Refunds & Platform Commission</h2>
+          <p>Paid bookings are subject to our transparent cancellation policy. Approved platform commission is set to 10% on eligible service fees.</p>
+        </div>
+      </div>
+    </main>
+  `;
+}
+
+function legalUserPrivacyPage() {
+  return html`
+    <main class="page" style="padding:100px 0 80px 0;">
+      <div class="container" style="max-width:840px;margin:0 auto;padding:0 24px;">
+        <span class="status-pill warning" style="margin-bottom:12px;display:inline-block;font-weight:700;">LEGAL CENTRE • DRAFT 0.9</span>
+        <h1 class="page-title" style="font-family:var(--font-serif);font-size:42px;margin-bottom:12px;">User Privacy Notice</h1>
+        <p style="color:var(--color-text-muted);font-size:14px;margin-bottom:24px;">
+          DPDP Act 2023 & SPDI Rules 2011 Compliant | Effective: August 3, 2026
+        </p>
+
+        ${legalHeaderNav("user-privacy")}
+
+        <div style="background:white;border-radius:20px;padding:40px;border:1px solid var(--color-border);line-height:1.8;color:var(--color-charcoal);">
+          <p><strong>Commitment:</strong> MindHeal does not sell personal data. MindHeal does not use private mental-health content, counselling notes, assessment answers, or clinical records for targeted advertising.</p>
+
+          <h2 style="font-size:22px;margin:28px 0 12px 0;">1. Data We Collect</h2>
+          <p>Account identity, eligibility/age, mood & CBT records, session metadata, AI prompts/responses, payment transaction IDs, and technical audit security logs.</p>
+
+          <h2 style="font-size:22px;margin:28px 0 12px 0;">2. Granular Unbundled Consents</h2>
+          <p>Core account processing, health data, AI model transmission, and counsellor sharing are managed via explicit, unbundled user checkboxes. Sharing with Professionals is OFF by default.</p>
+
+          <h2 style="font-size:22px;margin:28px 0 12px 0;">3. Guardian Privacy Boundaries</h2>
+          <p>Verified guardians of 15–17 year olds receive access ONLY to booking, billing, and emergency metadata. Private chat logs, CBT journals, and screening assessments remain strictly confidential.</p>
+        </div>
+      </div>
+    </main>
+  `;
+}
+
+function legalProfessionalTermsPage() {
+  return html`
+    <main class="page" style="padding:100px 0 80px 0;">
+      <div class="container" style="max-width:840px;margin:0 auto;padding:0 24px;">
+        <span class="status-pill warning" style="margin-bottom:12px;display:inline-block;font-weight:700;">LEGAL CENTRE • DRAFT 0.9</span>
+        <h1 class="page-title" style="font-family:var(--font-serif);font-size:42px;margin-bottom:12px;">Counsellor & Professional Terms</h1>
+        ${legalHeaderNav("professional-terms")}
+        <div style="background:white;border-radius:20px;padding:40px;border:1px solid var(--color-border);line-height:1.8;color:var(--color-charcoal);">
+          <p>Governs all independent counsellors, clinical psychologists, therapists, and medical practitioners on MindHeal.</p>
+          <h2 style="font-size:22px;margin:28px 0 12px 0;">1. Eligibility & Verification</h2>
+          <p>Professionals must be at least 21 years old and hold active RCI, NMC, or state professional registrations. Verification by MindHeal confirms credential checks but does not transfer clinical liability to MindHeal.</p>
+          <h2 style="font-size:22px;margin:28px 0 12px 0;">2. Platform Commission</h2>
+          <p>Approved platform commission is set at 10% of eligible service fees. Weekly automated payouts are processed for completed sessions.</p>
+        </div>
+      </div>
+    </main>
+  `;
+}
+
+function legalProfessionalPrivacyPage() { return legalUserPrivacyPage(); }
+function legalAiNoticePage() { return legalUserTermsPage(); }
+function legalRefundsPage() { return legalUserTermsPage(); }
+function legalCookiesPage() { return legalUserPrivacyPage(); }
+function legalSafetyPage() { return legalUserTermsPage(); }
+function legalSubprocessorsPage() { return legalUserPrivacyPage(); }
 
 function authPage(role, mode) {
   if (state.otpMode && state.otpRole === role) {
