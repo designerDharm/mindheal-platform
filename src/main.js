@@ -3679,12 +3679,7 @@ function attachPageHandlers() {
         toast(`${role === "admin" ? "Admin" : role === "counsellor" ? "Counsellor" : "User"} session started.`);
         navigate(form.dataset.panel);
       } catch (err) {
-        // Fallback for prototyping/offline API (Demo Accounts)
-        console.warn("Backend login failed, using local mock fallback:", err);
-        const emailEnc = encodeURIComponent(payload.email || "");
-        localStorage.setItem("mindheal-access-token", `mock-${role}-${emailEnc}-${Date.now()}`);
-        toast(`Mock ${role === "admin" ? "Admin" : role === "counsellor" ? "Counsellor" : "User"} session started (Local fallback).`);
-        navigate(form.dataset.panel);
+        toast(`Authentication failed: ${err.message || "Invalid credentials"}`, "error");
       }
     });
   });
@@ -3709,11 +3704,7 @@ function attachPageHandlers() {
         state.signupPayload = null;
         navigate(state.otpPanel);
       } catch (err) {
-        localStorage.setItem("mindheal-access-token", `mock-user-token-${Date.now()}`);
-        toast("Mock verification successful! Account created (Local fallback).");
-        state.otpMode = false;
-        state.signupPayload = null;
-        navigate(state.otpPanel);
+        toast(`Verification failed: ${err.message || "Invalid OTP code"}`, "error");
       }
     });
   });
@@ -3756,10 +3747,7 @@ function attachPageHandlers() {
         toast(`Successfully signed in via ${provider}!`);
         navigate(form.dataset.panel);
       } catch (err) {
-        // Fallback for prototyping/offline API
-        localStorage.setItem("mindheal-access-token", `mock-${provider.toLowerCase()}-token`);
-        toast(`Mock ${provider} session started (Local fallback).`);
-        navigate(form.dataset.panel);
+        toast(`Social authentication failed: ${err.message || "Provider sign in failed"}`, "error");
       }
     });
   });
@@ -3925,29 +3913,7 @@ function attachPageHandlers() {
           state.signatureResult = result;
         }
       } catch (error) {
-        console.warn("Backend authentication failed, using local mock fallback:", error);
-        localStorage.setItem("mindheal-access-token", `mock-user-token-${Date.now()}`);
-        toast("Mock authenticated successfully (Local fallback). Starting analysis...");
-        state.showDreamAuthModal = false;
-        render();
-
-        let result;
-        if (state.dreamInput) {
-          state.dreamAnalyzing = true;
-          render();
-          result = await api.submitAnalysis({ type: "Dream Analysis", description: state.dreamInput }).catch(() => ({ ok: true, data: { id: "demo-report", content: "Mock analysis result." } }));
-          state.dreamResult = result;
-        } else if (state.handwritingInput) {
-          state.handwritingAnalyzing = true;
-          render();
-          result = await api.submitAnalysis({ type: "Handwriting Analysis", description: state.handwritingInput }).catch(() => ({ ok: true, data: { id: "demo-report", content: "Mock analysis result." } }));
-          state.handwritingResult = result;
-        } else if (state.signatureInput) {
-          state.signatureAnalyzing = true;
-          render();
-          result = await api.submitAnalysis({ type: "Signature Analysis", description: state.signatureInput }).catch(() => ({ ok: true, data: { id: "demo-report", content: "Mock analysis result." } }));
-          state.signatureResult = result;
-        }
+        toast(`Authentication failed: ${error.message || "Invalid credentials"}`, "error");
       } finally {
         state.dreamAnalyzing = false;
         state.handwritingAnalyzing = false;

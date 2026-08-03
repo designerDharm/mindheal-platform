@@ -86,23 +86,13 @@ export const routes = [
 ];
 
 async function health() {
-  let dbStatus = "healthy";
-  try {
-    const { pool } = await import("../data/db.js");
-    if (pool) {
-      await pool.query("SELECT 1");
-    }
-  } catch (err) {
-    dbStatus = "unhealthy";
-  }
-
   return {
+    statusCode: 200,
     body: {
-      success: dbStatus === "healthy",
+      success: true,
       data: {
-        status: dbStatus === "healthy" ? "ok" : "degraded",
-        service: "mindheal-api",
-        database: dbStatus
+        status: "ok",
+        service: "mindheal-api"
       }
     }
   };
@@ -114,20 +104,29 @@ async function readiness() {
 
   try {
     const { pool } = await import("../data/db.js");
-    if (pool) await pool.query("SELECT 1");
+    if (pool) {
+      await pool.query("SELECT 1");
+    } else {
+      dbStatus = "unhealthy";
+    }
   } catch (e) {
     dbStatus = "unhealthy";
   }
 
   try {
     const { redisClient } = await import("../config/redis.js");
-    if (redisClient?.isOpen) await redisClient.ping();
+    if (redisClient?.isOpen) {
+      await redisClient.ping();
+    } else {
+      redisStatus = "unhealthy";
+    }
   } catch (e) {
-    redisStatus = "degraded";
+    redisStatus = "unhealthy";
   }
 
-  const isReady = dbStatus === "healthy";
+  const isReady = dbStatus === "healthy" && redisStatus === "healthy";
   return {
+    statusCode: isReady ? 200 : 503,
     body: {
       success: isReady,
       data: {

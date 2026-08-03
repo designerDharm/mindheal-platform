@@ -26,9 +26,23 @@ export const UserRepository = {
   
   async create(user) {
     const res = await query(
-      `INSERT INTO users (id, firebase_uid, role, full_name, email, mobile, language_code, avatar_url, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [user.id, user.firebase_uid || null, user.role, user.full_name, user.email, user.mobile || null, user.language_code || 'en', user.avatar_url || null, true]
+      `INSERT INTO users (id, firebase_uid, role, full_name, email, mobile, language_code, avatar_url, is_active, password_hash, date_of_birth, is_guardian_consent_verified, guardian_email)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+      [
+        user.id,
+        user.firebase_uid || user.firebaseUid || null,
+        user.role,
+        user.full_name || user.fullName,
+        user.email,
+        user.mobile || null,
+        user.language_code || user.languageCode || 'en',
+        user.avatar_url || user.avatarUrl || null,
+        true,
+        user.password_hash || user.passwordHash || null,
+        user.date_of_birth || user.dateOfBirth || null,
+        user.is_guardian_consent_verified || user.isGuardianConsentVerified || false,
+        user.guardian_email || user.guardianEmail || null
+      ]
     );
     return this.mapUser(res.rows[0]);
   },
@@ -60,6 +74,11 @@ export const UserRepository = {
       languageCode: row.language_code,
       avatarUrl: row.avatar_url,
       isActive: row.is_active,
+      passwordHash: row.password_hash,
+      dateOfBirth: row.date_of_birth ? new Date(row.date_of_birth).toISOString().split('T')[0] : null,
+      date_of_birth: row.date_of_birth ? new Date(row.date_of_birth).toISOString().split('T')[0] : null,
+      isGuardianConsentVerified: row.is_guardian_consent_verified,
+      guardianEmail: row.guardian_email,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     };

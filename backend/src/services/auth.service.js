@@ -8,10 +8,27 @@ import { appConfig } from "../config/app.js";
 
 const otpStore = new Map();
 
-export async function createUser({ role = "user", fullName, email, mobile, languageCode = "en", password, firebaseUid }) {
+export async function createUser({ role = "user", fullName, email, mobile, languageCode = "en", password, firebaseUid, dateOfBirth, guardianEmail }) {
   if (!password && !firebaseUid) {
     throw new Error("Password is required.");
   }
+
+  const { calculateAgeFromDob } = await import("../utils/validation.js");
+  const age = calculateAgeFromDob(dateOfBirth);
+  
+  if (dateOfBirth && age === null) {
+    throw new Error("Invalid dateOfBirth format. Must be YYYY-MM-DD.");
+  }
+
+  if (role === "user" && age !== null && age < 15) {
+    throw new Error("Minimum user age requirement is 15 years.");
+  }
+
+  if (role === "counsellor" && age !== null && age < 21) {
+    throw new Error("Minimum counsellor age requirement is 21 years.");
+  }
+
+  const isMinorUser = role === "user" && age !== null && age >= 15 && age < 18;
 
   const user = {
     id: createId("usr"),
@@ -22,6 +39,10 @@ export async function createUser({ role = "user", fullName, email, mobile, langu
     mobile: mobile || null,
     languageCode,
     passwordHash: password ? hashPassword(password) : "",
+    dateOfBirth: dateOfBirth || null,
+    date_of_birth: dateOfBirth || null,
+    guardianEmail: isMinorUser ? (guardianEmail || null) : null,
+    isGuardianConsentVerified: false,
     isActive: true,
     createdAt: new Date().toISOString()
   };
