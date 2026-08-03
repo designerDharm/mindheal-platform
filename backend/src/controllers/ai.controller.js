@@ -3,11 +3,12 @@ import * as aiService from "../services/ai.service.js";
 import { credit, debit } from "../services/wallet.service.js";
 import { badRequest, created, ok } from "../utils/http.js";
 import { createId, hashValue } from "../utils/security.js";
-import { requireFields } from "../utils/validation.js";
+import { calculateAgeFromDob, requireFields } from "../utils/validation.js";
 
 export async function chat({ body, user }) {
-  if (user && user.age !== undefined && user.age < 18) {
-    return badRequest("AI Clinical Companion features require users to be at least 18 years old.");
+  const age = calculateAgeFromDob(user?.dateOfBirth || user?.date_of_birth);
+  if (user && (user.dateOfBirth || user.date_of_birth) && age < 18) {
+    return badRequest("AI features fail closed for minor accounts. Users must be at least 18 years old.");
   }
   const missing = requireFields(body, ["message"]);
   if (missing) return badRequest("Message is required.", missing);
@@ -71,8 +72,9 @@ export async function unlockReport({ params, user }) {
 }
 
 async function createReport(reportType, body, user) {
-  if (user && user.age !== undefined && user.age < 18) {
-    return badRequest("AI self-reflection reports require users to be at least 18 years old.");
+  const age = typeof user === "object" ? calculateAgeFromDob(user?.dateOfBirth || user?.date_of_birth) : null;
+  if (user && (user.dateOfBirth || user.date_of_birth) && age < 18) {
+    return badRequest("AI self-reflection reports require verified age of 18 or above.");
   }
   const userId = typeof user === "object" ? user.id : user;
   const inputText = body.inputText || body.description;

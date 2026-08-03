@@ -15,6 +15,7 @@ const p = appConfig.apiPrefix;
 
 export const routes = [
   route("GET", `${p}/health`, health),
+  route("GET", `${p}/readiness`, readiness),
   route("GET", `${p}/config/public`, publicController.publicConfig),
   route("POST", `${p}/contact`, contactController.submitContact),
   route("POST", `${p}/upload`, uploadController.uploadFile, ["user", "counsellor", "admin"]),
@@ -102,6 +103,38 @@ async function health() {
         status: dbStatus === "healthy" ? "ok" : "degraded",
         service: "mindheal-api",
         database: dbStatus
+      }
+    }
+  };
+}
+
+async function readiness() {
+  let dbStatus = "healthy";
+  let redisStatus = "healthy";
+
+  try {
+    const { pool } = await import("../data/db.js");
+    if (pool) await pool.query("SELECT 1");
+  } catch (e) {
+    dbStatus = "unhealthy";
+  }
+
+  try {
+    const { redisClient } = await import("../config/redis.js");
+    if (redisClient?.isOpen) await redisClient.ping();
+  } catch (e) {
+    redisStatus = "degraded";
+  }
+
+  const isReady = dbStatus === "healthy";
+  return {
+    body: {
+      success: isReady,
+      data: {
+        ready: isReady,
+        service: "mindheal-api",
+        database: dbStatus,
+        redis: redisStatus
       }
     }
   };
