@@ -254,6 +254,70 @@ export const memoryRepositories = {
     }
   },
 
+  aiServices: {
+    list() {
+      return store.aiServices || [];
+    },
+    findByKey(serviceKey) {
+      return (store.aiServices || []).find((s) => s.serviceKey === serviceKey || s.id === serviceKey) || null;
+    },
+    upsert(serviceKey, patch) {
+      store.aiServices ||= [];
+      let item = this.findByKey(serviceKey);
+      if (!item) {
+        item = { id: `srv_${Date.now()}`, serviceKey, displayName: serviceKey, enabled: true, minimumAge: 18 };
+        store.aiServices.push(item);
+      }
+      Object.assign(item, patch, { updatedAt: new Date().toISOString() });
+      return item;
+    }
+  },
+
+  aiInstructionFiles: {
+    list(serviceId) {
+      store.aiInstructionFiles ||= [];
+      return serviceId ? store.aiInstructionFiles.filter((f) => f.serviceId === serviceId) : store.aiInstructionFiles;
+    },
+    create(file) {
+      store.aiInstructionFiles ||= [];
+      store.aiInstructionFiles.push(file);
+      return file;
+    },
+    delete(id) {
+      store.aiInstructionFiles ||= [];
+      const idx = store.aiInstructionFiles.findIndex((f) => f.id === id);
+      if (idx !== -1) store.aiInstructionFiles.splice(idx, 1);
+      return true;
+    }
+  },
+
+  aiInstructionBundles: {
+    list(serviceId) {
+      store.aiInstructionBundles ||= [];
+      return serviceId ? store.aiInstructionBundles.filter((b) => b.serviceId === serviceId) : store.aiInstructionBundles;
+    },
+    findActive(serviceId) {
+      store.aiInstructionBundles ||= [];
+      return store.aiInstructionBundles.find((b) => b.serviceId === serviceId && b.status === "active") || null;
+    },
+    create(bundle) {
+      store.aiInstructionBundles ||= [];
+      store.aiInstructionBundles.push(bundle);
+      return bundle;
+    },
+    activate(id) {
+      store.aiInstructionBundles ||= [];
+      const target = store.aiInstructionBundles.find((b) => b.id === id);
+      if (!target) return null;
+      store.aiInstructionBundles.forEach((b) => {
+        if (b.serviceId === target.serviceId && b.status === "active") b.status = "archived";
+      });
+      target.status = "active";
+      target.activatedAt = new Date().toISOString();
+      return target;
+    }
+  },
+
   servicesCatalog: {
     list() {
       if (!store.servicesCatalog.find(s => s.id === 'svc_express_half_hour')) {

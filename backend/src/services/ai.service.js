@@ -117,15 +117,20 @@ export function safetyClassify(text = "") {
   };
 }
 
-export async function chatResponse({ message, languageCode = "en" }) {
-  const safety = safetyClassify(message);
-  if (safety.riskLevel === "high") {
+import { checkDeterministicCrisis } from "./crisis.service.js";
+
+export async function chatResponse({ message, userId = null, languageCode = "en" }) {
+  const crisisResult = await checkDeterministicCrisis(message, userId);
+  if (crisisResult?.isCrisis) {
     return {
-      safety,
-      response: "I'm really sorry you're feeling this much pain. I can't be your emergency support, but you deserve immediate help. Contact local emergency services or a crisis helpline now."
+      safety: { riskLevel: "CRITICAL", action: "show_crisis_support_and_human_handoff" },
+      response: crisisResult.message,
+      helplines: crisisResult.helplines,
+      languageCode
     };
   }
-  
+
+  const safety = safetyClassify(message);
   const aiText = await generateAiResponse("chat", `User says: ${message}\nLanguage: ${languageCode}`);
   
   return {

@@ -61,10 +61,10 @@ export const routes = [
   route("PUT", `${p}/sessions/:id/cancel`, sessionController.cancelSession, ["user", "admin"]),
   route("GET", `${p}/sessions/:id/rtc-token`, sessionController.generateRtcToken, ["user", "counsellor", "admin"]),
 
-  route("POST", `${p}/ai/chat`, aiController.chat, ["user"]),
-  route("POST", `${p}/analysis/dream`, aiController.createDreamReport, ["user"]),
-  route("POST", `${p}/analysis/handwriting`, aiController.createHandwritingReport, ["user"]),
-  route("POST", `${p}/analysis/signature`, aiController.createSignatureReport, ["user"]),
+  route("POST", `${p}/ai/chat`, aiController.chat, ["user"], true),
+  route("POST", `${p}/analysis/dream`, aiController.createDreamReport, ["user"], true),
+  route("POST", `${p}/analysis/handwriting`, aiController.createHandwritingReport, ["user"], true),
+  route("POST", `${p}/analysis/signature`, aiController.createSignatureReport, ["user"], true),
   route("GET", `${p}/analysis/reports`, aiController.listReports, ["user", "admin"]),
   route("POST", `${p}/analysis/reports/:id/unlock`, aiController.unlockReport, ["user"]),
 
@@ -87,7 +87,13 @@ export const routes = [
   route("GET", `${p}/admin/transactions`, adminController.transactions, ["admin"]),
   route("GET", `${p}/admin/analytics/summary`, adminController.analyticsSummary, ["admin"]),
   route("GET", `${p}/admin/crisis-events`, adminController.crisisEvents, ["admin"]),
-  route("GET", `${p}/admin/audit-logs`, adminController.auditLogs, ["admin"])
+  route("GET", `${p}/admin/audit-logs`, adminController.auditLogs, ["admin"]),
+
+  route("GET", `${p}/admin/ai/services`, adminController.aiServices, ["admin"]),
+  route("PUT", `${p}/admin/ai/services/:id`, adminController.updateAiService, ["admin"]),
+  route("GET", `${p}/admin/ai/instruction-bundles`, adminController.listInstructionBundles, ["admin"]),
+  route("POST", `${p}/admin/ai/instruction-bundles`, adminController.createInstructionBundle, ["admin"]),
+  route("POST", `${p}/admin/ai/instruction-bundles/:id/activate`, adminController.activateInstructionBundle, ["admin"])
 ];
 
 async function health() {
@@ -149,8 +155,8 @@ async function readiness() {
   };
 }
 
-function route(method, path, handler, roles = []) {
-  return { method, path, pattern: pathToPattern(path), handler, roles };
+function route(method, path, handler, roles = [], requireAdult = false) {
+  return { method, path, pattern: pathToPattern(path), handler, roles, requireAdult };
 }
 
 function pathToPattern(path) {

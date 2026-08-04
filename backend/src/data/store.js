@@ -131,6 +131,15 @@ export const store = {
     { id: "svc_ai_chat", name: "AI Counselling Chat", isActive: true, isFree: true, priceInr: 0, category: "AI Support" },
     { id: "svc_dream", name: "Dream Analysis PDF Report", isActive: true, isFree: false, priceInr: 49, category: "Analysis Reports" }
   ],
+  aiServices: [
+    { id: "srv_ai_chat", serviceKey: "adult_supportive_ai_chat", displayName: "Adult Supportive AI Chat", category: "User Support", serviceType: "text", userFacing: true, minimumAge: 18, enabled: true, primaryProvider: "gemini", primaryModel: "gemini-2.5-flash", creditCost: 0 },
+    { id: "srv_mood_refl", serviceKey: "mood_reflection", displayName: "Mood Reflection", category: "Wellness", serviceType: "text", userFacing: true, minimumAge: 18, enabled: true, primaryProvider: "gemini", primaryModel: "gemini-2.5-flash", creditCost: 0 },
+    { id: "srv_dream_pdf", serviceKey: "dream_detailed_pdf", displayName: "Dream Detailed Analysis PDF", category: "Dream Analysis", serviceType: "pdf", userFacing: true, minimumAge: 18, enabled: true, primaryProvider: "gemini", primaryModel: "gemini-2.5-flash", creditCost: 49 },
+    { id: "srv_handwriting_pdf", serviceKey: "handwriting_detailed_pdf", displayName: "Handwriting Detailed PDF", category: "Handwriting Analysis", serviceType: "pdf", userFacing: true, minimumAge: 18, enabled: true, primaryProvider: "gemini", primaryModel: "gemini-2.5-flash", creditCost: 49 },
+    { id: "srv_signature_pdf", serviceKey: "signature_detailed_pdf", displayName: "Signature Detailed PDF", category: "Signature Analysis", serviceType: "pdf", userFacing: true, minimumAge: 18, enabled: true, primaryProvider: "gemini", primaryModel: "gemini-2.5-flash", creditCost: 49 }
+  ],
+  aiInstructionFiles: [],
+  aiInstructionBundles: [],
   auditLogs: [],
   crisisEvents: [],
   notifications: []

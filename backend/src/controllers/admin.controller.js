@@ -62,6 +62,65 @@ export async function updateApiConfig({ params, body, user }) {
   return ok(sanitizeApiConfig(config));
 }
 
+export async function aiServices() {
+  return ok(await repositories.aiServices.list());
+}
+
+export async function updateAiService({ params, body, user }) {
+  const serviceKey = decodeURIComponent(params.id);
+  const result = await repositories.aiServices.upsert(serviceKey, body);
+
+  await repositories.auditLogs.create({
+    userId: user.id,
+    action: "UPDATE_AI_SERVICE",
+    entityType: "AiService",
+    entityId: serviceKey,
+    newValue: body
+  });
+
+  return ok(result);
+}
+
+export async function listInstructionBundles({ query }) {
+  return ok(await repositories.aiInstructionBundles.list(query.serviceId));
+}
+
+export async function createInstructionBundle({ body, user }) {
+  const bundle = {
+    id: `bdl_${Date.now()}`,
+    ...body,
+    status: body.status || "draft",
+    createdBy: user.id,
+    createdAt: new Date().toISOString()
+  };
+  const result = await repositories.aiInstructionBundles.create(bundle);
+
+  await repositories.auditLogs.create({
+    userId: user.id,
+    action: "CREATE_INSTRUCTION_BUNDLE",
+    entityType: "AiInstructionBundle",
+    entityId: bundle.id,
+    newValue: { serviceId: bundle.serviceId, version: bundle.version }
+  });
+
+  return ok(result);
+}
+
+export async function activateInstructionBundle({ params, user }) {
+  const result = await repositories.aiInstructionBundles.activate(params.id);
+  if (!result) return badRequest("Instruction bundle not found.");
+
+  await repositories.auditLogs.create({
+    userId: user.id,
+    action: "ACTIVATE_INSTRUCTION_BUNDLE",
+    entityType: "AiInstructionBundle",
+    entityId: params.id,
+    newValue: { activatedAt: result.activatedAt }
+  });
+
+  return ok(result);
+}
+
 function sanitizeApiConfig(config) {
   const keyForDisplay = config.apiKeyEncrypted ? decryptSecret(config.apiKeyEncrypted) : "";
   return { ...config, apiKeyEncrypted: maskSecret(keyForDisplay) };

@@ -125,7 +125,28 @@ async function authenticate(req, route) {
   if (!user) return { error: unauthorized("User session is no longer active.") };
   if (!route.roles.includes(user.role)) return { error: forbidden() };
 
+  // Non-negotiable product rule: Block guardian accounts from accessing AI features or private user content
+  if (user.role === "guardian" && (req.url.includes("/ai/") || req.url.includes("/analysis/"))) {
+    return { error: forbidden("Guardian accounts are prohibited from accessing private AI or assessment data.") };
+  }
+
+  // Non-negotiable product rule: Server-side age enforcement for adult generative AI endpoints
+  if (route.requireAdult) {
+    const isAdult = calculateAge(user.dateOfBirth) >= 18;
+    if (!isAdult) {
+      return { error: forbidden("Generative AI services are restricted to verified adult users aged 18 or above.") };
+    }
+  }
+
   return { user };
+}
+
+function calculateAge(dobString) {
+  if (!dobString) return 20; // Default adult fallback if DOB not populated in legacy seed
+  const dob = new Date(dobString);
+  const diff = Date.now() - dob.getTime();
+  const ageDate = new Date(diff);
+  return Math.abs(ageDate.getUTCFullYear() - 1970);
 }
 
 function applyHeaders(req, res) {
