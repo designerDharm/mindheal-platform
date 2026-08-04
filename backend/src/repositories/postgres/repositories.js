@@ -324,7 +324,11 @@ export const postgresRepositories = {
       return mapUser(res.rows[0]);
     },
     async findByMobileAndRole(mobile, role) {
-      const res = await query("SELECT * FROM users WHERE mobile = $1 AND role = $2 LIMIT 1", [mobile, role]);
+      const cleanDigits = String(mobile).replace(/\D/g, "");
+      const res = await query(
+        `SELECT * FROM users WHERE (mobile = $1 OR REPLACE(REPLACE(mobile, '+', ''), ' ', '') LIKE '%' || $2) AND role = $3 LIMIT 1`,
+        [mobile, cleanDigits, role]
+      );
       return mapUser(res.rows[0]);
     },
     async create(user) {

@@ -14,6 +14,7 @@ export function toPaise(amountInr) {
 
 export function calculateAgeFromDob(dateOfBirth) {
   if (!dateOfBirth) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateOfBirth).trim())) return null;
   const dob = new Date(dateOfBirth);
   if (Number.isNaN(dob.getTime())) return null;
   const today = new Date();

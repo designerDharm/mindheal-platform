@@ -13,8 +13,12 @@ async function applyRateLimit(ip) {
     try {
       return await applyRedisRateLimit(ip);
     } catch {
-      return applyMemoryRateLimit(ip);
+      return { status: "unavailable" };
     }
+  }
+
+  if (appConfig.env === "production") {
+    return { status: "unavailable" };
   }
 
   return applyMemoryRateLimit(ip);
