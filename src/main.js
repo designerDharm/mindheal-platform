@@ -2985,7 +2985,7 @@ function userPanelContent(section, dashboard, data) {
         <h1 class="page-title">Welcome back</h1>
         <p class="page-subtitle">${escapeHtml(upcomingSessions.length ? `Next: ${upcomingSessions[0].type} with ${upcomingSessions[0].counsellor}` : dashboard.nextSession)}</p>
       </div>
-      <button class="btn primary" type="button" data-demo-action="book-session" style="background: white; color: var(--color-charcoal); border: none;">Book Session</button>
+      <button class="btn primary" type="button" data-action="navigate-counsellors" style="background: white; color: var(--color-charcoal); border: none;"><i class="ph ph-calendar-plus" style="margin-right:6px;"></i> Book Session</button>
     </div>
     
     <div class="dashboard-grid">
@@ -4493,6 +4493,13 @@ function attachPageHandlers() {
       toast("Request sent. Handing over to a human counsellor...");
       button.disabled = true;
       button.innerHTML = '<i class="ph ph-spinner ph-spin" style="margin-right:6px;"></i><span class="btn-text">Connecting...</span>';
+    });
+  });
+
+  document.querySelectorAll("[data-action='navigate-counsellors']").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.panelSection = "counsellors";
+      render();
     });
   });
 
