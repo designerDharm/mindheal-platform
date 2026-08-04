@@ -4162,8 +4162,13 @@ function attachPageHandlers() {
   document.querySelectorAll("[data-form='booking']").forEach((form) => {
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
-      await api.bookSession(getFormData(form));
-      toast("Session request created. Payment hold and counsellor acceptance should be handled by backend in production.");
+      try {
+        await api.bookSession(getFormData(form));
+        toast("Session request created! Payment hold placed from your wallet.");
+        await render();
+      } catch (error) {
+        toast(error.message || "Booking failed.", "error");
+      }
     });
   });
 
