@@ -101,11 +101,21 @@ export async function verifyOtp({ body }) {
 }
 
 export async function registerCounsellor({ body }) {
-  const missing = requireFields(body, ["fullName", "password", "licenseNumber", "specializations"]);
+  const missing = requireFields(body, ["fullName", "password", "mobile", "licenseNumber", "specializations"]);
   if (missing) return badRequest("Missing required counsellor registration fields.", missing);
-  if (!body.email && !body.mobile) {
-    return badRequest("Either email or mobile number must be provided.", { email: "Required", mobile: "Required" });
+
+  if (!body.mobile) {
+    return badRequest("Mobile number is mandatory for counsellor registration.", { mobile: "Required" });
   }
+
+  // Atomically verify & consume single-use verificationProof if provided
+  if (body.verificationProof) {
+    const consumed = await authService.consumeVerificationProof(body.verificationProof, body.mobile);
+    if (!consumed) {
+      return badRequest("Invalid, expired, or previously consumed verification proof. Please complete mobile verification again.");
+    }
+  }
+
   try {
     const user = await authService.createUser({ role: "counsellor", ...body });
     const application = await authService.createCounsellorApplication({ userId: user.id, ...body });
