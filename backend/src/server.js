@@ -13,9 +13,15 @@ const server = createServer((req, res) => {
   });
 });
 
+import { autoCleanStalePendingBookings } from "./controllers/session.controller.js";
+
 const io = initializeSockets(server);
 
 server.listen(appConfig.port, () => {
   console.log(`MindHeal API listening on http://localhost:${appConfig.port}`);
   console.log(`WebSocket server running.`);
+
+  // Auto-clean stale pending session bookings (older than 24 hours) every hour
+  autoCleanStalePendingBookings();
+  setInterval(autoCleanStalePendingBookings, 60 * 60 * 1000);
 });

@@ -88,8 +88,26 @@ export function acceptSession({ params, user }) {
   return updateStatus(params.id, "confirmed", user, "counsellor");
 }
 
-export function declineSession({ params, body, user }) {
-  return updateStatus(params.id, "declined", user, "counsellor", { declineReason: body.reason || "Not available" });
+export async function declineSession({ params, body, user }) {
+  return await withSessionTransaction(async () => {
+    const auth = await getAuthorizedSession(params.id, user, "counsellor");
+    if (auth.response) return auth.response;
+    const { session } = auth;
+
+    if (["cancelled", "declined"].includes(session.status)) return ok(session);
+
+    const updatedSession = await repositories.sessions.update(session.id, {
+      status: "declined",
+      declineReason: body.reason || "Counsellor not available"
+    });
+
+    if (session.availabilitySlotId) {
+      await repositories.availabilitySlots.releaseBooking(session.availabilitySlotId);
+    }
+    await refundSessionHold(session);
+
+    return ok(updatedSession);
+  });
 }
 
 export async function completeSession({ params, user }) {
@@ -132,6 +150,31 @@ export async function cancelSession({ params, user }) {
 
     return ok(updatedSession);
   });
+}
+
+export async function autoCleanStalePendingBookings() {
+  try {
+    const allSessions = await repositories.sessions.listForUser({ role: "admin" });
+    const pendingSessions = (allSessions || []).filter((s) => s.status === "pending");
+    const cutoffTime = Date.now() - 24 * 60 * 60 * 1000; // 24 hours
+
+    for (const session of pendingSessions) {
+      const createdAt = new Date(session.createdAt || 0).getTime();
+      if (createdAt < cutoffTime) {
+        console.warn(`[AutoRefund] Cleaning stale pending session ${session.id} (older than 24h)`);
+        await repositories.sessions.update(session.id, {
+          status: "cancelled",
+          declineReason: "System auto-cancelled: Counsellor response timeout (24 hours)"
+        });
+        if (session.availabilitySlotId) {
+          await repositories.availabilitySlots.releaseBooking(session.availabilitySlotId);
+        }
+        await refundSessionHold(session);
+      }
+    }
+  } catch (err) {
+    console.error("[AutoRefund] Error cleaning stale pending bookings:", err);
+  }
 }
 
 async function updateStatus(id, status, user, actor, extra = {}) {
