@@ -139,6 +139,7 @@ export const api = {
         email: payload.email,
         mobile: payload.mobile,
         password: payload.password,
+        verificationProof: payload.verificationProof,
         licenseNumber: payload.license || payload.licenseNumber,
         specializations: payload.speciality || "Counselling",
         languagesSpoken: payload.languages || "English"
@@ -147,6 +148,7 @@ export const api = {
         email: payload.email,
         mobile: payload.mobile,
         password: payload.password,
+        verificationProof: payload.verificationProof,
         languageCode: payload.language || "en"
       }
     });
@@ -193,11 +195,11 @@ export const api = {
     throw new Error(remote.error?.message || "Failed to send OTP");
   },
 
-  async verifyOtp(destination, code) {
+  async verifyOtp(challengeId, code, destination) {
     const isEmail = String(destination).includes("@");
     const remote = await request("/auth/verify-otp", {
       method: "POST",
-      body: { [isEmail ? "email" : "mobile"]: destination, code }
+      body: { challengeId, code, [isEmail ? "email" : "mobile"]: destination }
     });
     if (remote.ok) return remote.data;
     throw new Error(remote.error?.message || "Invalid or expired OTP code.");

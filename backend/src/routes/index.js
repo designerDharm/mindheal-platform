@@ -36,6 +36,9 @@ export const routes = [
   route("POST", `${p}/auth/logout`, authController.logout),
   route("POST", `${p}/auth/forgot-password`, authController.forgotPassword),
   route("POST", `${p}/auth/reset-password`, authController.resetPassword),
+  route("POST", `${p}/webhooks/sendgrid`, authController.handleSendGridWebhook),
+  route("POST", `${p}/webhooks/msg91`, authController.handleMsg91Dlrs),
+  route("GET", `${p}/auth/metrics`, authController.getOtpMetrics, ["admin"]),
 
   route("GET", `${p}/user/me`, userController.getMe, ["user", "admin"]),
   route("PUT", `${p}/user/me`, userController.updateMe, ["user", "admin"]),

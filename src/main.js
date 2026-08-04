@@ -3689,13 +3689,14 @@ function attachPageHandlers() {
         
         try {
           toast(`Sending OTP code to ${state.otpTarget}...`);
-          await api.sendOtp(state.otpTarget);
+          const res = await api.sendOtp(state.otpTarget);
           
           // Switch to OTP Verification mode
           state.otpMode = true;
           state.otpRole = role;
           state.otpPanel = form.dataset.panel;
           state.signupPayload = cleanPayload;
+          state.challengeId = res.challengeId;
           state.authError = "";
           
           toast(`Verification code sent to ${state.otpTarget}. Please check your inbox/SMS.`);
@@ -3738,11 +3739,16 @@ function attachPageHandlers() {
       toast("Verifying code...");
       
       try {
-        await api.verifyOtp(state.otpTarget, code);
-        await api.signUp(state.otpRole, state.signupPayload);
+        const result = await api.verifyOtp(state.challengeId, code, state.otpTarget);
+        const finalPayload = {
+          ...state.signupPayload,
+          verificationProof: result.verificationProof
+        };
+        await api.signUp(state.otpRole, finalPayload);
         toast("Verification successful! Account created.");
         state.otpMode = false;
         state.signupPayload = null;
+        state.challengeId = null;
         navigate(state.otpPanel);
       } catch (err) {
         toast(`Verification failed: ${err.message || "Invalid OTP code"}`, "error");
@@ -3755,7 +3761,8 @@ function attachPageHandlers() {
       e.preventDefault();
       try {
         toast(`Sending new OTP code to ${state.otpTarget}...`);
-        await api.sendOtp(state.otpTarget);
+        const res = await api.sendOtp(state.otpTarget);
+        state.challengeId = res.challengeId;
         toast(`New 6-digit OTP code sent to ${state.otpTarget}!`);
         render();
       } catch (err) {

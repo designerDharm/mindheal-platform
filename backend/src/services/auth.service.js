@@ -1,6 +1,6 @@
 import admin from "firebase-admin";
 import { repositories } from "../repositories/index.js";
-import { createId, hashPassword, hashValue, signAccessToken, signRefreshToken, verifyPassword, verifyRefreshToken } from "../utils/security.js";
+import { createId, hashPassword, hashValue, hmacValue, maskDestination, signAccessToken, signRefreshToken, verifyPassword, verifyRefreshToken } from "../utils/security.js";
 import { normalizeEmail } from "../utils/validation.js";
 import { randomInt } from "node:crypto";
 import { redisClient } from "../config/redis.js";
@@ -170,53 +170,98 @@ export function sanitizeUser(user) {
 
 const otpTtlSeconds = 5 * 60;
 const otpMaxAttempts = 3;
+const otpLockoutSeconds = 30 * 60;
+const otpResendCooldownSeconds = 30;
+const otpRateLimitWindowSeconds = 10 * 60;
+const otpMaxSendsPerWindow = 3;
+const verificationProofTtlSeconds = 15 * 60;
 
-async function sendEmailOtp(email, code) {
+const inMemoryStore = new Map();
+
+async function redisGet(key) {
+  if (!redisClient.isOpen) return inMemoryStore.get(key) || null;
+  return await redisClient.get(key);
+}
+
+async function redisSetEx(key, ttlSeconds, value) {
+  if (!redisClient.isOpen) {
+    inMemoryStore.set(key, value);
+    setTimeout(() => inMemoryStore.delete(key), ttlSeconds * 1000);
+    return;
+  }
+  await redisClient.setEx(key, ttlSeconds, value);
+}
+
+async function sendEmailOtp(email, code, challengeId) {
   const provider = (process.env.EMAIL_PROVIDER || "smtp").toLowerCase();
-  
+  const maskedEmail = maskDestination(email);
+
   if (provider === "sendgrid") {
     const apiKey = process.env.SENDGRID_API_KEY;
     const fromEmail = process.env.SENDGRID_FROM_EMAIL || process.env.SMTP_USER || "designerdharm@gmail.com";
-    
-    if (apiKey) {
-      try {
-        const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            personalizations: [{ to: [{ email }] }],
-            from: { email: fromEmail, name: "MindHeal" },
-            subject: `Your MindHeal Verification Code: ${code}`,
-            content: [{
-              type: "text/html",
-              value: `
-                <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
-                  <h2 style="color: #DA7756; text-align: center;">MindHeal Verification Code</h2>
-                  <p style="font-size: 16px; color: #333;">Your 6-digit email verification code is:</p>
-                  <div style="background-color: #f8f9fa; border: 1px dashed #DA7756; border-radius: 8px; padding: 15px; text-align: center; margin: 20px 0;">
-                    <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #1E293B;">${code}</span>
-                  </div>
-                  <p style="font-size: 14px; color: #666;">This code is valid for 5 minutes. Please do not share this OTP with anyone for your security.</p>
-                  <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
-                  <p style="font-size: 12px; color: #999; text-align: center;">&copy; 2026 MindHeal Platform. All rights reserved.</p>
-                </div>
-              `
-            }]
-          })
-        });
 
-        if (response.ok) {
-          console.log(`[SENDGRID EMAIL SENT] OTP ${code} delivered to ${email}`);
-          return;
+    if (apiKey) {
+      let attempts = 0;
+      const maxRetries = 2;
+      
+      while (attempts <= maxRetries) {
+        attempts++;
+        try {
+          const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${apiKey}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              personalizations: [{ to: [{ email }] }],
+              from: { email: fromEmail, name: "MindHeal" },
+              subject: `Your MindHeal Verification Code`,
+              content: [{
+                type: "text/html",
+                value: `<p>Your verification code is: <strong>${code}</strong></p>`
+              }]
+            })
+          });
+
+          if (response.ok) {
+            const messageId = response.headers.get("x-message-id") || `sg_${Date.now()}`;
+            console.log(`[PROVIDER SUCCESS] SendGrid accepted email for ${maskedEmail} (MessageId: ${messageId})`);
+            
+            if (challengeId) {
+              await redisSetEx(`otp_msgid:${messageId}`, 86400, JSON.stringify({ challengeId, destination: email, provider: "sendgrid", status: "accepted" }));
+            }
+            return { provider: "sendgrid", messageId, status: "accepted" };
+          }
+
+          const status = response.status;
+          const errorText = await response.text();
+
+          // Fatal Auth Errors (401 / 403 / Invalid Credentials) -> DO NOT RETRY
+          if (status === 401 || status === 403) {
+            console.error(`[OPERATIONAL ALERT] SendGrid Authentication Failed (${status}). Check SENDGRID_API_KEY.`);
+            break;
+          }
+
+          // Transient Errors (429 Rate Limit / 5xx Server Error) -> Retry with Exponential Backoff
+          if ((status === 429 || status >= 500) && attempts <= maxRetries) {
+            const delayMs = Math.pow(2, attempts) * 500;
+            console.warn(`[PROVIDER RETRY] SendGrid HTTP ${status}. Retrying in ${delayMs}ms (Attempt ${attempts}/${maxRetries})...`);
+            await new Promise((res) => setTimeout(res, delayMs));
+            continue;
+          }
+
+          console.warn(`[PROVIDER WARNING] SendGrid API rejected request (${status}). Falling back to SMTP...`);
+          break;
+        } catch (err) {
+          if (attempts <= maxRetries) {
+            const delayMs = Math.pow(2, attempts) * 500;
+            console.warn(`[PROVIDER RETRY] SendGrid network error: ${err.message}. Retrying in ${delayMs}ms...`);
+            await new Promise((res) => setTimeout(res, delayMs));
+            continue;
+          }
+          break;
         }
-        
-        const errorText = await response.text();
-        console.warn(`[SENDGRID WARNING] SendGrid API (${response.status}): ${errorText}. Falling back to SMTP...`);
-      } catch (err) {
-        console.warn(`[SENDGRID ERROR] SendGrid dispatch failed: ${err.message}. Falling back to SMTP...`);
       }
     }
   }
@@ -226,11 +271,11 @@ async function sendEmailOtp(email, code) {
   const smtpPass = process.env.SMTP_PASS;
 
   if (!smtpUser || !smtpPass) {
-    console.warn(`[EMAIL OTP NOTICE] SMTP credentials not configured. Skipping email dispatch to ${email}.`);
+    console.warn(`[PROVIDER NOTICE] SMTP credentials not configured. Skipping email dispatch to ${maskedEmail}.`);
     if (appConfig.env === "production") {
-      throw new Error("OTP_DELIVERY_UNAVAILABLE: Email credentials not configured.");
+      throw new Error("OTP_DELIVERY_UNAVAILABLE: Email delivery credentials not configured.");
     }
-    return;
+    return { provider: "mock", status: "mock_delivered" };
   }
 
   const host = process.env.SMTP_HOST || "smtp.gmail.com";
@@ -249,120 +294,293 @@ async function sendEmailOtp(email, code) {
       auth: { user: smtpUser, pass: smtpPass }
     });
 
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: fromAddress,
       to: email,
-      subject: `Your MindHeal Verification Code: ${code}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
-          <h2 style="color: #DA7756; text-align: center;">MindHeal Verification Code</h2>
-          <p style="font-size: 16px; color: #333;">Your 6-digit email verification code is:</p>
-          <div style="background-color: #f8f9fa; border: 1px dashed #DA7756; border-radius: 8px; padding: 15px; text-align: center; margin: 20px 0;">
-            <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #1E293B;">${code}</span>
-          </div>
-          <p style="font-size: 14px; color: #666;">This code is valid for 5 minutes. Please do not share this OTP with anyone for your security.</p>
-        </div>
-      `
+      subject: `Your MindHeal Verification Code`,
+      html: `<p>Your verification code is: <strong>${code}</strong></p>`
     });
-    console.log(`[SMTP EMAIL SENT] OTP ${code} delivered to ${email}`);
+
+    const messageId = info.messageId || `smtp_${Date.now()}`;
+    console.log(`[PROVIDER SUCCESS] SMTP dispatched email for ${maskedEmail} (MessageId: ${messageId})`);
+
+    if (challengeId) {
+      await redisSetEx(`otp_msgid:${messageId}`, 86400, JSON.stringify({ challengeId, destination: email, provider: "smtp", status: "accepted" }));
+    }
+
+    return { provider: "smtp", messageId, status: "accepted" };
   } catch (err) {
-    console.error(`[SMTP ERROR] Failed to send email to ${email}:`, err.message);
+    console.error(`[OPERATIONAL ALERT] SMTP Delivery Failure for ${maskedEmail}: ${err.message}`);
     if (appConfig.env === "production") {
       throw new Error(`OTP_DELIVERY_UNAVAILABLE: ${err.message}`);
     }
+    return { provider: "smtp", status: "failed" };
   }
 }
 
-async function sendSmsOtp(mobile, code) {
+async function sendSmsOtp(mobile, code, challengeId) {
   const authKey = process.env.MSG91_AUTH_KEY;
   const templateId = process.env.MSG91_TEMPLATE_ID;
   const senderId = process.env.MSG91_SENDER_ID;
   const entityId = process.env.MSG91_DLT_ENTITY_ID;
+  const maskedMobile = maskDestination(mobile);
 
   if (!authKey || !templateId) {
-    console.warn(`[MSG91 NOTICE] MSG91 credentials/templateId not set. Skipping SMS dispatch to ${mobile}.`);
+    console.warn(`[PROVIDER NOTICE] MSG91 credentials not set. Skipping SMS dispatch to ${maskedMobile}.`);
     if (appConfig.env === "production") {
       throw new Error("OTP_DELIVERY_UNAVAILABLE: SMS gateway credentials not configured.");
     }
-    return;
+    return { provider: "mock", status: "mock_delivered" };
   }
 
   const cleanMobile = mobile.replace(/[^0-9]/g, "");
 
-  try {
-    const payload = {
-      template_id: templateId,
-      mobile: cleanMobile,
-      authkey: authKey,
-      otp: code
-    };
-    if (senderId) payload.sender = senderId;
-    if (entityId) payload.entity_id = entityId;
+  let attempts = 0;
+  const maxRetries = 2;
 
-    const response = await fetch("https://control.msg91.com/api/v5/otp", {
-      method: "POST",
-      headers: {
-        "authkey": authKey,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    });
+  while (attempts <= maxRetries) {
+    attempts++;
+    try {
+      const payload = {
+        template_id: templateId,
+        mobile: cleanMobile,
+        authkey: authKey,
+        otp: code
+      };
+      if (senderId) payload.sender = senderId;
+      if (entityId) payload.entity_id = entityId;
 
-    const resJson = await response.json().catch(() => ({}));
-    if (!response.ok || resJson.type === "error") {
-      throw new Error(`MSG91 Error: ${resJson.message || response.statusText}`);
-    }
+      const response = await fetch("https://control.msg91.com/api/v5/otp", {
+        method: "POST",
+        headers: {
+          "authkey": authKey,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
 
-    console.log(`[MSG91 SMS SENT] OTP ${code} delivered to ${mobile}`);
-  } catch (err) {
-    console.error(`[MSG91 ERROR] Failed to send SMS to ${mobile}:`, err.message);
-    if (appConfig.env === "production") {
-      throw new Error(`OTP_DELIVERY_UNAVAILABLE: ${err.message}`);
+      const status = response.status;
+      const resJson = await response.json().catch(() => ({}));
+
+      // Fatal Auth Errors (401 / Invalid Key)
+      if (status === 401 || resJson.type === "error" && String(resJson.message).toLowerCase().includes("auth")) {
+        console.error(`[OPERATIONAL ALERT] MSG91 Authentication Failed (${status}). Check MSG91_AUTH_KEY.`);
+        if (appConfig.env === "production") {
+          throw new Error("OTP_DELIVERY_UNAVAILABLE: Invalid SMS provider configuration.");
+        }
+        return { provider: "msg91", status: "failed" };
+      }
+
+      if (response.ok && resJson.type !== "error") {
+        const messageId = resJson.request_id || `msg91_${Date.now()}`;
+        console.log(`[PROVIDER SUCCESS] MSG91 accepted SMS for ${maskedMobile} (MessageId: ${messageId})`);
+
+        if (challengeId) {
+          await redisSetEx(`otp_msgid:${messageId}`, 86400, JSON.stringify({ challengeId, destination: mobile, provider: "msg91", status: "accepted" }));
+        }
+        return { provider: "msg91", messageId, status: "accepted" };
+      }
+
+      if ((status === 429 || status >= 500) && attempts <= maxRetries) {
+        const delayMs = Math.pow(2, attempts) * 500;
+        console.warn(`[PROVIDER RETRY] MSG91 HTTP ${status}. Retrying in ${delayMs}ms...`);
+        await new Promise((res) => setTimeout(res, delayMs));
+        continue;
+      }
+
+      throw new Error(`MSG91 Error (${status}): ${resJson.message || response.statusText}`);
+    } catch (err) {
+      if (attempts <= maxRetries) {
+        const delayMs = Math.pow(2, attempts) * 500;
+        console.warn(`[PROVIDER RETRY] MSG91 network error: ${err.message}. Retrying in ${delayMs}ms...`);
+        await new Promise((res) => setTimeout(res, delayMs));
+        continue;
+      }
+      console.error(`[OPERATIONAL ALERT] MSG91 Delivery Failed for ${maskedMobile}: ${err.message}`);
+      if (appConfig.env === "production") {
+        throw new Error(`OTP_DELIVERY_UNAVAILABLE: ${err.message}`);
+      }
+      return { provider: "msg91", status: "failed" };
     }
   }
 }
 
-export async function issueOtp(destination) {
+async function checkOtpSendRateLimits(destination, clientIp) {
+  const destClean = String(destination).trim().toLowerCase();
+
+  // Check 30-minute lockout
+  const lockoutVal = await redisGet(`otp_lockout:${destClean}`);
+  if (lockoutVal) {
+    const remainingMs = Number(lockoutVal) - Date.now();
+    const remainingMins = Math.max(1, Math.ceil(remainingMs / (60 * 1000)));
+    throw new Error(`LOCKOUT: Too many invalid verification attempts. Please try again after ${remainingMins} minutes.`);
+  }
+
+  // Check 30-second resend cooldown
+  const cooldownVal = await redisGet(`otp_cooldown:${destClean}`);
+  if (cooldownVal) {
+    const remainingSecs = Math.max(1, Math.ceil((Number(cooldownVal) - Date.now()) / 1000));
+    throw new Error(`COOLDOWN: Please wait ${remainingSecs} seconds before requesting another code.`);
+  }
+
+  // Check 10-minute send rate limit (destination & IP)
+  const sendCountDestKey = `otp_send_count_dest:${destClean}`;
+  const countDestRaw = await redisGet(sendCountDestKey);
+  const currentCountDest = countDestRaw ? Number(countDestRaw) : 0;
+  if (currentCountDest >= otpMaxSendsPerWindow) {
+    throw new Error("RATE_LIMIT: Maximum 3 verification codes per 10 minutes. Please try again later.");
+  }
+
+  if (clientIp) {
+    const sendCountIpKey = `otp_send_count_ip:${clientIp}`;
+    const countIpRaw = await redisGet(sendCountIpKey);
+    const currentCountIp = countIpRaw ? Number(countIpRaw) : 0;
+    if (currentCountIp >= 10) {
+      throw new Error("RATE_LIMIT: Device/IP rate limit exceeded. Please try again later.");
+    }
+  }
+}
+
+async function recordOtpSend(destination, clientIp) {
+  const destClean = String(destination).trim().toLowerCase();
+  
+  // Set 30-second cooldown
+  await redisSetEx(`otp_cooldown:${destClean}`, otpResendCooldownSeconds, String(Date.now() + otpResendCooldownSeconds * 1000));
+
+  // Increment send count
+  const sendCountDestKey = `otp_send_count_dest:${destClean}`;
+  const countDestRaw = await redisGet(sendCountDestKey);
+  const currentCountDest = countDestRaw ? Number(countDestRaw) : 0;
+  await redisSetEx(sendCountDestKey, otpRateLimitWindowSeconds, String(currentCountDest + 1));
+
+  if (clientIp) {
+    const sendCountIpKey = `otp_send_count_ip:${clientIp}`;
+    const countIpRaw = await redisGet(sendCountIpKey);
+    const currentCountIp = countIpRaw ? Number(countIpRaw) : 0;
+    await redisSetEx(sendCountIpKey, otpRateLimitWindowSeconds, String(currentCountIp + 1));
+  }
+}
+
+export async function issueOtp(destination, clientIp) {
+  await checkOtpSendRateLimits(destination, clientIp);
+
   const code = String(randomInt(100000, 999999));
-  console.log(`[OTP ENGINE] Processing OTP for ${destination}`);
+  const challengeId = createId("ch");
+  const destClean = String(destination).trim().toLowerCase();
 
-  await persistOtp(destination, {
-    hash: hashValue(code),
+  // Invalidate any old challenge for destination
+  const existingChallengeId = await redisGet(`otp_active_challenge:${destClean}`);
+  if (existingChallengeId) {
+    await redisDel(`otp_challenge:${existingChallengeId}`);
+  }
+
+  // Keyed HMAC storage
+  const hmacHash = hmacValue(`${challengeId}:${destClean}:${code}`, appConfig.jwtAccessSecret);
+  const expiresAt = Date.now() + otpTtlSeconds * 1000;
+
+  const challengeData = {
+    challengeId,
+    destination: destClean,
+    hmacHash,
     attempts: 0,
-    expiresAt: Date.now() + otpTtlSeconds * 1000
-  });
+    expiresAt
+  };
 
-  if (destination && destination.includes("@")) {
-    await sendEmailOtp(destination, code);
-  } else if (destination) {
-    await sendSmsOtp(destination, code);
+  await redisSetEx(`otp_challenge:${challengeId}`, otpTtlSeconds, JSON.stringify(challengeData));
+  await redisSetEx(`otp_active_challenge:${destClean}`, otpTtlSeconds, challengeId);
+
+  await recordOtpSend(destination, clientIp);
+
+  if (destClean.includes("@")) {
+    await sendEmailOtp(destClean, code, challengeId);
+    await recordOtpMetric("issued_email");
+  } else {
+    await sendSmsOtp(destClean, code, challengeId);
+    await recordOtpMetric("issued_sms");
   }
 
   return {
-    destination,
+    challengeId,
+    maskedDestination: maskDestination(destClean),
     expiresInSeconds: otpTtlSeconds,
+    resendCooldownSeconds: otpResendCooldownSeconds,
     devCode: appConfig.isOtpTestMode ? code : undefined
   };
 }
 
-export async function verifyOtp(destination, code) {
-  const item = await loadOtp(destination);
-  if (!item || item.expiresAt < Date.now()) return false;
-
-  item.attempts += 1;
-  if (item.attempts > otpMaxAttempts) {
-    await deleteOtp(destination);
-    return false;
+export async function verifyOtp(challengeId, code, destination) {
+  const challengeRaw = await redisGet(`otp_challenge:${challengeId}`);
+  if (!challengeRaw) {
+    throw new Error("Challenge expired or invalid. Please request a new verification code.");
   }
 
-  const verified = item.hash === hashValue(code);
-  if (verified) {
-    await deleteOtp(destination);
-    return true;
+  const challenge = JSON.parse(challengeRaw);
+  const isEmail = challenge.destination.includes("@");
+
+  if (challenge.expiresAt < Date.now()) {
+    await redisDel(`otp_challenge:${challengeId}`);
+    await recordOtpMetric(isEmail ? "failed_email" : "failed_sms");
+    throw new Error("Verification code has expired.");
   }
 
-  await persistOtp(destination, item);
-  return false;
+  const destClean = String(destination || challenge.destination).trim().toLowerCase();
+  if (challenge.destination !== destClean) {
+    throw new Error("Destination mismatch.");
+  }
+
+  challenge.attempts += 1;
+
+  if (challenge.attempts > otpMaxAttempts) {
+    await redisDel(`otp_challenge:${challengeId}`);
+    await redisDel(`otp_active_challenge:${destClean}`);
+    await redisSetEx(`otp_lockout:${destClean}`, otpLockoutSeconds, String(Date.now() + otpLockoutSeconds * 1000));
+    await recordOtpMetric(isEmail ? "failed_email" : "failed_sms");
+    throw new Error("LOCKOUT: Maximum 3 verification attempts exceeded. Account locked for 30 minutes.");
+  }
+
+  const expectedHmac = hmacValue(`${challengeId}:${destClean}:${code}`, appConfig.jwtAccessSecret);
+  const isMatch = challenge.hmacHash === expectedHmac;
+
+  if (!isMatch) {
+    const remainingAttempts = otpMaxAttempts - challenge.attempts;
+    await redisSetEx(`otp_challenge:${challengeId}`, Math.ceil((challenge.expiresAt - Date.now()) / 1000), JSON.stringify(challenge));
+    await recordOtpMetric(isEmail ? "failed_email" : "failed_sms");
+    throw new Error(`Invalid verification code. ${remainingAttempts} attempt(s) remaining.`);
+  }
+
+  // Single-use verification proof issuance
+  await redisDel(`otp_challenge:${challengeId}`);
+  await redisDel(`otp_active_challenge:${destClean}`);
+  await recordOtpMetric(isEmail ? "verified_email" : "verified_sms");
+
+  const verificationProof = createId("proof");
+  const proofData = {
+    verificationProof,
+    destination: destClean,
+    createdAt: Date.now()
+  };
+
+  await redisSetEx(`otp_proof:${verificationProof}`, verificationProofTtlSeconds, JSON.stringify(proofData));
+
+  return {
+    verified: true,
+    verificationProof
+  };
+}
+
+export async function consumeVerificationProof(verificationProof, destination) {
+  if (!verificationProof) return false;
+  const proofRaw = await redisGet(`otp_proof:${verificationProof}`);
+  if (!proofRaw) return false;
+
+  const proof = JSON.parse(proofRaw);
+  const destClean = String(destination).trim().toLowerCase();
+
+  if (proof.destination !== destClean) return false;
+
+  // Single-use atomic consumption
+  await redisDel(`otp_proof:${verificationProof}`);
+  return true;
 }
 
 export async function forgotPassword(email) {
@@ -462,4 +680,41 @@ async function deleteOtp(destination) {
 
 function otpKey(destination) {
   return `otp:${hashValue(destination)}`;
+}
+
+export async function recordOtpMetric(type) {
+  // type can be: 'issued_email', 'issued_sms', 'verified_email', 'verified_sms', 'failed_email', 'failed_sms'
+  const key = `otp_metrics:${type}`;
+  const raw = await redisGet(key);
+  const current = raw ? Number(raw) : 0;
+  await redisSetEx(key, 30 * 86400, String(current + 1));
+}
+
+export async function getOtpMetrics() {
+  const types = ["issued_email", "issued_sms", "verified_email", "verified_sms", "failed_email", "failed_sms"];
+  const metrics = {};
+  for (const t of types) {
+    const raw = await redisGet(`otp_metrics:${t}`);
+    metrics[t] = raw ? Number(raw) : 0;
+  }
+  const totalIssued = metrics.issued_email + metrics.issued_sms;
+  const totalVerified = metrics.verified_email + metrics.verified_sms;
+  metrics.conversionRatePercent = totalIssued > 0 ? Number(((totalVerified / totalIssued) * 100).toFixed(2)) : 0;
+  return metrics;
+}
+
+export async function processProviderWebhook(provider, messageId, eventStatus, metadata = {}) {
+  const recordRaw = await redisGet(`otp_msgid:${messageId}`);
+  if (!recordRaw) return;
+
+  const record = JSON.parse(recordRaw);
+  const maskedDest = maskDestination(record.destination);
+
+  console.log(`[WEBHOOK DLR] ${provider.toUpperCase()} reported '${eventStatus}' for ${maskedDest} (MessageId: ${messageId})`);
+
+  if (eventStatus === "bounce" || eventStatus === "dropped" || eventStatus === "failed" || eventStatus === "REJECTED") {
+    console.error(`[OPERATIONAL ALERT] OTP Delivery Failed via Webhook. Destination: ${maskedDest}, Reason: ${metadata.reason || eventStatus}`);
+    record.status = "bounced_failed";
+    await redisSetEx(`otp_msgid:${messageId}`, 86400, JSON.stringify(record));
+  }
 }

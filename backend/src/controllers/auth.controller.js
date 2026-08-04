@@ -2,7 +2,7 @@ import * as authService from "../services/auth.service.js";
 import { badRequest, created, ok, unauthorized } from "../utils/http.js";
 import { requireFields } from "../utils/validation.js";
 
-export async function register({ body }) {
+export async function register({ body, headers = {}, ip }) {
   if (body.role && body.role !== "user") {
     return badRequest("Public registration permits role 'user' only.");
   }
@@ -14,9 +14,20 @@ export async function register({ body }) {
 
   const missing = requireFields(body, ["fullName", "password"]);
   if (missing) return badRequest("Missing required registration fields.", missing);
-  if (!body.email && !body.mobile) {
+
+  const destination = body.email || body.mobile;
+  if (!destination) {
     return badRequest("Either email or mobile number must be provided.", { email: "Required", mobile: "Required" });
   }
+
+  // Atomically verify & consume single-use verificationProof if provided
+  if (body.verificationProof) {
+    const consumed = await authService.consumeVerificationProof(body.verificationProof, destination);
+    if (!consumed) {
+      return badRequest("Invalid, expired, or previously consumed verification proof. Please complete verification again.");
+    }
+  }
+
   try {
     const user = await authService.createUser({ ...body, role: "user" });
     return created(await authService.createSession(user));
@@ -49,25 +60,44 @@ export async function login({ body }) {
   }
 }
 
-export async function sendOtp({ body }) {
+export async function sendOtp({ body, ip, headers = {} }) {
   const destination = body.email || body.mobile;
   if (!destination) return badRequest("Email or mobile is required.");
+  
+  const clientIp = ip || headers["x-forwarded-for"] || "127.0.0.1";
+
   try {
-    return ok(await authService.issueOtp(destination));
+    const res = await authService.issueOtp(destination, clientIp);
+    return ok(res);
   } catch (err) {
     if (err.message && err.message.startsWith("OTP_DELIVERY_UNAVAILABLE")) {
       return badRequest("OTP Delivery Unavailable. Please try again later or contact support.", { code: "OTP_DELIVERY_UNAVAILABLE" });
+    }
+    if (err.message && (err.message.startsWith("LOCKOUT") || err.message.startsWith("COOLDOWN") || err.message.startsWith("RATE_LIMIT"))) {
+      return badRequest(err.message);
     }
     throw err;
   }
 }
 
 export async function verifyOtp({ body }) {
+  const challengeId = body.challengeId;
+  const code = body.code || body.otp;
   const destination = body.email || body.mobile;
-  const missing = requireFields({ destination, code: body.code }, ["destination", "code"]);
-  if (missing) return badRequest("Destination and code are required.", missing);
-  const verified = await authService.verifyOtp(destination, body.code);
-  return ok({ verified });
+
+  if (!challengeId) {
+    return badRequest("challengeId is required for OTP verification.");
+  }
+  if (!code) {
+    return badRequest("Verification code is required.");
+  }
+
+  try {
+    const result = await authService.verifyOtp(challengeId, code, destination);
+    return ok(result);
+  } catch (err) {
+    return badRequest(err.message || "Invalid or expired verification code.");
+  }
 }
 
 export async function registerCounsellor({ body }) {
@@ -125,4 +155,29 @@ export async function resetPassword({ body }) {
   } catch (err) {
     return badRequest(err.message || "Password reset failed.");
   }
+}
+
+export async function handleSendGridWebhook({ body }) {
+  const events = Array.isArray(body) ? body : [body];
+  for (const event of events) {
+    const { sg_message_id, event: eventType, email, reason } = event || {};
+    if (sg_message_id) {
+      const cleanMsgId = String(sg_message_id).split(".")[0];
+      await authService.processProviderWebhook("sendgrid", cleanMsgId, eventType, { email, reason });
+    }
+  }
+  return ok({ received: true });
+}
+
+export async function handleMsg91Dlrs({ body }) {
+  const { request_id, status, mobile } = body || {};
+  if (request_id) {
+    await authService.processProviderWebhook("msg91", request_id, status, { mobile });
+  }
+  return ok({ received: true });
+}
+
+export async function getOtpMetrics({ user }) {
+  const metrics = await authService.getOtpMetrics();
+  return ok(metrics);
 }

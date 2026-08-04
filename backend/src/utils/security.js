@@ -9,10 +9,27 @@ export function hashValue(value) {
   return createHash("sha256").update(String(value)).digest("hex");
 }
 
+export function hmacValue(value, secret = appConfig.jwtAccessSecret) {
+  return createHmac("sha256", secret).update(String(value)).digest("hex");
+}
+
 export function maskSecret(value = "") {
   if (!value) return "";
   if (value.length <= 8) return "••••";
   return `${value.slice(0, 4)}••••${value.slice(-4)}`;
+}
+
+export function maskDestination(destination = "") {
+  const str = String(destination).trim();
+  if (!str) return "";
+  if (str.includes("@")) {
+    const [user, domain] = str.split("@");
+    const maskedUser = user.length <= 2 ? `${user[0]}*` : `${user.slice(0, 2)}***${user.slice(-1)}`;
+    return `${maskedUser}@${domain}`;
+  }
+  const digits = str.replace(/[^0-9+]/g, "");
+  if (digits.length <= 5) return "****";
+  return `${digits.slice(0, 3)}****${digits.slice(-2)}`;
 }
 
 export function hashPassword(password) {
