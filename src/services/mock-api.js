@@ -185,7 +185,7 @@ export const api = {
 
   async sendOtp(destination) {
     const isEmail = String(destination).includes("@");
-    const remote = await request("/auth/otp/send", {
+    const remote = await request("/auth/send-otp", {
       method: "POST",
       body: isEmail ? { email: destination } : { mobile: destination }
     });
