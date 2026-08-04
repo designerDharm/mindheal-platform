@@ -2790,38 +2790,174 @@ function userPanelContent(section, dashboard, data) {
         </div>
       `;
     } else if (state.cbtActiveTab === "grounding") {
+      // ── Grounding session state ──────────────────────────
+      const SENSES = [
+        { count: 5, sense: "See",   icon: "ph-eye",        color: "#0ea5e9", bg: "rgba(14,165,233,0.08)",   prompt: "Look around you. Name 5 things you can see right now.",    placeholder: "e.g. a cup, a lamp, a book, a window, my hands" },
+        { count: 4, sense: "Touch", icon: "ph-hand",       color: "#8b5cf6", bg: "rgba(139,92,246,0.08)",   prompt: "Feel your surroundings. Name 4 things you can physically touch.", placeholder: "e.g. my chair, the desk, my shirt, my phone" },
+        { count: 3, sense: "Hear",  icon: "ph-ear",        color: "#10b981", bg: "rgba(16,185,129,0.08)",   prompt: "Close your eyes. Name 3 sounds you can hear around you.",    placeholder: "e.g. traffic, AC humming, birds, keyboard" },
+        { count: 2, sense: "Smell", icon: "ph-flower",     color: "#f59e0b", bg: "rgba(245,158,11,0.08)",   prompt: "Breathe gently. Name 2 things you can smell right now.",    placeholder: "e.g. coffee, fresh air, paper" },
+        { count: 1, sense: "Taste", icon: "ph-fork-knife", color: "#e11d48", bg: "rgba(225,29,72,0.08)",    prompt: "Focus on your mouth. Name 1 thing you can taste.",           placeholder: "e.g. mint toothpaste, water, food" },
+      ];
+
+      const gStep      = (state.groundingStep    !== undefined ? state.groundingStep    : -1); // -1 = intro
+      const gDone      = (state.groundingDone    || []);  // array of {step, entries}
+      const gInputs    = (state.groundingInputs  || {});  // { stepIndex: ["entry1","entry2",...] }
+      const gComplete  = !!state.groundingComplete;
+
+      const currentSense = gStep >= 0 && gStep < SENSES.length ? SENSES[gStep] : null;
+      const requiredCount = currentSense ? currentSense.count : 0;
+      const currentEntries = (gInputs[gStep] || []);
+      const filledCount = currentEntries.filter(e => e && e.trim()).length;
+
+      // Progress: how many steps fully submitted
+      const completedSteps = gDone.length;
+      const progressPct = Math.round((completedSteps / SENSES.length) * 100);
+
       subTabContentHtml = `
-        <div class="dashboard-card span-12" style="display: flex; flex-direction: column; gap: 24px; align-items: center; text-align: center; padding: 48px;">
-          <div style="width: 72px; height: 72px; border-radius: 50%; background: rgba(49, 151, 149, 0.1); color: #319795; display: flex; align-items: center; justify-content: center; font-size: 36px;">
-            <i class="ph ph-leaf"></i>
-          </div>
-          <div>
-            <h3 style="font-family: var(--font-serif); font-size: 26px; color: var(--color-charcoal); margin-bottom: 8px;">The 5-4-3-2-1 Grounding Technique</h3>
-            <p style="color: var(--color-text-muted); max-width: 600px; line-height: 1.6;">Anchor yourself in the present moment by clicking through the external sensory checks below when feeling anxious or overwhelmed.</p>
-          </div>
-          
-          <div style="display: flex; justify-content: center; gap: 12px; width: 100%; max-width: 800px; margin-top: 16px;">
-            <button class="btn secondary" style="flex: 1; padding: 20px; border-radius: 16px; border-color: rgba(49, 151, 149, 0.2);" onclick="toast('Look around: Name 5 things you can see (e.g. a cup, a painting, a clock).')">
-              <strong style="display: block; font-size: 20px; color: #319795; margin-bottom: 4px;">5</strong>
-              <span style="font-size: 12px;">Things to See</span>
-            </button>
-            <button class="btn secondary" style="flex: 1; padding: 20px; border-radius: 16px; border-color: rgba(49, 151, 149, 0.2);" onclick="toast('Feel: Name 4 things you can touch (e.g. hair, chair, keys, phone).')">
-              <strong style="display: block; font-size: 20px; color: #319795; margin-bottom: 4px;">4</strong>
-              <span style="font-size: 12px;">Things to Touch</span>
-            </button>
-            <button class="btn secondary" style="flex: 1; padding: 20px; border-radius: 16px; border-color: rgba(49, 151, 149, 0.2);" onclick="toast('Listen: Name 3 things you can hear (e.g. traffic, humming AC, birds).')">
-              <strong style="display: block; font-size: 20px; color: #319795; margin-bottom: 4px;">3</strong>
-              <span style="font-size: 12px;">Things to Hear</span>
-            </button>
-            <button class="btn secondary" style="flex: 1; padding: 20px; border-radius: 16px; border-color: rgba(49, 151, 149, 0.2);" onclick="toast('Smell: Name 2 things you can smell (e.g. coffee, paper, flowers).')">
-              <strong style="display: block; font-size: 20px; color: #319795; margin-bottom: 4px;">2</strong>
-              <span style="font-size: 12px;">Things to Smell</span>
-            </button>
-            <button class="btn secondary" style="flex: 1; padding: 20px; border-radius: 16px; border-color: rgba(49, 151, 149, 0.2);" onclick="toast('Taste: Name 1 thing you can taste (e.g. mint, toothpaste, food).')">
-              <strong style="display: block; font-size: 20px; color: #319795; margin-bottom: 4px;">1</strong>
-              <span style="font-size: 12px;">Thing to Taste</span>
-            </button>
-          </div>
+        <div style="max-width:700px;margin:0 auto;width:100%;display:flex;flex-direction:column;gap:28px;">
+
+          ${gComplete ? `
+            <!-- ══ COMPLETION SCREEN ══ -->
+            <div style="text-align:center;padding:48px 24px;background:white;border-radius:24px;border:1px solid rgba(16,185,129,0.2);box-shadow:0 8px 32px rgba(16,185,129,0.08);">
+              <div style="width:88px;height:88px;border-radius:50%;background:rgba(16,185,129,0.12);border:3px solid #10b981;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;animation:pulse-ring 2s ease infinite;">
+                <i class="ph-bold ph-check" style="font-size:42px;color:#10b981;"></i>
+              </div>
+              <h3 style="font-family:var(--font-serif);font-size:28px;margin:0 0 10px 0;color:var(--color-charcoal);">You're grounded. 🌿</h3>
+              <p style="font-size:15px;color:var(--color-text-muted);max-width:480px;margin:0 auto 28px;line-height:1.6;">You've anchored yourself to the present moment across all 5 senses. Take a slow breath. You are safe, here, and now.</p>
+
+              <!-- Summary of what they noted -->
+              <div style="display:flex;flex-direction:column;gap:10px;text-align:left;margin-bottom:28px;">
+                ${SENSES.map((s, i) => {
+                  const entries = (gDone.find(d => d.step === i) || {}).entries || [];
+                  return `
+                    <div style="display:flex;align-items:flex-start;gap:14px;padding:14px 18px;background:${s.bg};border-radius:14px;">
+                      <div style="width:36px;height:36px;border-radius:50%;background:${s.color}20;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        <i class="ph ${s.icon}" style="color:${s.color};font-size:18px;"></i>
+                      </div>
+                      <div>
+                        <strong style="font-size:13px;color:${s.color};display:block;margin-bottom:4px;">${s.count} Things to ${s.sense}</strong>
+                        <span style="font-size:13px;color:var(--color-charcoal);">${entries.map(e => escapeHtml(e)).join(' · ') || '—'}</span>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+
+              <div style="display:flex;gap:12px;justify-content:center;">
+                <button onclick="window.resetGrounding()" class="btn secondary" style="border-radius:12px;">Start Again</button>
+                <button onclick="window.saveGroundingSession()" class="btn primary" style="background:#10b981;border:none;border-radius:12px;display:flex;align-items:center;gap:8px;"><i class="ph-bold ph-floppy-disk"></i> Save Session</button>
+              </div>
+            </div>
+          ` : gStep === -1 ? `
+            <!-- ══ INTRO SCREEN ══ -->
+            <div style="text-align:center;padding:48px 24px;background:white;border-radius:24px;border:1px solid var(--color-border);">
+              <div style="width:80px;height:80px;border-radius:50%;background:rgba(49,151,149,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
+                <i class="ph ph-leaf" style="font-size:40px;color:#319795;"></i>
+              </div>
+              <h3 style="font-family:var(--font-serif);font-size:28px;color:var(--color-charcoal);margin:0 0 10px 0;">The 5-4-3-2-1 Grounding Technique</h3>
+              <p style="color:var(--color-text-muted);max-width:520px;margin:0 auto 32px;line-height:1.7;font-size:15px;">Anchor yourself in the present moment when feeling anxious or overwhelmed. You'll be guided through each sense — step by step — and type what you notice.</p>
+
+              <!-- 5 sense pills preview -->
+              <div style="display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-bottom:32px;">
+                ${SENSES.map(s => `
+                  <div style="display:flex;align-items:center;gap:8px;padding:10px 18px;border-radius:999px;background:${s.bg};border:1.5px solid ${s.color}30;">
+                    <i class="ph ${s.icon}" style="color:${s.color};font-size:16px;"></i>
+                    <strong style="font-size:13px;color:${s.color};">${s.count}</strong>
+                    <span style="font-size:13px;color:var(--color-charcoal);">Things to ${s.sense}</span>
+                  </div>
+                `).join('')}
+              </div>
+
+              <button onclick="window.startGrounding()" class="btn primary" style="background:#319795;border:none;border-radius:14px;padding:14px 40px;font-size:16px;display:inline-flex;align-items:center;gap:10px;">
+                <i class="ph-bold ph-play"></i> Begin Grounding Session
+              </button>
+            </div>
+          ` : `
+            <!-- ══ ACTIVE STEP ══ -->
+            <!-- Progress bar -->
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);">Progress</span>
+                <span style="font-size:12px;color:var(--color-text-muted);">${gStep + 1} of 5 senses</span>
+              </div>
+              <div style="height:6px;background:rgba(0,0,0,0.06);border-radius:999px;overflow:hidden;">
+                <div style="height:100%;width:${progressPct + 20}%;background:linear-gradient(90deg,#319795,${currentSense ? currentSense.color : '#319795'});border-radius:999px;transition:width 0.4s ease;"></div>
+              </div>
+              <!-- Step dots -->
+              <div style="display:flex;gap:8px;margin-top:12px;justify-content:center;">
+                ${SENSES.map((s, i) => `
+                  <div style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;
+                    background:${i < gStep ? s.color : i === gStep ? s.color : 'rgba(0,0,0,0.06)'};
+                    border:2px solid ${i <= gStep ? s.color : 'transparent'};
+                    transition:all 0.3s ease;">
+                    ${i < gStep
+                      ? `<i class="ph-bold ph-check" style="font-size:14px;color:white;"></i>`
+                      : `<i class="ph ${s.icon}" style="font-size:14px;color:${i === gStep ? 'white' : 'var(--color-text-muted)'};"></i>`
+                    }
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+
+            <!-- Active sense card -->
+            <div style="background:white;border-radius:24px;border:2px solid ${currentSense.color}30;box-shadow:0 8px 40px ${currentSense.color}18;padding:36px;text-align:center;transition:all 0.3s ease;">
+              <!-- Icon -->
+              <div style="width:80px;height:80px;border-radius:50%;background:${currentSense.bg};border:3px solid ${currentSense.color}40;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
+                <i class="ph-bold ${currentSense.icon}" style="font-size:36px;color:${currentSense.color};"></i>
+              </div>
+              <!-- Count + sense -->
+              <div style="font-size:56px;font-weight:900;color:${currentSense.color};line-height:1;margin-bottom:6px;font-variant-numeric:tabular-nums;">${currentSense.count}</div>
+              <h4 style="font-family:var(--font-serif);font-size:22px;margin:0 0 10px 0;color:var(--color-charcoal);">Things to ${currentSense.sense}</h4>
+              <p style="font-size:14px;color:var(--color-text-muted);margin:0 0 28px 0;max-width:440px;margin-left:auto;margin-right:auto;line-height:1.6;">${currentSense.prompt}</p>
+
+              <!-- Entry inputs -->
+              <div style="display:flex;flex-direction:column;gap:10px;text-align:left;margin-bottom:24px;" id="grounding-entries">
+                ${Array.from({length: requiredCount}, (_, idx) => `
+                  <div style="display:flex;align-items:center;gap:10px;">
+                    <div style="width:28px;height:28px;border-radius:50%;background:${currentEntries[idx] && currentEntries[idx].trim() ? currentSense.color : 'rgba(0,0,0,0.06)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background 0.2s;">
+                      ${currentEntries[idx] && currentEntries[idx].trim()
+                        ? `<i class="ph-bold ph-check" style="font-size:13px;color:white;"></i>`
+                        : `<span style="font-size:12px;font-weight:700;color:var(--color-text-muted);">${idx + 1}</span>`
+                      }
+                    </div>
+                    <input
+                      type="text"
+                      id="grounding-input-${idx}"
+                      value="${escapeHtml(currentEntries[idx] || '')}"
+                      placeholder="${currentSense.placeholder.split(',')[idx] ? currentSense.placeholder.split(',')[idx].trim() : 'Name something...'}"
+                      oninput="window.updateGroundingEntry(${gStep}, ${idx}, this.value)"
+                      onkeydown="if(event.key==='Enter' && ${idx} < ${requiredCount - 1}) { document.getElementById('grounding-input-${idx + 1}')?.focus(); } else if(event.key==='Enter' && ${idx} === ${requiredCount - 1}) { window.submitGroundingStep(${gStep}); }"
+                      style="flex:1;padding:11px 14px;border:1.5px solid ${currentEntries[idx] && currentEntries[idx].trim() ? currentSense.color : 'var(--color-border)'};border-radius:10px;font-size:14px;transition:border-color 0.2s;outline:none;"
+                      autofocus="${idx === currentEntries.filter(e => e && e.trim()).length ? 'true' : ''}"
+                    >
+                  </div>
+                `).join('')}
+              </div>
+
+              <!-- Progress within this step -->
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                <span style="font-size:13px;color:var(--color-text-muted);">${filledCount} of ${requiredCount} filled</span>
+                <div style="display:flex;gap:6px;">
+                  ${Array.from({length: requiredCount}, (_, i) => `
+                    <div style="width:8px;height:8px;border-radius:50%;background:${i < filledCount ? currentSense.color : 'rgba(0,0,0,0.1)'};transition:background 0.2s;"></div>
+                  `).join('')}
+                </div>
+              </div>
+
+              <!-- Actions -->
+              <div style="display:flex;gap:12px;justify-content:center;">
+                ${gStep > 0 ? `<button onclick="window.backGroundingStep()" class="btn secondary" style="border-radius:12px;padding:11px 22px;">← Back</button>` : ''}
+                <button
+                  onclick="window.submitGroundingStep(${gStep})"
+                  class="btn primary"
+                  style="background:${currentSense.color};border:none;border-radius:12px;padding:12px 32px;font-size:15px;flex:1;max-width:260px;display:flex;align-items:center;justify-content:center;gap:8px;opacity:${filledCount > 0 ? '1' : '0.5'};transition:opacity 0.2s;"
+                >
+                  <i class="ph-bold ${gStep === SENSES.length - 1 ? 'ph-check-circle' : 'ph-arrow-right'}"></i>
+                  ${gStep === SENSES.length - 1 ? 'Complete Session' : `Next: ${SENSES[gStep + 1] ? SENSES[gStep + 1].count + ' to ' + SENSES[gStep + 1].sense : ''}`}
+                </button>
+              </div>
+            </div>
+          `}
         </div>
       `;
     } else if (state.cbtActiveTab === "worry") {
@@ -5429,3 +5565,110 @@ function servicePsychologyCourses() {
     ]
   });
 }
+
+// ═══════════════════════════════════════════════
+// 5-4-3-2-1 GROUNDING TECHNIQUE — Session Handlers
+// ═══════════════════════════════════════════════
+
+window.startGrounding = function() {
+  const state = window.currentAppState;
+  if (!state) return;
+  state.groundingStep = 0;
+  state.groundingDone = [];
+  state.groundingInputs = {};
+  state.groundingComplete = false;
+  if (typeof window.triggerAppRender === "function") window.triggerAppRender();
+};
+
+window.updateGroundingEntry = function(step, idx, value) {
+  const state = window.currentAppState;
+  if (!state) return;
+  if (!state.groundingInputs) state.groundingInputs = {};
+  if (!state.groundingInputs[step]) state.groundingInputs[step] = [];
+  state.groundingInputs[step][idx] = value;
+  // Update dot indicators inline without re-render (for snappy UX)
+  const COLORS = ["#0ea5e9","#8b5cf6","#10b981","#f59e0b","#e11d48"];
+  const color = COLORS[step] || "#319795";
+  const dotBullets = document.querySelectorAll("#grounding-entries > div > div:first-child");
+  const inputs = document.querySelectorAll("#grounding-entries input");
+  if (dotBullets[idx]) {
+    const filled = value && value.trim();
+    dotBullets[idx].style.background = filled ? color : "rgba(0,0,0,0.06)";
+    dotBullets[idx].innerHTML = filled
+      ? `<i class="ph-bold ph-check" style="font-size:13px;color:white;"></i>`
+      : `<span style="font-size:12px;font-weight:700;color:var(--color-text-muted);">${idx + 1}</span>`;
+  }
+  if (inputs[idx]) {
+    inputs[idx].style.borderColor = value && value.trim() ? color : "var(--color-border)";
+  }
+  // Update filled count display
+  const filled = state.groundingInputs[step].filter(e => e && e.trim()).length;
+  const countEl = document.querySelector("[id^='grounding-entries'] ~ div span");
+  if (countEl) countEl.textContent = `${filled} of ${state.groundingInputs[step].length || 0} filled`;
+  // Update mini dots
+  const miniDots = document.querySelectorAll(".grounding-mini-dot");
+  miniDots.forEach((dot, i) => {
+    dot.style.background = i < filled ? color : "rgba(0,0,0,0.1)";
+  });
+};
+
+window.submitGroundingStep = function(step) {
+  const state = window.currentAppState;
+  if (!state) return;
+  const entries = (state.groundingInputs && state.groundingInputs[step]) || [];
+  const filledEntries = entries.filter(e => e && e.trim());
+  if (filledEntries.length === 0) {
+    if (typeof window.toast === "function") toast("Please name at least 1 thing before continuing.", "error");
+    return;
+  }
+  if (!state.groundingDone) state.groundingDone = [];
+  // Update or push this step's result
+  const existingIdx = state.groundingDone.findIndex(d => d.step === step);
+  const stepData = { step, entries: filledEntries };
+  if (existingIdx >= 0) state.groundingDone[existingIdx] = stepData;
+  else state.groundingDone.push(stepData);
+
+  const SENSES_COUNT = 5;
+  if (step >= SENSES_COUNT - 1) {
+    state.groundingStep = SENSES_COUNT;
+    state.groundingComplete = true;
+    if (typeof window.toast === "function") toast("Grounding complete! You are anchored in the present. 🌿");
+  } else {
+    state.groundingStep = step + 1;
+    if (!state.groundingInputs[step + 1]) state.groundingInputs[step + 1] = [];
+  }
+  if (typeof window.triggerAppRender === "function") window.triggerAppRender();
+};
+
+window.backGroundingStep = function() {
+  const state = window.currentAppState;
+  if (!state || state.groundingStep <= 0) return;
+  state.groundingStep = state.groundingStep - 1;
+  if (typeof window.triggerAppRender === "function") window.triggerAppRender();
+};
+
+window.resetGrounding = function() {
+  const state = window.currentAppState;
+  if (!state) return;
+  state.groundingStep = -1;
+  state.groundingDone = [];
+  state.groundingInputs = {};
+  state.groundingComplete = false;
+  if (typeof window.triggerAppRender === "function") window.triggerAppRender();
+};
+
+window.saveGroundingSession = function() {
+  const state = window.currentAppState;
+  if (!state) return;
+  const session = {
+    id: Date.now(),
+    savedAt: new Date().toISOString(),
+    senses: state.groundingDone || []
+  };
+  try {
+    const existing = JSON.parse(localStorage.getItem("mindheal-grounding-sessions") || "[]");
+    existing.unshift(session);
+    localStorage.setItem("mindheal-grounding-sessions", JSON.stringify(existing.slice(0, 20)));
+  } catch(e) {}
+  if (typeof window.toast === "function") toast("Grounding session saved! ✅");
+};
