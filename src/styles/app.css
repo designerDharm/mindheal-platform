@@ -4254,4 +4254,30 @@ tr:hover td {
   }
 }
 
+/* Sub-Tab Navigation Pills High-Contrast Fix */
+.sub-tab-pill,
+[data-action="switch-cbt-tab"] {
+  color: var(--color-charcoal) !important;
+  background: var(--color-white) !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  font-weight: 600 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+  transition: all 0.2s ease !important;
+}
+
+.sub-tab-pill:hover,
+[data-action="switch-cbt-tab"]:hover {
+  background: var(--color-cream) !important;
+  border-color: var(--color-coral) !important;
+  color: var(--color-coral) !important;
+}
+
+.sub-tab-pill.active,
+[data-action="switch-cbt-tab"].active {
+  background: var(--color-charcoal) !important;
+  color: var(--color-white) !important;
+  border-color: var(--color-charcoal) !important;
+}
+
+
 
