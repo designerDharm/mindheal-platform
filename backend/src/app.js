@@ -9,6 +9,12 @@ import { hashValue } from "./utils/security.js";
 const rateLimitStore = new Map();
 
 async function applyRateLimit(ip) {
+  // Bypass rate limiting for localhost in non-production environments
+  if (appConfig.env !== "production") {
+    const isLocalhost = ip === "::1" || ip === "127.0.0.1" || ip === "::ffff:127.0.0.1" || (ip || "").startsWith("::ffff:127.");
+    if (isLocalhost) return { status: "allowed" };
+  }
+
   if (redisClient.isOpen) {
     try {
       return await applyRedisRateLimit(ip);
