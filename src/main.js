@@ -2135,15 +2135,15 @@ function authPage(role, mode) {
                 </div>
               ` : ""}
               <div class="field">
-                <label for="email">Email ${!isSignup && role !== "admin" ? "(optional)" : ""}</label>
+                <label for="email">Email address ${role === "admin" ? "(Required)" : "(Required for verification)"}</label>
                 <div class="input-wrapper" style="position: relative; display: flex; align-items: center; width: 100%;">
-                  <input id="email" name="email" type="email" ${role === "admin" ? "required" : ""} autocomplete="email" style="padding-left: 48px; width: 100%;" />
+                  <input id="email" name="email" type="email" required autocomplete="email" placeholder="Enter email address" style="padding-left: 48px; width: 100%;" />
                   <i class="ph ph-envelope field-icon"></i>
                 </div>
               </div>
               ${role !== "admin" ? html`
                 <div class="field">
-                  <label for="mobile">Mobile number ${role === "counsellor" ? "(Required)" : isSignup ? "(Required)" : "(optional)"}</label>
+                  <label for="mobile">Mobile number (optional)</label>
                   <div class="phone-input-group">
                     <div class="country-dropdown-container">
                       <button type="button" class="country-dropdown-trigger" aria-label="Select Country Code">
@@ -2182,7 +2182,7 @@ function authPage(role, mode) {
                     <div style="width: 1px; height: 24px; background: var(--color-border); flex-shrink: 0;"></div>
                     <input type="hidden" id="country-code" name="countryCode" value="${state.selectedCountryCode || "+91"}" />
                     <div class="input-wrapper" style="position: relative; display: flex; align-items: center; flex: 1;">
-                      <input id="mobile" name="mobile" type="tel" maxlength="10" pattern="[0-9]{10}" ${role === "counsellor" ? "required" : ""} autocomplete="tel" placeholder="Enter 10-digit mobile number" style="flex: 1; border: none; padding: 16px 16px 16px 44px; border-radius: 0 14px 14px 0; background: transparent; outline: none; margin: 0; box-shadow: none; width: 100%;" />
+                      <input id="mobile" name="mobile" type="tel" maxlength="10" autocomplete="tel" placeholder="Enter 10-digit mobile number" style="flex: 1; border: none; padding: 16px 16px 16px 44px; border-radius: 0 14px 14px 0; background: transparent; outline: none; margin: 0; box-shadow: none; width: 100%;" />
                       <i class="ph ph-phone field-icon" style="left: 12px;"></i>
                     </div>
                   </div>
@@ -3674,32 +3674,29 @@ function attachPageHandlers() {
         mobile: rawMobile ? rawMobile : undefined
       };
 
-      if (role === "counsellor" && !cleanPayload.mobile) {
-        toast("Mobile number is mandatory for Counsellor accounts.", "error");
-        return;
-      }
-
       if (cleanPayload.mobile) {
         const digitsOnly = cleanPayload.mobile.replace(/[^0-9]/g, "");
-        if (digitsOnly.length !== 10) {
+        if (digitsOnly.length > 0 && digitsOnly.length !== 10) {
           toast("Please enter a valid 10-digit mobile number.", "error");
           return;
         }
-        cleanPayload.mobile = `${payload.countryCode || "+91"}${digitsOnly}`;
-      }
-
-      if (role !== "admin" && !cleanPayload.email && !cleanPayload.mobile) {
-        toast("Please provide either an Email address or Mobile number.", "error");
-        return;
+        if (digitsOnly.length === 10) {
+          cleanPayload.mobile = `${payload.countryCode || "+91"}${digitsOnly}`;
+        }
       }
 
       if (mode === "signup") {
+        if (!cleanPayload.email) {
+          toast("Email address is required for verification.", "error");
+          return;
+        }
+
         if (payload.password !== payload.confirmPassword) {
           toast("Passwords do not match.", "error");
           return;
         }
 
-        state.otpTarget = role === "counsellor" ? cleanPayload.mobile : (cleanPayload.mobile || cleanPayload.email);
+        state.otpTarget = cleanPayload.email;
         
         try {
           toast(`Sending OTP code to ${state.otpTarget}...`);
