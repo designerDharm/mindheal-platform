@@ -194,15 +194,101 @@ function renderTabContent(tab, state) {
   }
 
   if (tab === 'timeline') {
+    const events = (state && state.lifeMapEvents) || [
+      { id: 1, title: "Graduated College", year: "2020", category: "Achievement", impact: "positive", note: "Felt empowered and confident about career prospects." },
+      { id: 2, title: "Relocated to New City", year: "2022", category: "Transition", impact: "neutral", note: "Initial anxiety mixed with excitement of independence." },
+      { id: 3, title: "Started MindHeal Wellness Journey", year: "2024", category: "Self-care", impact: "positive", note: "Consistent CBT reflection and mood tracking." }
+    ];
+
+    const isModalOpen = state && state.showAddLifeEventModal;
+
     return html`
-      <div class="dashboard-card" style="padding:32px;background:white;border-radius:16px;display:flex;flex-direction:column;gap:20px;">
-        <h2 style="font-family:var(--font-serif);font-size:24px;margin:0;">My Life Map & Timeline</h2>
-        <p style="color:var(--color-text-muted);font-size:14px;margin:0;">Understand how major life transitions, achievements, and relationships map to your emotional wellbeing.</p>
-        <div style="background:var(--color-cream);padding:24px;border-radius:12px;text-align:center;">
-          <i class="ph-bold ph-path" style="font-size:40px;color:var(--color-coral);margin-bottom:12px;"></i>
-          <p style="margin:0 0 16px 0;font-weight:600;">Interactive Timeline Builder Active</p>
-          <button class="btn primary" onclick="toast('Timeline event added to Life Map.')">Add Life Event</button>
+      <div class="dashboard-card" style="padding:32px;background:white;border-radius:24px;display:flex;flex-direction:column;gap:24px;border:1px solid var(--color-border);">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;">
+          <div>
+            <h2 style="font-family:var(--font-serif);font-size:26px;margin:0 0 6px 0;color:var(--color-charcoal);">My Life Map & Timeline</h2>
+            <p style="color:var(--color-text-muted);font-size:14px;margin:0;">Understand how major life transitions, achievements, and relationships map to your emotional wellbeing.</p>
+          </div>
+          <button class="btn primary" onclick="window.toggleAddLifeEventModal(true)" style="display:flex;align-items:center;gap:8px;background:var(--color-coral);border-radius:999px;">
+            <i class="ph-bold ph-plus-circle" style="font-size:18px;"></i> Add Life Event
+          </button>
         </div>
+
+        <!-- Timeline Graphic Visualization -->
+        <div style="position:relative;padding:24px 0 24px 32px;border-left:3px dashed var(--color-coral);margin-left:12px;display:flex;flex-direction:column;gap:28px;">
+          ${events.map(item => `
+            <div style="position:relative;background:linear-gradient(135deg, rgba(255,255,255,1) 0%, rgba(253,248,246,1) 100%);border:1px solid var(--color-border);border-radius:16px;padding:20px;box-shadow:0 4px 14px rgba(0,0,0,0.03);display:flex;flex-direction:column;gap:8px;">
+              <div style="position:absolute;left:-44px;top:22px;width:20px;height:20px;border-radius:50%;background:var(--color-coral);border:4px solid white;box-shadow:0 0 0 2px var(--color-coral);"></div>
+              
+              <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <span style="font-size:12px;font-weight:800;background:rgba(224,106,78,0.1);color:var(--color-coral);padding:4px 10px;border-radius:8px;">${escapeHtml(item.year)}</span>
+                  <strong style="font-size:17px;color:var(--color-charcoal);">${escapeHtml(item.title)}</strong>
+                </div>
+                <span class="status-pill ${item.impact === 'positive' ? 'success' : item.impact === 'challenging' ? 'danger' : 'warning'}" style="font-size:11px;text-transform:capitalize;">
+                  ${item.category} • ${item.impact}
+                </span>
+              </div>
+              
+              ${item.note ? `<p style="font-size:13px;color:var(--color-text-muted);margin:4px 0 0 0;line-height:1.5;">${escapeHtml(item.note)}</p>` : ''}
+            </div>
+          `).join("")}
+        </div>
+
+        <!-- Add Event Modal Overlay -->
+        ${isModalOpen ? html`
+          <div style="position:fixed;inset:0;background:rgba(0,0,0,0.5);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:1100;padding:20px;">
+            <div class="dashboard-card" style="width:100%;max-width:520px;background:white;border-radius:24px;padding:32px;display:flex;flex-direction:column;gap:20px;box-shadow:var(--shadow-3);position:relative;">
+              <button onclick="window.toggleAddLifeEventModal(false)" style="position:absolute;top:20px;right:20px;background:transparent;border:none;font-size:22px;color:var(--color-text-muted);cursor:pointer;">
+                <i class="ph ph-x"></i>
+              </button>
+              
+              <h3 style="font-family:var(--font-serif);font-size:22px;margin:0;color:var(--color-charcoal);display:flex;align-items:center;gap:10px;">
+                <i class="ph-bold ph-path" style="color:var(--color-coral);"></i> Log New Life Event
+              </h3>
+              
+              <form onsubmit="window.handleAddLifeEventSubmit(event)" style="display:flex;flex-direction:column;gap:16px;">
+                <div class="field">
+                  <label for="event-title">Event Title</label>
+                  <input id="event-title" name="title" placeholder="e.g. Started New Job, Marriage, Loss" required style="width:100%;" />
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                  <div class="field">
+                    <label for="event-year">Year / Date</label>
+                    <input id="event-year" name="year" placeholder="e.g. 2024" required style="width:100%;" />
+                  </div>
+                  <div class="field">
+                    <label for="event-category">Category</label>
+                    <select id="event-category" name="category" required style="width:100%;">
+                      <option value="Transition">Transition</option>
+                      <option value="Achievement">Achievement</option>
+                      <option value="Relationship">Relationship</option>
+                      <option value="Loss/Challenge">Loss/Challenge</option>
+                      <option value="Self-care">Self-care</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="event-impact">Emotional Impact</label>
+                  <select id="event-impact" name="impact" required style="width:100%;">
+                    <option value="positive">Positive Growth</option>
+                    <option value="neutral">Neutral Transition</option>
+                    <option value="challenging">Challenging / Stressful</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="event-note">Reflection Notes</label>
+                  <textarea id="event-note" name="note" placeholder="How did this event affect your emotional wellbeing?" rows="3" style="width:100%;"></textarea>
+                </div>
+                
+                <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:8px;">
+                  <button type="button" class="btn secondary" onclick="window.toggleAddLifeEventModal(false)">Cancel</button>
+                  <button type="submit" class="btn primary" style="background:var(--color-coral);">Save to Life Map</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        ` : ''}
       </div>
     `;
   }
@@ -266,3 +352,48 @@ window.handleWellnessScanSubmit = function(e) {
 window.openCreditRechargeModal = function() {
   toast("AI Credit Recharge modal opened. Select pack to top-up.");
 };
+
+window.toggleAddLifeEventModal = function(show) {
+  if (window.currentAppState) {
+    window.currentAppState.showAddLifeEventModal = show;
+  }
+  if (typeof window.triggerAppRender === "function") {
+    window.triggerAppRender();
+  }
+};
+
+window.handleAddLifeEventSubmit = function(e) {
+  e.preventDefault();
+  const form = e.target;
+  const title = form.title.value;
+  const year = form.year.value;
+  const category = form.category.value;
+  const impact = form.impact.value;
+  const note = form.note.value;
+
+  if (!window.currentAppState.lifeMapEvents) {
+    window.currentAppState.lifeMapEvents = [
+      { id: 1, title: "Graduated College", year: "2020", category: "Achievement", impact: "positive", note: "Felt empowered and confident about career prospects." },
+      { id: 2, title: "Relocated to New City", year: "2022", category: "Transition", impact: "neutral", note: "Initial anxiety mixed with excitement of independence." },
+      { id: 3, title: "Started MindHeal Wellness Journey", year: "2024", category: "Self-care", impact: "positive", note: "Consistent CBT reflection and mood tracking." }
+    ];
+  }
+
+  const newEvent = {
+    id: Date.now(),
+    title,
+    year,
+    category,
+    impact,
+    note
+  };
+
+  window.currentAppState.lifeMapEvents.push(newEvent);
+  window.currentAppState.showAddLifeEventModal = false;
+  toast("New Life Event saved to Life Map & Timeline!");
+  
+  if (typeof window.triggerAppRender === "function") {
+    window.triggerAppRender();
+  }
+};
+
