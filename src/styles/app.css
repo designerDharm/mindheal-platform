@@ -4061,3 +4061,158 @@ tr:hover td {
 .auth-divider::after {
   margin-left: 16px;
 }
+
+/* ========================================================
+   RESPONSIVE OVERRIDES (MOBILE & TABLET FRIENDLY)
+   Note: Desktop design & layout (> 768px) remains strictly unchanged.
+   ======================================================== */
+
+@media (max-width: 768px) {
+  /* Container & Typography adjustments */
+  .container {
+    padding: 0 16px !important;
+  }
+  
+  .text-hero {
+    font-size: 42px !important;
+    line-height: 1.15 !important;
+  }
+  
+  .text-h2, .page-title {
+    font-size: 32px !important;
+    line-height: 1.2 !important;
+  }
+
+  .text-h3 {
+    font-size: 24px !important;
+  }
+
+  .py-160, .py-120, .pt-160, .pb-160 {
+    padding-top: 60px !important;
+    padding-bottom: 60px !important;
+  }
+
+  .page {
+    padding-top: 100px !important;
+    padding-bottom: 40px !important;
+  }
+
+  /* Grid Layouts Stacked on Mobile */
+  .grid-2, .grid-3, .grid-4, .card-grid, .service-grid, .dashboard-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 20px !important;
+  }
+
+  /* Panel & Sidebar Responsiveness */
+  .panel-layout {
+    flex-direction: column !important;
+  }
+
+  .panel-sidebar {
+    width: 100% !important;
+    min-width: 100% !important;
+    position: relative !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--color-border) !important;
+    padding: 16px !important;
+  }
+
+  .panel-sidebar.collapsed {
+    width: 100% !important;
+  }
+
+  .panel-main {
+    padding: 16px !important;
+    width: 100% !important;
+  }
+
+  .panel-hero {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 16px !important;
+  }
+
+  /* Navigation Header */
+  .header-actions {
+    gap: 8px !important;
+  }
+
+  /* Auth Screens Split Layout */
+  .auth-split-layout {
+    flex-direction: column !important;
+  }
+
+  .auth-split-left {
+    display: none !important; /* Hide decorative image on mobile */
+  }
+
+  .auth-split-right {
+    width: 100% !important;
+    padding: 24px 16px !important;
+  }
+
+  .auth-card {
+    padding: 24px 16px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Tables & Horizontal Scroll Container */
+  .table-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  table {
+    min-width: 600px !important;
+  }
+
+  /* Floating CTA & Mobile Floating Action Fixes */
+  .floating-cta {
+    font-size: 15px !important;
+    padding: 12px 24px !important;
+    bottom: 20px !important;
+    white-space: nowrap !important;
+  }
+
+  .chat-widget {
+    width: 52px !important;
+    height: 52px !important;
+    bottom: 20px !important;
+    right: 16px !important;
+    font-size: 24px !important;
+  }
+
+  /* AI Chat Area */
+  .ai-chat-layout {
+    flex-direction: column !important;
+  }
+
+  .ai-chat-sidebar {
+    display: none !important; /* Collapsed by default on small screens */
+  }
+
+  .ai-chat-sidebar.active {
+    display: flex !important;
+    width: 100% !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .text-hero {
+    font-size: 34px !important;
+  }
+
+  .btn {
+    padding: 12px 20px !important;
+    font-size: 14px !important;
+  }
+
+  .form-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+  }
+}
+
