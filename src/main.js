@@ -524,8 +524,45 @@ function siteHeader() {
           </div>
           
           ${state.auth ? html`
-            <a class="btn ghost" href="#/panel/${state.auth.role === 'admin' ? 'admin' : state.auth.role === 'counsellor' ? 'counsellor' : 'user'}" style="height:44px;padding:0 24px;color:var(--color-coral);border-color:var(--color-coral);background:transparent;">${t("Dashboard")}</a>
-            <button class="btn primary" data-action="logout" style="height:44px;padding:0 24px;background:var(--color-coral);color:white;border:none;cursor:pointer;">${t("Logout")}</button>
+            <div class="user-profile-menu" style="position:relative;display:flex;align-items:center;gap:12px;">
+              <a href="#/panel/${state.auth.role === 'admin' ? 'admin' : state.auth.role === 'counsellor' ? 'counsellor' : 'user'}" class="wallet-badge-pill" style="display:flex;align-items:center;gap:6px;background:rgba(224,106,78,0.1);color:var(--color-coral);padding:8px 14px;border-radius:999px;font-weight:700;font-size:13px;text-decoration:none;">
+                <i class="ph ph-wallet" style="font-size:16px;"></i> ${formatInr(state.dashboard?.user?.walletBalance || 0)}
+              </a>
+              
+              <div class="profile-dropdown-container" style="position:relative;">
+                <button class="btn ghost profile-trigger-btn" type="button" style="height:44px;padding:0 18px;color:var(--color-charcoal);border:1px solid var(--color-border);background:var(--color-white);border-radius:999px;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer;">
+                  <i class="ph-fill ph-user-circle" style="font-size:22px;color:var(--color-coral);"></i>
+                  <span>${escapeHtml(state.auth.name || state.auth.displayName || state.auth.email?.split('@')[0] || "Account")}</span>
+                  <i class="ph ph-caret-down" style="font-size:14px;color:var(--color-text-muted);"></i>
+                </button>
+
+                <div class="profile-dropdown-menu" style="display:none;position:absolute;top:calc(100% + 8px);right:0;width:240px;background:var(--color-white);border:1px solid var(--color-border);border-radius:16px;box-shadow:0 16px 36px rgba(0,0,0,0.12);padding:8px;z-index:1000;flex-direction:column;gap:4px;">
+                  <div style="padding:10px 12px;border-bottom:1px solid var(--color-border);margin-bottom:4px;">
+                    <strong style="display:block;font-size:14px;color:var(--color-charcoal);">${escapeHtml(state.auth.name || "User")}</strong>
+                    <span style="font-size:12px;color:var(--color-text-muted);">${escapeHtml(state.auth.email || "")}</span>
+                  </div>
+
+                  <a href="#/panel/${state.auth.role === 'admin' ? 'admin' : state.auth.role === 'counsellor' ? 'counsellor' : 'user'}?section=wallet" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;color:var(--color-charcoal);text-decoration:none;border-radius:8px;font-size:14px;font-weight:500;" class="dropdown-item">
+                    <span style="display:flex;align-items:center;gap:8px;"><i class="ph ph-wallet" style="color:var(--color-coral);"></i> Wallet Balance</span>
+                    <strong style="color:var(--color-coral);font-size:13px;">${formatInr(state.dashboard?.user?.walletBalance || 0)}</strong>
+                  </a>
+
+                  <a href="#/panel/${state.auth.role === 'admin' ? 'admin' : state.auth.role === 'counsellor' ? 'counsellor' : 'user'}?section=sessions" style="display:flex;align-items:center;gap:8px;padding:10px 12px;color:var(--color-charcoal);text-decoration:none;border-radius:8px;font-size:14px;font-weight:500;" class="dropdown-item">
+                    <i class="ph ph-calendar-blank" style="color:var(--color-coral);"></i> Sessions & Bookings
+                  </a>
+
+                  <a href="#/panel/${state.auth.role === 'admin' ? 'admin' : state.auth.role === 'counsellor' ? 'counsellor' : 'user'}?section=overview" style="display:flex;align-items:center;gap:8px;padding:10px 12px;color:var(--color-charcoal);text-decoration:none;border-radius:8px;font-size:14px;font-weight:500;" class="dropdown-item">
+                    <i class="ph ph-user" style="color:var(--color-coral);"></i> Profile & Dashboard
+                  </a>
+
+                  <div style="height:1px;background:var(--color-border);margin:4px 0;"></div>
+
+                  <button type="button" data-action="logout" style="width:100%;display:flex;align-items:center;gap:8px;padding:10px 12px;color:#e53e3e;background:transparent;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;text-align:left;" class="dropdown-item danger">
+                    <i class="ph ph-sign-out"></i> Logout
+                  </button>
+                </div>
+              </div>
+            </div>
           ` : html`
             <a class="btn ghost" href="#/auth/user-login" style="height:44px;padding:0 24px;color:var(--color-coral);border-color:var(--color-coral);background:transparent;">${t("Login")}</a>
             <a class="btn primary" href="#/auth/user-signup" style="height:44px;padding:0 24px;background:var(--color-coral);color:white;border:none;">${t("Get Started")}</a>

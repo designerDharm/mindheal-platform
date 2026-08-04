@@ -4296,5 +4296,20 @@ tr:hover td {
   border-color: var(--color-charcoal) !important;
 }
 
+/* Header User Profile Dropdown Styling */
+.profile-dropdown-container:hover .profile-dropdown-menu,
+.profile-dropdown-container:focus-within .profile-dropdown-menu {
+  display: flex !important;
+}
+
+.profile-dropdown-menu .dropdown-item:hover {
+  background: rgba(0, 0, 0, 0.04) !important;
+}
+
+.profile-dropdown-menu .dropdown-item.danger:hover {
+  background: rgba(229, 62, 62, 0.08) !important;
+}
+
+
 
 
