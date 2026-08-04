@@ -52,7 +52,14 @@ export async function login({ body }) {
 export async function sendOtp({ body }) {
   const destination = body.email || body.mobile;
   if (!destination) return badRequest("Email or mobile is required.");
-  return ok(await authService.issueOtp(destination));
+  try {
+    return ok(await authService.issueOtp(destination));
+  } catch (err) {
+    if (err.message && err.message.startsWith("OTP_DELIVERY_UNAVAILABLE")) {
+      return badRequest("OTP Delivery Unavailable. Please try again later or contact support.", { code: "OTP_DELIVERY_UNAVAILABLE" });
+    }
+    throw err;
+  }
 }
 
 export async function verifyOtp({ body }) {
@@ -95,4 +102,27 @@ export async function logout({ body }) {
     await authService.logoutUser(body.refreshToken);
   }
   return ok({ success: true, message: "Logged out successfully" });
+}
+
+export async function forgotPassword({ body }) {
+  const missing = requireFields(body, ["email"]);
+  if (missing) return badRequest("Email is required to reset password.", missing);
+  try {
+    const result = await authService.forgotPassword(body.email);
+    return ok(result);
+  } catch (err) {
+    // Always return 200 to avoid email enumeration attacks
+    return ok({ message: "If this email exists, a reset OTP has been sent." });
+  }
+}
+
+export async function resetPassword({ body }) {
+  const missing = requireFields(body, ["email", "otp", "newPassword"]);
+  if (missing) return badRequest("Email, OTP, and new password are required.", missing);
+  try {
+    const result = await authService.resetPassword(body.email, body.otp, body.newPassword);
+    return ok(result);
+  } catch (err) {
+    return badRequest(err.message || "Password reset failed.");
+  }
 }

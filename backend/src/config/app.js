@@ -3,6 +3,11 @@ const jwtAccessSecret = resolveJwtSecret("JWT_ACCESS_SECRET", "development-acces
 const jwtRefreshSecret = resolveJwtSecret("JWT_REFRESH_SECRET", "development-refresh-secret-change-me", env);
 const allowedOrigins = resolveAllowedOrigins(env);
 
+const isOtpTestMode = process.env.OTP_TEST_MODE === "true";
+if (env === "production" && isOtpTestMode) {
+  throw new Error("SECURITY_FATAL: OTP_TEST_MODE=true is strictly forbidden in production environment.");
+}
+
 export const appConfig = {
   env,
   port: Number(process.env.PORT || 4000),
@@ -16,6 +21,7 @@ export const appConfig = {
   defaultLanguage: "en",
   supportedRoles: ["user", "counsellor", "admin"],
   allowFirebaseAuthMock: process.env.FIREBASE_AUTH_MOCK_ENABLED === "true" && process.env.NODE_ENV !== "production",
+  isOtpTestMode: env !== "production" && isOtpTestMode,
   allowedOrigins,
   rateLimitWindowMs: 15 * 60 * 1000,
   rateLimitMaxRequests: 1000

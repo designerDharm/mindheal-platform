@@ -373,6 +373,13 @@ export const postgresRepositories = {
       values.push(id);
       const res = await query(`UPDATE users SET ${updates.join(", ")}, updated_at = NOW() WHERE id = $${index} RETURNING *`, values);
       return mapUser(res.rows[0]);
+    },
+    async updatePasswordHash(id, passwordHash) {
+      const res = await query(
+        `UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+        [passwordHash, id]
+      );
+      return mapUser(res.rows[0]);
     }
   },
 

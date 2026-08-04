@@ -171,22 +171,86 @@ export function sanitizeUser(user) {
 const otpTtlSeconds = 5 * 60;
 const otpMaxAttempts = 3;
 
-async function sendRealEmailOtp(email, code) {
-  const smtpUser = process.env.SMTP_USER || "designerdharm@gmail.com";
-  const smtpPass = process.env.SMTP_PASS || "uxsj xokz cevp ibht";
+async function sendEmailOtp(email, code) {
+  const provider = (process.env.EMAIL_PROVIDER || "smtp").toLowerCase();
+  
+  if (provider === "sendgrid") {
+    const apiKey = process.env.SENDGRID_API_KEY;
+    const fromEmail = process.env.SENDGRID_FROM_EMAIL || process.env.SMTP_USER || "designerdharm@gmail.com";
+    
+    if (apiKey) {
+      try {
+        const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            personalizations: [{ to: [{ email }] }],
+            from: { email: fromEmail, name: "MindHeal" },
+            subject: `Your MindHeal Verification Code: ${code}`,
+            content: [{
+              type: "text/html",
+              value: `
+                <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+                  <h2 style="color: #DA7756; text-align: center;">MindHeal Verification Code</h2>
+                  <p style="font-size: 16px; color: #333;">Your 6-digit email verification code is:</p>
+                  <div style="background-color: #f8f9fa; border: 1px dashed #DA7756; border-radius: 8px; padding: 15px; text-align: center; margin: 20px 0;">
+                    <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #1E293B;">${code}</span>
+                  </div>
+                  <p style="font-size: 14px; color: #666;">This code is valid for 5 minutes. Please do not share this OTP with anyone for your security.</p>
+                  <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+                  <p style="font-size: 12px; color: #999; text-align: center;">&copy; 2026 MindHeal Platform. All rights reserved.</p>
+                </div>
+              `
+            }]
+          })
+        });
+
+        if (response.ok) {
+          console.log(`[SENDGRID EMAIL SENT] OTP ${code} delivered to ${email}`);
+          return;
+        }
+        
+        const errorText = await response.text();
+        console.warn(`[SENDGRID WARNING] SendGrid API (${response.status}): ${errorText}. Falling back to SMTP...`);
+      } catch (err) {
+        console.warn(`[SENDGRID ERROR] SendGrid dispatch failed: ${err.message}. Falling back to SMTP...`);
+      }
+    }
+  }
+
+  // Fallback / Staging SMTP Driver
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+
+  if (!smtpUser || !smtpPass) {
+    console.warn(`[EMAIL OTP NOTICE] SMTP credentials not configured. Skipping email dispatch to ${email}.`);
+    if (appConfig.env === "production") {
+      throw new Error("OTP_DELIVERY_UNAVAILABLE: Email credentials not configured.");
+    }
+    return;
+  }
+
+  const host = process.env.SMTP_HOST || "smtp.gmail.com";
+  const port = Number(process.env.SMTP_PORT || 587);
+  const secure = process.env.SMTP_SECURE === "true" || port === 465;
+  const requireTLS = process.env.SMTP_REQUIRE_TLS !== "false";
+  const fromAddress = process.env.SMTP_FROM || `"MindHeal Verification" <${smtpUser}>`;
 
   try {
     const nodemailer = await import("nodemailer");
     const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: smtpUser,
-        pass: smtpPass
-      }
+      host,
+      port,
+      secure,
+      requireTLS,
+      auth: { user: smtpUser, pass: smtpPass }
     });
 
-    const mailOptions = {
-      from: `"MindHeal Verification" <${smtpUser}>`,
+    await transporter.sendMail({
+      from: fromAddress,
       to: email,
       subject: `Your MindHeal Verification Code: ${code}`,
       html: `
@@ -197,22 +261,70 @@ async function sendRealEmailOtp(email, code) {
             <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #1E293B;">${code}</span>
           </div>
           <p style="font-size: 14px; color: #666;">This code is valid for 5 minutes. Please do not share this OTP with anyone for your security.</p>
-          <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
-          <p style="font-size: 12px; color: #999; text-align: center;">&copy; 2026 MindHeal Platform. All rights reserved.</p>
         </div>
       `
-    };
-
-    await transporter.sendMail(mailOptions);
-    console.log(`[REAL EMAIL SENT] OTP ${code} successfully delivered to ${email}`);
+    });
+    console.log(`[SMTP EMAIL SENT] OTP ${code} delivered to ${email}`);
   } catch (err) {
-    console.error(`[EMAIL OTP ERROR] Failed to send email to ${email}:`, err.message);
+    console.error(`[SMTP ERROR] Failed to send email to ${email}:`, err.message);
+    if (appConfig.env === "production") {
+      throw new Error(`OTP_DELIVERY_UNAVAILABLE: ${err.message}`);
+    }
+  }
+}
+
+async function sendSmsOtp(mobile, code) {
+  const authKey = process.env.MSG91_AUTH_KEY;
+  const templateId = process.env.MSG91_TEMPLATE_ID;
+  const senderId = process.env.MSG91_SENDER_ID;
+  const entityId = process.env.MSG91_DLT_ENTITY_ID;
+
+  if (!authKey || !templateId) {
+    console.warn(`[MSG91 NOTICE] MSG91 credentials/templateId not set. Skipping SMS dispatch to ${mobile}.`);
+    if (appConfig.env === "production") {
+      throw new Error("OTP_DELIVERY_UNAVAILABLE: SMS gateway credentials not configured.");
+    }
+    return;
+  }
+
+  const cleanMobile = mobile.replace(/[^0-9]/g, "");
+
+  try {
+    const payload = {
+      template_id: templateId,
+      mobile: cleanMobile,
+      authkey: authKey,
+      otp: code
+    };
+    if (senderId) payload.sender = senderId;
+    if (entityId) payload.entity_id = entityId;
+
+    const response = await fetch("https://control.msg91.com/api/v5/otp", {
+      method: "POST",
+      headers: {
+        "authkey": authKey,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const resJson = await response.json().catch(() => ({}));
+    if (!response.ok || resJson.type === "error") {
+      throw new Error(`MSG91 Error: ${resJson.message || response.statusText}`);
+    }
+
+    console.log(`[MSG91 SMS SENT] OTP ${code} delivered to ${mobile}`);
+  } catch (err) {
+    console.error(`[MSG91 ERROR] Failed to send SMS to ${mobile}:`, err.message);
+    if (appConfig.env === "production") {
+      throw new Error(`OTP_DELIVERY_UNAVAILABLE: ${err.message}`);
+    }
   }
 }
 
 export async function issueOtp(destination) {
   const code = String(randomInt(100000, 999999));
-  console.log(`[SMS/EMAIL ENGINE] Sending OTP ${code} to ${destination}`);
+  console.log(`[OTP ENGINE] Processing OTP for ${destination}`);
 
   await persistOtp(destination, {
     hash: hashValue(code),
@@ -221,10 +333,16 @@ export async function issueOtp(destination) {
   });
 
   if (destination && destination.includes("@")) {
-    await sendRealEmailOtp(destination, code);
+    await sendEmailOtp(destination, code);
+  } else if (destination) {
+    await sendSmsOtp(destination, code);
   }
 
-  return { destination, expiresInSeconds: otpTtlSeconds, devCode: appConfig.env === "production" ? undefined : code };
+  return {
+    destination,
+    expiresInSeconds: otpTtlSeconds,
+    devCode: appConfig.isOtpTestMode ? code : undefined
+  };
 }
 
 export async function verifyOtp(destination, code) {
@@ -245,6 +363,47 @@ export async function verifyOtp(destination, code) {
 
   await persistOtp(destination, item);
   return false;
+}
+
+export async function forgotPassword(email) {
+  const normalizedEmail = normalizeEmail(email);
+  // Find user across all roles - try user first, then counsellor, then admin
+  let user = await repositories.users.findByEmailAndRole(normalizedEmail, "user");
+  if (!user) user = await repositories.users.findByEmailAndRole(normalizedEmail, "counsellor");
+  if (!user) user = await repositories.users.findByEmailAndRole(normalizedEmail, "admin");
+
+  // Always return success - never reveal if email exists (security)
+  if (!user) return { message: "If this email exists, a reset OTP has been sent." };
+
+  // issueOtp generates, stores, and sends the OTP email in one call
+  await issueOtp(normalizedEmail);
+
+  return { message: "If this email exists, a reset OTP has been sent." };
+}
+
+export async function resetPassword(email, otp, newPassword) {
+  const normalizedEmail = normalizeEmail(email);
+
+  const verified = await verifyOtp(normalizedEmail, otp);
+  if (!verified) {
+    throw new Error("Invalid or expired OTP. Please request a new code.");
+  }
+
+  if (!newPassword || newPassword.length < 8) {
+    throw new Error("New password must be at least 8 characters.");
+  }
+
+  // Find user across all roles
+  let user = await repositories.users.findByEmailAndRole(normalizedEmail, "user");
+  if (!user) user = await repositories.users.findByEmailAndRole(normalizedEmail, "counsellor");
+  if (!user) user = await repositories.users.findByEmailAndRole(normalizedEmail, "admin");
+
+  if (!user) throw new Error("User not found.");
+
+  const newHash = hashPassword(newPassword);
+  await repositories.users.updatePasswordHash(user.id, newHash);
+
+  return { message: "Password has been reset successfully. Please log in with your new password." };
 }
 
 export async function createCounsellorApplication(payload) {

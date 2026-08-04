@@ -34,6 +34,8 @@ export const routes = [
   route("POST", `${p}/auth/counsellor/register`, authController.registerCounsellor),
   route("POST", `${p}/auth/refresh`, authController.refresh),
   route("POST", `${p}/auth/logout`, authController.logout),
+  route("POST", `${p}/auth/forgot-password`, authController.forgotPassword),
+  route("POST", `${p}/auth/reset-password`, authController.resetPassword),
 
   route("GET", `${p}/user/me`, userController.getMe, ["user", "admin"]),
   route("PUT", `${p}/user/me`, userController.updateMe, ["user", "admin"]),
