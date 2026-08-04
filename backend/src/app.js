@@ -10,11 +10,11 @@ const rateLimitStore = new Map();
 
 async function applyRateLimit(ip) {
   if (redisClient.isOpen) {
-    return applyRedisRateLimit(ip);
-  }
-
-  if (appConfig.env === "production") {
-    return { status: "unavailable" };
+    try {
+      return await applyRedisRateLimit(ip);
+    } catch {
+      return applyMemoryRateLimit(ip);
+    }
   }
 
   return applyMemoryRateLimit(ip);
