@@ -525,40 +525,75 @@ function siteHeader() {
           
           ${state.auth ? html`
             <div class="user-profile-menu" style="position:relative;display:flex;align-items:center;gap:12px;">
-              <a href="#/panel/${state.auth.role === 'admin' ? 'admin' : state.auth.role === 'counsellor' ? 'counsellor' : 'user'}" class="wallet-badge-pill" style="display:flex;align-items:center;gap:6px;background:rgba(224,106,78,0.1);color:var(--color-coral);padding:8px 14px;border-radius:999px;font-weight:700;font-size:13px;text-decoration:none;">
-                <i class="ph ph-wallet" style="font-size:16px;"></i> ${formatInr(state.dashboard?.user?.walletBalance || 0)}
+              <!-- Wallet Pill Button -->
+              <a href="#/panel/${state.auth.role === 'admin' ? 'admin' : state.auth.role === 'counsellor' ? 'counsellor' : 'user'}?section=wallet" class="header-wallet-pill" style="display:flex;align-items:center;gap:8px;background:rgba(224,106,78,0.08);border:1px solid rgba(224,106,78,0.25);color:var(--color-coral);padding:8px 16px;border-radius:999px;font-weight:700;font-size:14px;text-decoration:none;transition:all 0.2s ease;">
+                <div style="width:24px;height:24px;border-radius:50%;background:var(--color-coral);color:white;display:flex;align-items:center;justify-content:center;font-size:13px;">
+                  <i class="ph-fill ph-wallet"></i>
+                </div>
+                <span>${formatInr(state.dashboard?.user?.walletBalance || 0)}</span>
               </a>
               
+              <!-- User Profile Dropdown Container -->
               <div class="profile-dropdown-container" style="position:relative;">
-                <button class="btn ghost profile-trigger-btn" type="button" style="height:44px;padding:0 18px;color:var(--color-charcoal);border:1px solid var(--color-border);background:var(--color-white);border-radius:999px;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer;">
-                  <i class="ph-fill ph-user-circle" style="font-size:22px;color:var(--color-coral);"></i>
-                  <span>${escapeHtml(state.auth.name || state.auth.displayName || state.auth.email?.split('@')[0] || "Account")}</span>
+                <button class="profile-trigger-btn" type="button" style="height:44px;padding:4px 14px 4px 6px;color:var(--color-charcoal);border:1px solid rgba(0,0,0,0.12);background:var(--color-white);border-radius:999px;display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.04);transition:all 0.2s ease;">
+                  <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg, var(--color-coral) 0%, #f97316 100%);color:white;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;box-shadow:0 2px 6px rgba(224,106,78,0.3);">
+                    ${escapeHtml((state.auth.name || state.auth.displayName || state.auth.email || "U")[0].toUpperCase())}
+                  </div>
+                  <span style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(state.auth.name || state.auth.displayName || state.auth.email?.split('@')[0] || "Account")}</span>
                   <i class="ph ph-caret-down" style="font-size:14px;color:var(--color-text-muted);"></i>
                 </button>
 
-                <div class="profile-dropdown-menu" style="display:none;position:absolute;top:calc(100% + 8px);right:0;width:240px;background:var(--color-white);border:1px solid var(--color-border);border-radius:16px;box-shadow:0 16px 36px rgba(0,0,0,0.12);padding:8px;z-index:1000;flex-direction:column;gap:4px;">
-                  <div style="padding:10px 12px;border-bottom:1px solid var(--color-border);margin-bottom:4px;">
-                    <strong style="display:block;font-size:14px;color:var(--color-charcoal);">${escapeHtml(state.auth.name || "User")}</strong>
-                    <span style="font-size:12px;color:var(--color-text-muted);">${escapeHtml(state.auth.email || "")}</span>
+                <!-- Premium Floating Dropdown Card -->
+                <div class="profile-dropdown-menu" style="display:none;position:absolute;top:calc(100% + 10px);right:0;width:270px;background:var(--color-white);border:1px solid var(--color-border);border-radius:20px;box-shadow:0 20px 40px -10px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.02);padding:10px;z-index:1000;flex-direction:column;gap:4px;backdrop-filter:blur(10px);animation:dropdownFadeIn 0.2s cubic-bezier(0.16,1,0.3,1);">
+                  <!-- Profile Header Header Card -->
+                  <div style="padding:12px;background:linear-gradient(135deg, rgba(224,106,78,0.06) 0%, rgba(249,115,22,0.03) 100%);border-radius:14px;border:1px solid rgba(224,106,78,0.12);margin-bottom:6px;display:flex;align-items:center;gap:12px;">
+                    <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg, var(--color-coral) 0%, #f97316 100%);color:white;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;box-shadow:0 4px 10px rgba(224,106,78,0.3);flex-shrink:0;">
+                      ${escapeHtml((state.auth.name || state.auth.displayName || state.auth.email || "U")[0].toUpperCase())}
+                    </div>
+                    <div style="overflow:hidden;flex:1;">
+                      <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;">
+                        <strong style="display:block;font-size:14px;color:var(--color-charcoal);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(state.auth.name || state.auth.displayName || "User")}</strong>
+                        <span style="font-size:10px;font-weight:700;text-transform:uppercase;padding:2px 6px;border-radius:999px;background:var(--color-coral);color:white;">${state.auth.role || 'User'}</span>
+                      </div>
+                      <span style="font-size:12px;color:var(--color-text-muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(state.auth.email || "")}</span>
+                    </div>
                   </div>
 
-                  <a href="#/panel/${state.auth.role === 'admin' ? 'admin' : state.auth.role === 'counsellor' ? 'counsellor' : 'user'}?section=wallet" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;color:var(--color-charcoal);text-decoration:none;border-radius:8px;font-size:14px;font-weight:500;" class="dropdown-item">
-                    <span style="display:flex;align-items:center;gap:8px;"><i class="ph ph-wallet" style="color:var(--color-coral);"></i> Wallet Balance</span>
-                    <strong style="color:var(--color-coral);font-size:13px;">${formatInr(state.dashboard?.user?.walletBalance || 0)}</strong>
+                  <!-- Wallet Balance Option -->
+                  <a href="#/panel/${state.auth.role === 'admin' ? 'admin' : state.auth.role === 'counsellor' ? 'counsellor' : 'user'}?section=wallet" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;color:var(--color-charcoal);text-decoration:none;border-radius:12px;font-size:14px;font-weight:500;transition:all 0.2s ease;" class="dropdown-item">
+                    <span style="display:flex;align-items:center;gap:10px;">
+                      <div style="width:28px;height:28px;border-radius:8px;background:rgba(224,106,78,0.1);color:var(--color-coral);display:flex;align-items:center;justify-content:center;font-size:15px;">
+                        <i class="ph-fill ph-wallet"></i>
+                      </div>
+                      Wallet Balance
+                    </span>
+                    <strong style="color:var(--color-coral);font-size:13px;background:rgba(224,106,78,0.1);padding:4px 8px;border-radius:8px;">${formatInr(state.dashboard?.user?.walletBalance || 0)}</strong>
                   </a>
 
-                  <a href="#/panel/${state.auth.role === 'admin' ? 'admin' : state.auth.role === 'counsellor' ? 'counsellor' : 'user'}?section=sessions" style="display:flex;align-items:center;gap:8px;padding:10px 12px;color:var(--color-charcoal);text-decoration:none;border-radius:8px;font-size:14px;font-weight:500;" class="dropdown-item">
-                    <i class="ph ph-calendar-blank" style="color:var(--color-coral);"></i> Sessions & Bookings
+                  <!-- Sessions & Bookings Option -->
+                  <a href="#/panel/${state.auth.role === 'admin' ? 'admin' : state.auth.role === 'counsellor' ? 'counsellor' : 'user'}?section=sessions" style="display:flex;align-items:center;gap:10px;padding:10px 12px;color:var(--color-charcoal);text-decoration:none;border-radius:12px;font-size:14px;font-weight:500;transition:all 0.2s ease;" class="dropdown-item">
+                    <div style="width:28px;height:28px;border-radius:8px;background:rgba(43,108,176,0.1);color:#2b6cb0;display:flex;align-items:center;justify-content:center;font-size:15px;">
+                      <i class="ph-fill ph-calendar-blank"></i>
+                    </div>
+                    Sessions & Bookings
                   </a>
 
-                  <a href="#/panel/${state.auth.role === 'admin' ? 'admin' : state.auth.role === 'counsellor' ? 'counsellor' : 'user'}?section=overview" style="display:flex;align-items:center;gap:8px;padding:10px 12px;color:var(--color-charcoal);text-decoration:none;border-radius:8px;font-size:14px;font-weight:500;" class="dropdown-item">
-                    <i class="ph ph-user" style="color:var(--color-coral);"></i> Profile & Dashboard
+                  <!-- Profile & Dashboard Option -->
+                  <a href="#/panel/${state.auth.role === 'admin' ? 'admin' : state.auth.role === 'counsellor' ? 'counsellor' : 'user'}?section=overview" style="display:flex;align-items:center;gap:10px;padding:10px 12px;color:var(--color-charcoal);text-decoration:none;border-radius:12px;font-size:14px;font-weight:500;transition:all 0.2s ease;" class="dropdown-item">
+                    <div style="width:28px;height:28px;border-radius:8px;background:rgba(128,90,213,0.1);color:#805ad5;display:flex;align-items:center;justify-content:center;font-size:15px;">
+                      <i class="ph-fill ph-user-gear"></i>
+                    </div>
+                    Profile & Dashboard
                   </a>
 
-                  <div style="height:1px;background:var(--color-border);margin:4px 0;"></div>
+                  <div style="height:1px;background:var(--color-border);margin:6px 0;"></div>
 
-                  <button type="button" data-action="logout" style="width:100%;display:flex;align-items:center;gap:8px;padding:10px 12px;color:#e53e3e;background:transparent;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;text-align:left;" class="dropdown-item danger">
-                    <i class="ph ph-sign-out"></i> Logout
+                  <!-- Logout Option -->
+                  <button type="button" data-action="logout" style="width:100%;display:flex;align-items:center;gap:10px;padding:10px 12px;color:#e53e3e;background:transparent;border:none;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;text-align:left;transition:all 0.2s ease;" class="dropdown-item danger">
+                    <div style="width:28px;height:28px;border-radius:8px;background:rgba(229,62,62,0.1);color:#e53e3e;display:flex;align-items:center;justify-content:center;font-size:15px;">
+                      <i class="ph-bold ph-sign-out"></i>
+                    </div>
+                    Logout
                   </button>
                 </div>
               </div>
