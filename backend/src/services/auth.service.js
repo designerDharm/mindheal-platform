@@ -186,10 +186,19 @@ async function redisGet(key) {
 async function redisSetEx(key, ttlSeconds, value) {
   if (!redisClient.isOpen) {
     inMemoryStore.set(key, value);
-    setTimeout(() => inMemoryStore.delete(key), ttlSeconds * 1000);
+    const ms = Math.min(ttlSeconds * 1000, 2147483647);
+    setTimeout(() => inMemoryStore.delete(key), ms);
     return;
   }
   await redisClient.setEx(key, ttlSeconds, value);
+}
+
+async function redisDel(key) {
+  if (!redisClient.isOpen) {
+    inMemoryStore.delete(key);
+    return;
+  }
+  await redisClient.del(key);
 }
 
 async function sendEmailOtp(email, code, challengeId) {
