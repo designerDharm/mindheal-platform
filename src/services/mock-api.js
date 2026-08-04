@@ -183,6 +183,16 @@ export const api = {
     throw new Error(remote.error?.message || "Login failed");
   },
 
+  async sendOtp(destination) {
+    const isEmail = String(destination).includes("@");
+    const remote = await request("/auth/otp/send", {
+      method: "POST",
+      body: isEmail ? { email: destination } : { mobile: destination }
+    });
+    if (remote.ok) return remote.data;
+    throw new Error(remote.error?.message || "Failed to send OTP");
+  },
+
   logout() {
     localStorage.removeItem("mindheal-access-token");
     return Promise.resolve(true);

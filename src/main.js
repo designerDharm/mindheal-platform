@@ -3685,15 +3685,27 @@ function attachPageHandlers() {
           return;
         }
         
-        // Switch to OTP Verification mode
-        state.otpMode = true;
-        state.otpRole = role;
         state.otpTarget = cleanPayload.email || cleanPayload.mobile;
-        state.otpPanel = form.dataset.panel;
-        state.signupPayload = cleanPayload;
         
-        toast(`OTP sent successfully to ${state.otpTarget}!`);
-        render();
+        try {
+          toast(`Sending OTP code to ${state.otpTarget}...`);
+          await api.sendOtp(state.otpTarget);
+          
+          // Switch to OTP Verification mode
+          state.otpMode = true;
+          state.otpRole = role;
+          state.otpPanel = form.dataset.panel;
+          state.signupPayload = cleanPayload;
+          state.authError = "";
+          
+          toast(`Real 6-digit OTP sent to ${state.otpTarget}! Check your email/SMS.`);
+          render();
+        } catch (err) {
+          const msg = err.message || "Failed to send OTP.";
+          state.authError = msg;
+          toast(`OTP Delivery Failed: ${msg}`, "error");
+          render();
+        }
         return;
       }
       
