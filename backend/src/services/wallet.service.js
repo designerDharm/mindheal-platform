@@ -134,6 +134,8 @@ export function verifyWebhookSignature(bodyRaw, signature) {
   return safeHexEqual(expectedSignature, signature);
 }
 
+import { postJournalTransaction } from "./double_entry.service.js";
+
 export async function settlePaidPaymentOrder(order, gatewayPaymentId, reason = "wallet_topup") {
   if (!order) {
     const error = new Error("Payment order not found.");
@@ -151,13 +153,32 @@ export async function settlePaidPaymentOrder(order, gatewayPaymentId, reason = "
     referenceId: order.id,
     gatewayPaymentId
   });
+
+  // Post balanced Double-Entry Journal (Debit GATEWAY_RECEIVABLE, Credit USER_AVAILABLE_BALANCE)
+  let journal = null;
+  try {
+    journal = await postJournalTransaction({
+      journalType: "WALLET_TOPUP",
+      businessReferenceType: "payment_order",
+      businessReferenceId: order.id,
+      idempotencyKey: `topup_${order.id}`,
+      description: `Wallet top-up via Razorpay payment ${gatewayPaymentId}`,
+      entries: [
+        { accountKey: "GATEWAY_RECEIVABLE", entrySide: "debit", amountPaise: order.amountPaise },
+        { accountKey: `USER_AVAILABLE_${order.userId}`, entrySide: "credit", amountPaise: order.amountPaise }
+      ]
+    });
+  } catch (jErr) {
+    console.error("[DoubleEntry] Failed to post topup journal:", jErr);
+  }
+
   const updatedOrder = await repositories.paymentOrders.update(order.id, {
     status: "paid",
     gatewayPaymentId,
     paidAt: new Date().toISOString()
   });
 
-  return { order: updatedOrder, ledgerEntry, alreadyPaid: false };
+  return { order: updatedOrder, ledgerEntry, journal, alreadyPaid: false };
 }
 
 function safeHexEqual(expected, actual) {

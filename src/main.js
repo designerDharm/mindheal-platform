@@ -3306,9 +3306,23 @@ function adminPanelContent(section, dashboard, data) {
     `;
   }
   if (section === "finance") {
+    const transactions = Array.isArray(data.walletTransactions) ? data.walletTransactions : [];
     return html`
-      <div class="panel-hero"><div><h1 class="page-title">Finance</h1><p class="page-subtitle">Transactions, refunds, commissions, payouts, GST exports, and gateway webhook checks.</p></div></div>
-      ${tablePanelMarkup(["ID", "User", "Type", "Amount", "Status"], dashboard.transactions.map((txn) => [txn.id, txn.user, txn.type, formatInr(txn.amount), txn.status]))}
+      <div class="panel-hero" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;">
+        <div>
+          <h1 class="page-title">Finance Control Centre</h1>
+          <p class="page-subtitle">True Double-Entry Ledger, 10% BPS Commissions, Razorpay Webhooks, and Weekly Counsellor Payout Engine.</p>
+        </div>
+        <button class="btn primary" data-action="run-payout-batch" style="background:#319795;color:white;">
+          <i class="ph ph-hand-coins"></i> Execute Weekly Payout Batch
+        </button>
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:24px;border-bottom:1px solid var(--color-border);padding-bottom:12px;overflow-x:auto;">
+        <span class="status-pill success">10% BPS Commission Policy</span>
+        <span class="status-pill">Double-Entry Invariant Guard: Active</span>
+        <span class="status-pill">Direct Gateway Mode: Default</span>
+      </div>
+      ${tablePanelMarkup(["Entry ID", "Wallet ID", "Direction", "Paise", "Type", "Reference ID", "Date"], transactions.length ? transactions.map((t) => [t.id, t.walletId, t.direction, t.amountPaise, t.entryType, t.referenceId || "-", new Date(t.createdAt).toLocaleDateString()]) : dashboard.transactions.map((txn) => [txn.id, txn.user, "debit", txn.amount * 100, txn.type, "-", "Today"]))}
     `;
   }
   if (section === "cms") {
@@ -4260,9 +4274,20 @@ function attachPageHandlers() {
     });
   });
 
-  document.querySelectorAll("[data-demo-action='refresh-logs']").forEach((button) => {
-    button.addEventListener("click", () => {
-      loadAuditLogs();
+  document.querySelectorAll("[data-action='run-payout-batch']").forEach((button) => {
+    button.addEventListener("click", async () => {
+      try {
+        toast("Executing weekly counsellor payout batch...");
+        const res = await api.request("/admin/finance/payouts/execute", { method: "POST" });
+        if (res.ok) {
+          toast(res.data.status === "success" ? `Payout batch executed! ${res.data.batch.totalPayoutPaise / 100} INR batched.` : (res.data.message || "No matured earnings to batch."));
+        } else {
+          toast(res.error?.message || "Payout batch failed.", "error");
+        }
+        await render();
+      } catch (err) {
+        toast(err.message || "Payout batch failed.", "error");
+      }
     });
   });
 
