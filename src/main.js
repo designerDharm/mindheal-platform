@@ -2805,9 +2805,7 @@ function userPanelContent(section, dashboard, data) {
           <a href="#/services/signature" class="btn primary submit-btn" style="text-decoration:none; display:flex; align-items:center; justify-content:center; gap:8px; background: #805ad5; margin-top:12px;">
             <i class="ph ph-sparkle"></i> Analyze Signature
           </a>
-        </div>ure
-          </button>
-        </form>
+        </div>
         
         <section class="dashboard-card span-12">
           <h3><i class="ph ph-clock-counter-clockwise"></i> Report history</h3>
