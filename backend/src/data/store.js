@@ -120,8 +120,11 @@ export const store = {
     { id: createId("led"), walletId: "wal_demo_user", direction: "credit", amountPaise: 125000, entryType: "seed_credit", createdAt: new Date().toISOString() }
   ],
   apiConfigurations: [
-    { id: "cfg_ai_chat", serviceName: "AI Counselling Chat", aliases: ["chat", "ai-chat", "ai-counselling"], provider: "Gemini", modelName: "gemini-1.5-flash", apiKeyEncrypted: "", systemPrompt: "Warm reflective mental wellness support.", isActive: false },
-    { id: "cfg_dream_pdf", serviceName: "Dream Analysis PDF Report", aliases: ["report_dream", "report-dream", "dream-analysis"], provider: "Gemini", modelName: "gemini-1.5-pro", apiKeyEncrypted: "", systemPrompt: "Reflective dream analysis, not diagnosis.", isActive: false },
+    { id: "cfg_ai_chat", serviceName: "AI Counselling Chat", aliases: ["chat", "ai-chat", "ai-counselling"], provider: "Gemini", modelName: "gemini-2.5-flash", apiKeyEncrypted: "", systemPrompt: "Warm reflective mental wellness support.", isActive: true },
+    { id: "cfg_dream_pdf", serviceName: "Dream Analysis PDF Report", aliases: ["report_dream", "report-dream", "dream-analysis"], provider: "Gemini", modelName: "gemini-2.5-flash", apiKeyEncrypted: "", systemPrompt: "Reflective psychoanalytic dream analysis, not medical diagnosis.", isActive: true },
+    { id: "cfg_handwriting", serviceName: "Handwriting Analysis", aliases: ["report_handwriting", "report-handwriting", "handwriting-analysis"], provider: "Gemini", modelName: "gemini-2.5-flash", apiKeyEncrypted: "", systemPrompt: "Graphological and personality profiling from handwriting strokes.", isActive: true },
+    { id: "cfg_signature", serviceName: "Signature Analysis", aliases: ["report_signature", "report-signature", "signature-analysis"], provider: "Gemini", modelName: "gemini-2.5-flash", apiKeyEncrypted: "", systemPrompt: "Signature graphology, confidence, and behavioral indicators.", isActive: true },
+    { id: "cfg_voice_transcribe", serviceName: "Voice Transcription", aliases: ["voice", "audio-transcribe"], provider: "Gemini", modelName: "gemini-2.5-flash", apiKeyEncrypted: "", systemPrompt: "Transcribe audio into text for analysis.", isActive: true },
     { id: "cfg_google_maps", serviceName: "Google Maps", aliases: ["google-maps", "maps"], provider: "Google", modelName: "", apiKeyEncrypted: "", systemPrompt: "", isActive: false }
   ],
   servicesCatalog: [

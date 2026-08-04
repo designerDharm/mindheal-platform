@@ -115,8 +115,11 @@ ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO api_configurations (id, service_name, aliases, provider, model_name, api_key_encrypted, system_prompt, is_active)
 VALUES
-  ('cfg_ai_chat', 'AI Counselling Chat', ARRAY['chat', 'ai-chat', 'ai-counselling'], 'Gemini', 'gemini-1.5-flash', '', 'Warm reflective mental wellness support.', FALSE),
-  ('cfg_dream_pdf', 'Dream Analysis PDF Report', ARRAY['report_dream', 'report-dream', 'dream-analysis'], 'Gemini', 'gemini-1.5-pro', '', 'Reflective dream analysis, not diagnosis.', FALSE),
+  ('cfg_ai_chat', 'AI Counselling Chat', ARRAY['chat', 'ai-chat', 'ai-counselling'], 'Gemini', 'gemini-2.5-flash', '', 'Warm reflective mental wellness support.', TRUE),
+  ('cfg_dream_pdf', 'Dream Analysis PDF Report', ARRAY['report_dream', 'report-dream', 'dream-analysis'], 'Gemini', 'gemini-2.5-flash', '', 'Reflective psychoanalytic dream analysis, not medical diagnosis.', TRUE),
+  ('cfg_handwriting', 'Handwriting Analysis', ARRAY['report_handwriting', 'report-handwriting', 'handwriting-analysis'], 'Gemini', 'gemini-2.5-flash', '', 'Graphological and personality profiling from handwriting strokes.', TRUE),
+  ('cfg_signature', 'Signature Analysis', ARRAY['report_signature', 'report-signature', 'signature-analysis'], 'Gemini', 'gemini-2.5-flash', '', 'Signature graphology, confidence, and behavioral indicators.', TRUE),
+  ('cfg_voice_transcribe', 'Voice Transcription', ARRAY['voice', 'audio-transcribe'], 'Gemini', 'gemini-2.5-flash', '', 'Transcribe audio into text for analysis.', TRUE),
   ('cfg_google_maps', 'Google Maps', ARRAY['google-maps', 'maps'], 'Google', '', '', '', FALSE)
 ON CONFLICT (id) DO NOTHING;
 
