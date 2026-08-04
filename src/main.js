@@ -132,10 +132,38 @@ function initScrollObserver() {
   }, 100);
 }
 
+function updateSeoMetadata(path) {
+  const baseTitle = "MindHeal | Psychological Wellness Platform";
+  const titles = {
+    "/": baseTitle,
+    "/services": "Services Catalog & CBT Tools | MindHeal",
+    "/counsellors": "Find Verified Online Counsellors & Therapists | MindHeal",
+    "/pricing": "Transparent Therapy Pricing & Subscriptions | MindHeal",
+    "/resources": "Mental Health Resources & Guides | MindHeal",
+    "/about": "About MindHeal | Psychological Wellness Platform",
+    "/contact": "Contact Us & Business Inquiries | MindHeal",
+    "/crisis": "Immediate Crisis Support & Emergency Helplines | MindHeal"
+  };
+
+  const descriptions = {
+    "/": "MindHeal connects people with AI-guided self-help, verified counsellors, analysis reports, wellness tools, and multilingual mental health support.",
+    "/services": "Explore AI dream analysis, handwriting/signature analysis, CBT thought records, and clinical screening services.",
+    "/counsellors": "Connect with verified, licensed psychologists and counsellors for video, audio, or chat therapy sessions.",
+    "/pricing": "Affordable pay-per-session and subscription options for psychological counselling and AI reports."
+  };
+
+  document.title = titles[path] || baseTitle;
+  const metaDesc = document.querySelector('meta[name="description"]');
+  if (metaDesc && descriptions[path]) {
+    metaDesc.setAttribute("content", descriptions[path]);
+  }
+}
+
 window.addEventListener("hashchange", () => {
   state.route = parseRoute();
   state.navOpen = false;
   state.authError = "";
+  updateSeoMetadata(state.route.path);
   render();
 });
 

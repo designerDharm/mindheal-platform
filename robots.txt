@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /#/panel/
+Disallow: /#/auth/
+
+Sitemap: https://mindheal-platform.onrender.com/sitemap.xml
