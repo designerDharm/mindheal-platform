@@ -3769,25 +3769,37 @@ function attachPageHandlers() {
     btn.addEventListener("click", async () => {
       const provider = btn.dataset.socialProvider;
       const form = btn.closest("form");
-      const role = form.dataset.role;
-      const mode = form.dataset.mode;
+      const role = form.dataset.role || "user";
       
-      toast(`Connecting via ${provider}...`);
+      toast(`Connecting with ${provider}...`);
       
       try {
-        const payload = {
+        // Create or authenticate social user account via API
+        const randomId = Math.floor(100 + Math.random() * 900);
+        const socialPayload = {
           name: `${provider} User`,
-          email: `${provider.toLowerCase()}_user_${Math.floor(Math.random() * 1000)}@example.com`,
-          mobile: "9" + Math.floor(100000000 + Math.random() * 900000000),
-          password: `oauth-${provider.toLowerCase()}-${Date.now()}`,
-          language: state.language
+          email: `${provider.toLowerCase()}_user_${randomId}@example.com`,
+          mobile: `98${Math.floor(10000000 + Math.random() * 90000000)}`,
+          password: `OAuth-${provider}-${randomId}!`,
+          dateOfBirth: "2000-01-01"
         };
         
-        await api.signUp(role, payload);
-        toast(`Successfully signed in via ${provider}!`);
+        let user = null;
+        try {
+          user = await api.signUp(role, socialPayload);
+        } catch {
+          // If already exists, perform instant social login
+          user = await api.login(role, { email: socialPayload.email, password: socialPayload.password });
+        }
+        
+        toast(`Welcome! Logged in successfully via ${provider}.`);
+        state.authError = "";
         navigate(form.dataset.panel);
       } catch (err) {
-        toast(`Social authentication failed: ${err.message || "Provider sign in failed"}`, "error");
+        const msg = err.message || `${provider} authentication failed.`;
+        state.authError = msg;
+        toast(`Social authentication failed: ${msg}`, "error");
+        render();
       }
     });
   });
