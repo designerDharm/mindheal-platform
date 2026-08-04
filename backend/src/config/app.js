@@ -27,12 +27,13 @@ function resolveJwtSecret(envName, developmentFallback, currentEnv) {
     return value || developmentFallback;
   }
 
-  if (value && !isWeakJwtSecret(value, developmentFallback)) {
-    return value;
+  if (!value) {
+    throw new Error(`${envName} must be configured in production.`);
   }
-  
-  // Production fallback secret for Render deployment
-  return `${envName}_production_secure_fallback_secret_key_mindheal_2026`;
+  if (isWeakJwtSecret(value, developmentFallback)) {
+    throw new Error(`${envName} is too weak for production.`);
+  }
+  return value;
 }
 
 function isWeakJwtSecret(value, developmentFallback) {
@@ -57,7 +58,7 @@ function resolveAllowedOrigins(currentEnv) {
   }
 
   if (!configured.length) {
-    return ["https://mindheal-platform.vercel.app", "https://mindheal-platform.onrender.com"];
+    throw new Error("ALLOWED_ORIGINS must be configured in production.");
   }
   if (configured.includes("*")) {
     throw new Error("ALLOWED_ORIGINS cannot include '*' in production.");

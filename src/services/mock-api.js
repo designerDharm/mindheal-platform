@@ -11,9 +11,12 @@ function authHeaders() {
 
 function getApiBaseUrl() {
   try {
-    return localStorage.getItem("mindheal-api-base-url") || appConfig.apiBaseUrl || "https://mindheal-platform.onrender.com/api/v1";
+    const defaultUrl = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+      ? "http://localhost:4000/api/v1"
+      : "https://mindheal-platform.onrender.com/api/v1";
+    return localStorage.getItem("mindheal-api-base-url") || appConfig.apiBaseUrl || defaultUrl;
   } catch {
-    return appConfig.apiBaseUrl || "https://mindheal-platform.onrender.com/api/v1";
+    return appConfig.apiBaseUrl || "http://localhost:4000/api/v1";
   }
 }
 
@@ -168,8 +171,14 @@ export const api = {
     });
 
     if (remote.ok) {
-      localStorage.setItem("mindheal-access-token", remote.data.accessToken);
-      return remote.data.user;
+      if (remote.data.session) {
+        localStorage.setItem("mindheal-access-token", remote.data.session.accessToken);
+        return remote.data.session.user;
+      }
+      if (remote.data.accessToken) {
+        localStorage.setItem("mindheal-access-token", remote.data.accessToken);
+      }
+      return remote.data.user || remote.data;
     }
     throw new Error(remote.error?.message || "Login failed");
   },

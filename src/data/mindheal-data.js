@@ -4,7 +4,7 @@ export const appConfig = {
   supportEmail: "support@mindheal.in",
   phone: "+91 90000 00000",
   address: "Jaipur, Rajasthan, India",
-  apiBaseUrl: "https://mindheal-platform.onrender.com/api/v1",
+  apiBaseUrl: window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" ? "http://localhost:4000/api/v1" : "https://mindheal-platform.onrender.com/api/v1",
   currencies: ["INR"],
   defaultLanguage: "en",
   reportUnlockPrice: 49,
