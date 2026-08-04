@@ -90,20 +90,39 @@ function isMockApiKey(apiKey = "") {
   return normalized.startsWith("mock_") || normalized.startsWith("test_") || normalized.includes("smoke");
 }
 
+import { validateAndSanitizeAiOutput } from "./safety.service.js";
+
 export async function generateAiResponse(feature, prompt) {
   const config = await getAiConfig(feature);
+  let rawResponse = "";
+
   try {
     if (config.provider === "gemini") {
-      return await callGemini(config, prompt);
+      rawResponse = await callGemini(config, prompt);
     } else if (config.provider === "openai") {
-      return await callOpenAi(config, prompt);
+      rawResponse = await callOpenAi(config, prompt);
     } else {
-      return `[MOCK AI] Unsupported provider ${config.provider}`;
+      rawResponse = `[MOCK AI] Unsupported provider ${config.provider}`;
     }
-  } catch (error) {
-    console.error(`AI Generation failed for ${feature}:`, error);
-    return "I am currently experiencing technical difficulties processing this request.";
+  } catch (primaryError) {
+    console.warn(`[AiRouter] Primary provider (${config.provider}) failed for ${feature}. Attempting Fallback to OpenAI...`, primaryError);
+    try {
+      const fallbackConfig = {
+        ...config,
+        provider: "openai",
+        modelName: "gpt-4o-mini",
+        apiKey: process.env.OPENAI_API_KEY || config.apiKey
+      };
+      rawResponse = await callOpenAi(fallbackConfig, prompt);
+    } catch (fallbackError) {
+      console.error(`[AiRouter] Both primary and fallback AI providers failed for ${feature}:`, fallbackError);
+      return "I am currently experiencing technical difficulties processing this request. Please try again shortly.";
+    }
   }
+
+  // Priority 2: Sanitize output for diagnostic/prescriptive claims
+  const sanitized = validateAndSanitizeAiOutput(rawResponse);
+  return sanitized.text;
 }
 
 export function safetyClassify(text = "") {

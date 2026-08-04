@@ -59,6 +59,29 @@ export async function debit(ownerId, amountInr, entryType, reference = {}) {
   return await repositories.wallets.createLedgerEntry(entry);
 }
 
+export async function reserveCredits(ownerId, amountInr, serviceKey) {
+  if (amountInr <= 0) return { reservationId: null, isFree: true };
+
+  const reservationId = createId("res");
+  await debit(ownerId, amountInr, "ai_credit_reserve", {
+    referenceType: "AiService",
+    referenceId: serviceKey,
+    idempotencyKey: reservationId
+  });
+
+  return { reservationId, isFree: false };
+}
+
+export async function releaseCredits(ownerId, amountInr, reservationId, reason = "service_failure") {
+  if (!reservationId || amountInr <= 0) return null;
+
+  return await credit(ownerId, amountInr, "ai_credit_release", {
+    referenceType: "AiServiceReservation",
+    referenceId: reservationId,
+    notes: `Credits released due to: ${reason}`
+  });
+}
+
 export function calculateCommission(amountInr) {
   const commission = Math.round(amountInr * appConfig.platformCommissionPercent) / 100;
   return {

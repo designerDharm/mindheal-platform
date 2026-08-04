@@ -43,31 +43,26 @@ export async function listReports({ user }) {
   return ok(await repositories.reports.listForUser(user));
 }
 
+import { credit, debit, reserveCredits, releaseCredits } from "../services/wallet.service.js";
+
 export async function unlockReport({ params, user }) {
   const report = await repositories.reports.findById(params.id);
   if (!report) return badRequest("Report not found.");
   if (report.isPdfUnlocked) return ok(report);
 
-  const reportReference = { referenceType: "analysis_report", referenceId: report.id };
-  let walletDebited = false;
+  let reservation = { reservationId: null, isFree: true };
 
   try {
-    await debit(user.id, report.pdfUnlockFeeInr, "pdf_unlock", reportReference);
-    walletDebited = true;
+    // Priority 2: Reserve credits before PDF report unlock processing
+    reservation = await reserveCredits(user.id, report.pdfUnlockFeeInr, `pdf_unlock_${params.id}`);
     const unlockedReport = await aiService.unlockReport(params.id);
     return ok(unlockedReport);
   } catch (error) {
-    if (walletDebited) {
-      try {
-        await credit(user.id, report.pdfUnlockFeeInr, "pdf_unlock_refund", {
-          ...reportReference,
-          notes: `Automatic refund after report unlock failure: ${error.message}`
-        });
-      } catch (refundError) {
-        return badRequest(`Report unlock failed after wallet debit, and automatic refund failed: ${refundError.message}`);
-      }
+    // Priority 2: Auto-release reserved credits if report generation or unlock fails
+    if (reservation.reservationId) {
+      await releaseCredits(user.id, report.pdfUnlockFeeInr, reservation.reservationId, error.message);
     }
-    return badRequest(error.message);
+    return badRequest(`Report unlock failed: ${error.message}`);
   }
 }
 
