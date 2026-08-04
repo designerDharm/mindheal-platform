@@ -3662,6 +3662,7 @@ function attachPageHandlers() {
 
   document.querySelectorAll("[data-form='auth']").forEach((form) => {
     form.addEventListener("submit", async (event) => {
+      event.preventDefault();
       const payload = getFormData(form);
       const role = form.dataset.role;
       const mode = form.dataset.mode;
