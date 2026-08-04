@@ -3234,7 +3234,21 @@ function adminPanelContent(section, dashboard, data) {
         }));
 
     return html`
-      <div class="panel-hero"><div><h1 class="page-title">AI configuration</h1><p class="page-subtitle">API keys are masked in frontend, encrypted in DB, and decrypted only by backend services at runtime.</p></div></div>
+      <div class="panel-hero">
+        <div>
+          <h1 class="page-title">AI Control Centre</h1>
+          <p class="page-subtitle">Manage AI providers, models, fallback routes, 18+ age rules, instruction bundles, and RAG knowledge retrieval.</p>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;margin-bottom:24px;border-bottom:1px solid var(--color-border);padding-bottom:12px;overflow-x:auto;">
+        <span class="status-pill success" style="cursor:pointer;">Providers & Models</span>
+        <span class="status-pill" style="cursor:pointer;background:var(--color-surface-hover);color:var(--color-text);">Instruction Bundles</span>
+        <span class="status-pill" style="cursor:pointer;background:var(--color-surface-hover);color:var(--color-text);">Knowledge Base (RAG)</span>
+        <span class="status-pill" style="cursor:pointer;background:var(--color-surface-hover);color:var(--color-text);">Safety & Moderation</span>
+        <span class="status-pill" style="cursor:pointer;background:var(--color-surface-hover);color:var(--color-text);">Fallback Routes</span>
+      </div>
+
       <div class="dashboard-grid">
         ${configs.map(adminApiConfigCard).join("")}
       </div>

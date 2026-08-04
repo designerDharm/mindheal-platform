@@ -91,16 +91,24 @@ function isMockApiKey(apiKey = "") {
 }
 
 import { validateAndSanitizeAiOutput } from "./safety.service.js";
+import { retrieveRelevantKnowledge } from "./knowledge.service.js";
 
 export async function generateAiResponse(feature, prompt) {
   const config = await getAiConfig(feature);
+  
+  // Priority 3: RAG Knowledge Base Retrieval
+  const knowledge = await retrieveRelevantKnowledge(prompt, feature);
+  const augmentedPrompt = knowledge.retrieved
+    ? `${knowledge.contextText}\n\nUser Query: ${prompt}`
+    : prompt;
+
   let rawResponse = "";
 
   try {
     if (config.provider === "gemini") {
-      rawResponse = await callGemini(config, prompt);
+      rawResponse = await callGemini(config, augmentedPrompt);
     } else if (config.provider === "openai") {
-      rawResponse = await callOpenAi(config, prompt);
+      rawResponse = await callOpenAi(config, augmentedPrompt);
     } else {
       rawResponse = `[MOCK AI] Unsupported provider ${config.provider}`;
     }
@@ -113,7 +121,7 @@ export async function generateAiResponse(feature, prompt) {
         modelName: "gpt-4o-mini",
         apiKey: process.env.OPENAI_API_KEY || config.apiKey
       };
-      rawResponse = await callOpenAi(fallbackConfig, prompt);
+      rawResponse = await callOpenAi(fallbackConfig, augmentedPrompt);
     } catch (fallbackError) {
       console.error(`[AiRouter] Both primary and fallback AI providers failed for ${feature}:`, fallbackError);
       return "I am currently experiencing technical difficulties processing this request. Please try again shortly.";
