@@ -68,7 +68,9 @@ const state = {
     { "id": "wor_1", "thought": "What if I fail my presentation tomorrow?", "postponedTo": "6:00 PM", "createdAt": "${new Date().toISOString()}" }
   ]`),
   cbtDailyDiaryOpen: false,
-  selectedCountryCode: "+91"
+  selectedCountryCode: "+91",
+  bookingModalOpen: false,
+  bookingModalTarget: null
 };
 
 window.filterCounsellors = (category) => {
@@ -2574,6 +2576,70 @@ function userPanelContent(section, dashboard, data) {
       <div class="service-grid" style="display:grid;width:100%;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:24px;">
         ${panelCounsellors.map(counsellorCard).join("")}
       </div>
+
+      <!-- BOOKING MODAL OVERLAY -->
+      ${state.bookingModalOpen && state.bookingModalTarget ? html`
+        <div style="position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 24px;">
+          <div class="dashboard-card" style="width: 100%; max-width: 540px; background: var(--color-card-elevated); border: 1px solid var(--color-border); border-radius: 24px; padding: 32px; position: relative; box-shadow: var(--shadow-3); display: flex; flex-direction: column; gap: 20px;">
+            <button data-action="close-booking-modal" style="position: absolute; top: 20px; right: 20px; background: transparent; border: none; color: var(--color-text-muted); font-size: 24px; cursor: pointer;">
+              <i class="ph ph-x"></i>
+            </button>
+            
+            <div>
+              <span style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--color-coral); letter-spacing: 0.05em;">Book Therapy Session</span>
+              <h2 style="font-family: var(--font-serif); font-size: 24px; color: var(--color-charcoal); margin: 4px 0 0 0; display: flex; align-items: center; gap: 10px;">
+                <i class="ph-fill ph-video-camera" style="color: var(--color-coral);"></i> ${escapeHtml(state.bookingModalTarget.name)}
+              </h2>
+            </div>
+
+            <form data-form="booking" style="display: flex; flex-direction: column; gap: 16px;">
+              <input type="hidden" name="counsellorId" value="${escapeHtml(state.bookingModalTarget.id)}" />
+              <input type="hidden" name="counsellor" value="${escapeHtml(state.bookingModalTarget.name)}" />
+              <input type="hidden" name="amount" value="${state.bookingModalTarget.rate}" />
+
+              <div class="field">
+                <label for="booking-type">Session Format</label>
+                <select id="booking-type" name="sessionType" required style="width: 100%;">
+                  <option value="Video Therapy Session">📹 1-on-1 Video Therapy Session</option>
+                  <option value="Audio Therapy Session">📞 Audio Call Session</option>
+                  <option value="Chat Therapy Session">💬 Live Chat Session</option>
+                </select>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="field">
+                  <label for="booking-date">Preferred Date</label>
+                  <input id="booking-date" name="sessionDate" type="date" value="${new Date().toISOString().split('T')[0]}" required style="width: 100%;" />
+                </div>
+                <div class="field">
+                  <label for="booking-time">Preferred Time</label>
+                  <select id="booking-time" name="sessionTime" required style="width: 100%;">
+                    <option value="10:00 AM">10:00 AM IST</option>
+                    <option value="02:00 PM">02:00 PM IST</option>
+                    <option value="05:00 PM" selected>05:00 PM IST</option>
+                    <option value="08:00 PM">08:00 PM IST</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="field">
+                <label for="booking-notes">Primary Focus / Notes (Optional)</label>
+                <textarea id="booking-notes" name="notes" placeholder="Tell the counsellor what you would like to focus on (e.g., anxiety, relationship, stress)..." rows="3" style="width: 100%;"></textarea>
+              </div>
+
+              <div style="padding: 14px; background: rgba(224,106,78,0.06); border: 1px solid rgba(224,106,78,0.2); border-radius: 12px; display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 13px; color: var(--color-charcoal); font-weight: 500;">Total Fee (Wallet Hold)</span>
+                <strong style="font-size: 18px; color: var(--color-coral);">${formatInr(state.bookingModalTarget.rate)}</strong>
+              </div>
+
+              <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 8px;">
+                <button type="button" class="btn secondary" data-action="close-booking-modal">Cancel</button>
+                <button type="submit" class="btn primary" style="background: var(--color-coral);">Confirm Booking</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ` : ""}
     `;
   }
 
@@ -2807,18 +2873,20 @@ function userPanelContent(section, dashboard, data) {
       </div>
 
       <!-- Tab Navigation -->
-      <div style="display: flex; gap: 12px; border-bottom: 1px solid var(--color-border); padding-bottom: 12px; margin-bottom: 24px; overflow-x: auto;">
-        ${[
-          ["thought", "ph-notebook", "Thought Diary"],
-          ["exposure", "ph-target", "Exposure Hierarchy"],
-          ["activation", "ph-chart-polar", "Behavioral Activation"],
-          ["grounding", "ph-leaf", "Grounding Techniques"],
-          ["worry", "ph-clock-counter-clockwise", "Worry Time"]
-        ].map(([id, icon, label]) => `
-          <button class="btn secondary ${state.cbtActiveTab === id ? 'active' : ''}" data-action="switch-cbt-tab" data-tab="${id}" style="display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 12px; border-color: ${state.cbtActiveTab === id ? 'var(--color-charcoal)' : 'transparent'}; background: ${state.cbtActiveTab === id ? 'var(--color-charcoal)' : 'rgba(0,0,0,0.03)'}; color: ${state.cbtActiveTab === id ? 'white' : 'var(--color-charcoal)'};">
-            <i class="ph ${icon}"></i> ${t(label)}
-          </button>
-        `).join("")}
+      <div style="overflow-x: auto; margin-bottom: 24px; padding-bottom: 2px;">
+        <div style="display: flex; gap: 8px; border-bottom: 1px solid var(--color-border); padding-bottom: 14px; min-width: max-content; padding-top: 4px; padding-left: 2px; padding-right: 2px;">
+          ${[
+            ["thought", "ph-notebook", "Thought Diary"],
+            ["exposure", "ph-target", "Exposure Hierarchy"],
+            ["activation", "ph-chart-polar", "Behavioral Activation"],
+            ["grounding", "ph-leaf", "Grounding Techniques"],
+            ["worry", "ph-clock-counter-clockwise", "Worry Time"]
+          ].map(([id, icon, label]) => `
+            <button class="btn secondary cbt-sub-tab ${state.cbtActiveTab === id ? 'active' : ''}" data-action="switch-cbt-tab" data-tab="${id}" style="display: flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 12px; white-space: nowrap; border: 1.5px solid ${state.cbtActiveTab === id ? 'var(--color-charcoal)' : 'transparent'}; background: ${state.cbtActiveTab === id ? 'var(--color-charcoal)' : 'rgba(0,0,0,0.03)'}; color: ${state.cbtActiveTab === id ? 'white' : 'var(--color-charcoal)'}; font-weight: ${state.cbtActiveTab === id ? '700' : '500'}; transition: all 0.18s ease; box-shadow: ${state.cbtActiveTab === id ? '0 2px 8px rgba(0,0,0,0.15)' : 'none'};">
+              <i class="ph ${icon}"></i> ${t(label)}
+            </button>
+          `).join("")}
+        </div>
       </div>
 
       <!-- Tab Content Area -->
@@ -3081,12 +3149,9 @@ function counsellorCard(counsellor) {
           return `<span class="lang-text">${escapeHtml(mapping[lang.toLowerCase()] || lang)}</span>`;
         }).join("<span class='lang-separator'>•</span>")}
       </div>
-      <form data-form="booking" style="margin-top: auto;">
-        <input type="hidden" name="counsellorId" value="${escapeHtml(bookingCounsellorId)}" />
-        <input type="hidden" name="counsellor" value="${escapeHtml(name)}" />
-        <input type="hidden" name="amount" value="${rate}" />
-        <button class="btn primary" type="submit" style="width: 100%;">Request Session</button>
-      </form>
+      <div style="margin-top: auto; padding-top: 12px;">
+        <button class="btn primary" type="button" data-action="open-booking-modal" data-counsellor-id="${escapeHtml(bookingCounsellorId)}" data-counsellor-name="${escapeHtml(name)}" data-rate="${rate}" style="width: 100%;"><i class="ph ph-calendar-plus" style="margin-right: 6px;"></i> Request Session</button>
+      </div>
     </article>
   `;
 }

@@ -4359,3 +4359,16 @@ tr:hover td {
   color: var(--color-charcoal);
   margin-bottom: 6px;
 }
+
+/* ═══════════════════════════════════════════════
+   CBT Sub-Tab Buttons — Hover & Active States
+   (overflow-x:auto on parent caused clipping;
+    padding + min-width:max-content fixes it)
+═══════════════════════════════════════════════ */
+.cbt-sub-tab:hover:not(.active) {
+  border-color: var(--color-coral) !important;
+  color: var(--color-coral) !important;
+  background: rgba(224, 106, 78, 0.06) !important;
+  box-shadow: 0 0 0 3px rgba(224, 106, 78, 0.12) !important;
+}
+
