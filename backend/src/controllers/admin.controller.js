@@ -188,3 +188,10 @@ export async function crisisEvents({ query = {} }) {
   const offset = parseInt(query.offset) || 0;
   return ok(await repositories.crisisEvents.list(limit, offset));
 }
+
+import { executeWeeklyPayoutBatch } from "../services/payout.service.js";
+
+export async function runPayoutBatch({ user }) {
+  const result = await executeWeeklyPayoutBatch(user.id);
+  return ok(result);
+}

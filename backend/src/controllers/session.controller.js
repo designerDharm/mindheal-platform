@@ -241,16 +241,16 @@ async function settleSessionHold(session) {
   }
 
   const counsellorEntries = await ledger(session.counsellorUserId);
-  const hasCounsellorPayout = counsellorEntries.some((entry) =>
-    entry.entryType === "session_counsellor_payout" &&
+  const hasCounsellorPendingEarning = counsellorEntries.some((entry) =>
+    entry.entryType === "session_counsellor_pending_earning" &&
     entry.direction === "credit" &&
     isSessionReference(entry)
   );
-  if (!hasCounsellorPayout && Number(session.counsellorEarningInr || 0) > 0) {
-    await credit(session.counsellorUserId, Number(session.counsellorEarningInr), "session_counsellor_payout", {
+  if (!hasCounsellorPendingEarning && Number(session.counsellorEarningInr || 0) > 0) {
+    await credit(session.counsellorUserId, Number(session.counsellorEarningInr), "session_counsellor_pending_earning", {
       referenceType: "session",
       referenceId: session.id,
-      notes: "Counsellor earning settled after session completion."
+      notes: "Counsellor earning added to pending eligibility ledger after session completion."
     });
   }
 

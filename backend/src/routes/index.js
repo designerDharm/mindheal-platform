@@ -93,7 +93,8 @@ export const routes = [
   route("PUT", `${p}/admin/ai/services/:id`, adminController.updateAiService, ["admin"]),
   route("GET", `${p}/admin/ai/instruction-bundles`, adminController.listInstructionBundles, ["admin"]),
   route("POST", `${p}/admin/ai/instruction-bundles`, adminController.createInstructionBundle, ["admin"]),
-  route("POST", `${p}/admin/ai/instruction-bundles/:id/activate`, adminController.activateInstructionBundle, ["admin"])
+  route("POST", `${p}/admin/ai/instruction-bundles/:id/activate`, adminController.activateInstructionBundle, ["admin"]),
+  route("POST", `${p}/admin/finance/payouts/execute`, adminController.runPayoutBatch, ["admin"])
 ];
 
 async function health() {
