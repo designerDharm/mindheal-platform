@@ -18,6 +18,9 @@ export const appConfig = {
   refreshTokenTtlSeconds: 30 * 24 * 60 * 60,
   reportUnlockPriceInr: 49,
   platformCommissionPercent: 10,
+  commissionRateBps: 1000, // Exactly 10% (1000 basis points)
+  directGatewayEnabled: true, // Default production direct gateway payment mode
+  walletInrEnabled: process.env.WALLET_INR_ENABLED === "true", // Disabled by default for legal compliance
   defaultLanguage: "en",
   supportedRoles: ["user", "counsellor", "admin"],
   allowFirebaseAuthMock: process.env.FIREBASE_AUTH_MOCK_ENABLED === "true" && process.env.NODE_ENV !== "production",

@@ -82,11 +82,22 @@ export async function releaseCredits(ownerId, amountInr, reservationId, reason =
   });
 }
 
-export function calculateCommission(amountInr) {
-  const commission = Math.round(amountInr * appConfig.platformCommissionPercent) / 100;
+export function calculateCommission(grossAmountInr) {
+  const grossPaise = Math.round(Number(grossAmountInr || 0) * 100);
+  const commissionRateBps = appConfig.commissionRateBps || 1000; // 1000 BPS = 10%
+  
+  // Integer paise arithmetic: commission = floor(gross * bps / 10000)
+  const commissionPaise = Math.floor((grossPaise * commissionRateBps) / 10000);
+  const counsellorEarningPaise = grossPaise - commissionPaise;
+
   return {
-    platformCommissionInr: commission,
-    counsellorEarningInr: amountInr - commission
+    grossAmountInr: grossPaise / 100,
+    platformCommissionInr: commissionPaise / 100,
+    counsellorEarningInr: counsellorEarningPaise / 100,
+    grossAmountPaise: grossPaise,
+    commissionAmountPaise: commissionPaise,
+    counsellorEarningPaise: counsellorEarningPaise,
+    commissionRateBps
   };
 }
 

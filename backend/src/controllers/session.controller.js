@@ -32,7 +32,13 @@ export async function bookSession({ body, user }) {
       availabilitySlotId: slot.id,
       createdAt: new Date().toISOString(),
       ...body,
-      ...commission
+      grossAmountInr: commission.grossAmountInr,
+      platformCommissionInr: commission.platformCommissionInr,
+      counsellorEarningInr: commission.counsellorEarningInr,
+      grossAmountPaise: commission.grossAmountPaise,
+      platformCommissionPaise: commission.commissionAmountPaise,
+      counsellorEarningPaise: commission.counsellorEarningPaise,
+      commissionRateBps: commission.commissionRateBps
     };
 
     const createdSession = await repositories.sessions.create(session);
