@@ -72,7 +72,8 @@ export async function registerCounsellor({ body }) {
   try {
     const user = await authService.createUser({ role: "counsellor", ...body });
     const application = await authService.createCounsellorApplication({ userId: user.id, ...body });
-    return created({ session: await authService.createSession(user), application });
+    const session = await authService.createSession(user);
+    return created({ session, application, counsellor: { ...application, status: application.status || "pending" } });
   } catch (err) {
     return badRequest("Counsellor registration failed", err.message);
   }

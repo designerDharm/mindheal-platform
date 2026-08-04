@@ -24,6 +24,10 @@ export async function createUser({ role = "user", fullName, email, mobile, langu
     throw new Error("Minimum user age requirement is 15 years.");
   }
 
+  if (role === "user" && age !== null && age >= 15 && age < 18 && !guardianEmail) {
+    throw new Error("Guardian email is required for users under 18 years old.");
+  }
+
   if (role === "counsellor" && age !== null && age < 21) {
     throw new Error("Minimum counsellor age requirement is 21 years.");
   }
@@ -57,7 +61,8 @@ export async function loginUser({ email, mobile, password, role }) {
     const normalizedEmail = normalizeEmail(email);
     user = await repositories.users.findByEmailAndRole(normalizedEmail, role);
   } else if (mobile) {
-    user = await repositories.users.findByMobileAndRole(mobile, role);
+    const normalizedMobile = String(mobile).trim();
+    user = await repositories.users.findByMobileAndRole(normalizedMobile, role);
   }
   
   if (!user) {

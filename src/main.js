@@ -1934,6 +1934,12 @@ function otpVerificationScreen(role, target, panelPath) {
             <h1>Enter verification code</h1>
             <p class="page-subtitle" style="margin-bottom: 24px;">We sent a 6-digit verification code to <strong style="color: var(--color-charcoal);">${target}</strong>. Please enter it below to activate your account.</p>
             
+            ${state.lastDevCode ? html`
+              <div style="background: rgba(235,94,40,0.08); border: 1px dashed var(--color-coral); border-radius: 12px; padding: 12px; margin-bottom: 20px; text-align: center;">
+                <span style="font-size: 13px; color: var(--color-text-muted); display: block;">Verification Code (Demo Mode):</span>
+                <strong style="font-size: 24px; letter-spacing: 4px; color: var(--color-coral); font-family: monospace;">${state.lastDevCode}</strong>
+              </div>
+            ` : ""}
             <div class="field full-width" style="margin-bottom: 20px;">
               <label for="otp-code">One-Time Password (OTP)</label>
               <div class="input-wrapper" style="position: relative; display: flex; align-items: center; width: 100%;">
@@ -3689,16 +3695,17 @@ function attachPageHandlers() {
         
         try {
           toast(`Sending OTP code to ${state.otpTarget}...`);
-          await api.sendOtp(state.otpTarget);
+          const res = await api.sendOtp(state.otpTarget);
           
           // Switch to OTP Verification mode
           state.otpMode = true;
           state.otpRole = role;
           state.otpPanel = form.dataset.panel;
           state.signupPayload = cleanPayload;
+          state.lastDevCode = res?.devCode || null;
           state.authError = "";
           
-          toast(`Real 6-digit OTP sent to ${state.otpTarget}! Check your email/SMS.`);
+          toast(`6-digit OTP generated for ${state.otpTarget}!`);
           render();
         } catch (err) {
           const msg = err.message || "Failed to send OTP.";
@@ -3738,10 +3745,12 @@ function attachPageHandlers() {
       toast("Verifying code...");
       
       try {
+        await api.verifyOtp(state.otpTarget, code);
         await api.signUp(state.otpRole, state.signupPayload);
         toast("Verification successful! Account created.");
         state.otpMode = false;
         state.signupPayload = null;
+        state.lastDevCode = null;
         navigate(state.otpPanel);
       } catch (err) {
         toast(`Verification failed: ${err.message || "Invalid OTP code"}`, "error");
@@ -3750,9 +3759,17 @@ function attachPageHandlers() {
   });
 
   document.querySelectorAll("[data-action='resend-otp']").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
+    btn.addEventListener("click", async (e) => {
       e.preventDefault();
-      toast(`A new 6-digit verification code has been sent to ${state.otpTarget}!`);
+      try {
+        toast(`Sending new OTP code to ${state.otpTarget}...`);
+        const res = await api.sendOtp(state.otpTarget);
+        state.lastDevCode = res?.devCode || null;
+        toast(`New 6-digit OTP code sent to ${state.otpTarget}!`);
+        render();
+      } catch (err) {
+        toast(`Failed to resend OTP: ${err.message}`, "error");
+      }
     });
   });
 

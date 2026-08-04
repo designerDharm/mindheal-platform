@@ -193,6 +193,16 @@ export const api = {
     throw new Error(remote.error?.message || "Failed to send OTP");
   },
 
+  async verifyOtp(destination, code) {
+    const isEmail = String(destination).includes("@");
+    const remote = await request("/auth/verify-otp", {
+      method: "POST",
+      body: { [isEmail ? "email" : "mobile"]: destination, code }
+    });
+    if (remote.ok) return remote.data;
+    throw new Error(remote.error?.message || "Invalid or expired OTP code.");
+  },
+
   logout() {
     localStorage.removeItem("mindheal-access-token");
     return Promise.resolve(true);

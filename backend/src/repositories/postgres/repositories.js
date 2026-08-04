@@ -324,10 +324,10 @@ export const postgresRepositories = {
       return mapUser(res.rows[0]);
     },
     async findByMobileAndRole(mobile, role) {
-      const cleanDigits = String(mobile).replace(/\D/g, "");
+      const cleanDigits = String(mobile).replace(/\D/g, "").slice(-10);
       const res = await query(
-        `SELECT * FROM users WHERE (mobile = $1 OR REPLACE(REPLACE(mobile, '+', ''), ' ', '') LIKE '%' || $2) AND role = $3 LIMIT 1`,
-        [mobile, cleanDigits, role]
+        `SELECT * FROM users WHERE RIGHT(REGEXP_REPLACE(mobile, '\\D', '', 'g'), 10) = $1 AND role = $2 LIMIT 1`,
+        [cleanDigits, role]
       );
       return mapUser(res.rows[0]);
     },
