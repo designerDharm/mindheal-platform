@@ -10,6 +10,8 @@ import * as walletController from "../controllers/wallet.controller.js";
 import * as uploadController from "../controllers/upload.controller.js";
 import * as publicController from "../controllers/public.controller.js";
 import * as notificationController from "../controllers/notification.controller.js";
+import * as peerController from "../controllers/peer.controller.js";
+import * as screeningController from "../controllers/screening.controller.js";
 
 const p = appConfig.apiPrefix;
 
@@ -17,6 +19,7 @@ export const routes = [
   route("GET", `${p}/health`, health),
   route("GET", `${p}/readiness`, readiness),
   route("GET", `${p}/config/public`, publicController.publicConfig),
+  route("GET", `${p}/promotions/active`, publicController.activePromotions),
   route("POST", `${p}/contact`, contactController.submitContact),
   route("POST", `${p}/upload`, uploadController.uploadFile, ["user", "counsellor", "admin"]),
   route("POST", `${p}/upload/refresh-url`, uploadController.refreshUploadUrl, ["user", "counsellor", "admin"]),
@@ -29,6 +32,9 @@ export const routes = [
 
   route("POST", `${p}/auth/register`, authController.register),
   route("POST", `${p}/auth/login`, authController.login),
+  route("POST", `${p}/auth/complete-profile`, authController.completeProfile),
+  route("POST", `${p}/auth/link`, authController.link),
+  route("POST", `${p}/auth/guardian/approve`, authController.approveGuardian),
   route("POST", `${p}/auth/send-otp`, authController.sendOtp),
   route("POST", `${p}/auth/verify-otp`, authController.verifyOtp),
   route("POST", `${p}/auth/counsellor/register`, authController.registerCounsellor),
@@ -67,6 +73,9 @@ export const routes = [
   route("POST", `${p}/analysis/signature`, aiController.createSignatureReport, ["user"], true),
   route("GET", `${p}/analysis/reports`, aiController.listReports, ["user", "admin"]),
   route("POST", `${p}/analysis/reports/:id/unlock`, aiController.unlockReport, ["user"]),
+  route("POST", `${p}/screenings`, screeningController.createScreening, ["user"]),
+  route("POST", `${p}/screenings/:id/complete`, screeningController.completeScreening, ["user"]),
+  route("GET", `${p}/screenings/me`, screeningController.listMyScreenings, ["user"]),
 
   route("GET", `${p}/wallet/balance`, walletController.balance, ["user", "counsellor", "admin"]),
   route("POST", `${p}/wallet/topup/initiate`, walletController.initiateTopup, ["user"]),
@@ -94,7 +103,46 @@ export const routes = [
   route("GET", `${p}/admin/ai/instruction-bundles`, adminController.listInstructionBundles, ["admin"]),
   route("POST", `${p}/admin/ai/instruction-bundles`, adminController.createInstructionBundle, ["admin"]),
   route("POST", `${p}/admin/ai/instruction-bundles/:id/activate`, adminController.activateInstructionBundle, ["admin"]),
-  route("POST", `${p}/admin/finance/payouts/execute`, adminController.runPayoutBatch, ["admin"])
+  route("POST", `${p}/admin/finance/payouts/execute`, adminController.runPayoutBatch, ["admin"]),
+
+  // Promotions
+  route("GET", `${p}/admin/promotions`, adminController.getPromotionalBanners, ["admin"]),
+  route("POST", `${p}/admin/promotions`, adminController.createPromotionalBanner, ["admin"]),
+  route("PUT", `${p}/admin/promotions/:id`, adminController.updatePromotionalBanner, ["admin"]),
+  route("DELETE", `${p}/admin/promotions/:id`, adminController.deletePromotionalBanner, ["admin"]),
+
+  // Peer Listener Marketplace
+  route("GET", `${p}/peer-talk/config`, peerController.getConfig),
+  route("GET", `${p}/peer-talk/dashboard`, peerController.getDashboardState, ["user", "counsellor", "admin"]),
+  route("GET", `${p}/peer-talk/disclaimer`, peerController.getDisclaimer),
+  route("POST", `${p}/peer-talk/accept-disclaimer`, peerController.acceptDisclaimer, ["user", "counsellor", "admin"]),
+  route("POST", `${p}/peer-listeners/apply`, peerController.applyListener, ["user", "counsellor", "admin"]),
+  route("GET", `${p}/peer-listeners`, peerController.listListeners, ["user", "counsellor", "admin"]),
+  route("GET", `${p}/peer-listeners/me`, peerController.getMyProfile, ["user", "counsellor", "admin"]),
+  route("PATCH", `${p}/peer-listeners/me`, peerController.updateMyProfile, ["user", "counsellor", "admin"]),
+  route("POST", `${p}/peer-listeners/me/submit`, peerController.submitMyProfile, ["user", "counsellor", "admin"]),
+  route("POST", `${p}/peer-listeners/me/go-live`, peerController.goLive, ["user", "counsellor", "admin"]),
+  route("POST", `${p}/peer-listeners/me/go-offline`, peerController.goOffline, ["user", "counsellor", "admin"]),
+  route("GET", `${p}/peer-listeners/me/earnings`, peerController.getEarnings, ["user", "counsellor", "admin"]),
+  route("POST", `${p}/peer-session-requests`, peerController.createSessionRequest, ["user", "counsellor", "admin"]),
+  route("GET", `${p}/peer-session-requests/:id`, peerController.getSessionRequest, ["user", "counsellor", "admin"]),
+  route("POST", `${p}/peer-session-requests/:id/accept`, peerController.acceptSessionRequest, ["user", "counsellor", "admin"]),
+  route("POST", `${p}/peer-session-requests/:id/decline`, peerController.declineSessionRequest, ["user", "counsellor", "admin"]),
+  route("POST", `${p}/peer-session-requests/:id/payment-order`, peerController.initiateRequestPaymentOrder, ["user", "counsellor", "admin"]),
+  route("POST", `${p}/peer-session-requests/:id/payment-verify`, peerController.verifyRequestPayment, ["user", "counsellor", "admin"]),
+  route("POST", `${p}/peer-sessions/:id/consent`, peerController.grantSessionConsent, ["user", "counsellor", "admin"]),
+  route("GET", `${p}/peer-sessions/:id/consents`, peerController.getSessionConsents, ["user", "counsellor", "admin"]),
+  route("GET", `${p}/peer-sessions/:id/rtc-token`, peerController.generatePeerRtcToken, ["user", "counsellor", "admin"]),
+  route("POST", `${p}/peer-sessions/:id/end`, peerController.endPeerSession, ["user", "counsellor", "admin"]),
+  route("POST", `${p}/peer-users/:id/block`, peerController.blockPeerUser, ["user", "counsellor", "admin"]),
+  route("POST", `${p}/peer-users/:id/report`, peerController.reportPeerUser, ["user", "counsellor", "admin"]),
+  route("POST", `${p}/peer-sessions/:id/feedback`, peerController.submitPeerFeedback, ["user", "counsellor", "admin"]),
+
+  route("GET", `${p}/admin/peer-talk/listeners`, adminController.peerListeners, ["admin"]),
+  route("GET", `${p}/admin/peer-talk/listener-applications`, adminController.peerListenerApplications, ["admin"]),
+  route("POST", `${p}/admin/peer-talk/listeners/:id/approve`, adminController.approvePeerListener, ["admin"]),
+  route("POST", `${p}/admin/peer-talk/listeners/:id/reject`, adminController.rejectPeerListener, ["admin"]),
+  route("POST", `${p}/admin/peer-talk/listeners/:id/suspend`, adminController.suspendPeerListener, ["admin"])
 ];
 
 async function health() {

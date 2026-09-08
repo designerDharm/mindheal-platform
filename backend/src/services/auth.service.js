@@ -1,25 +1,21 @@
 import admin from "firebase-admin";
 import { repositories } from "../repositories/index.js";
-import { createId, hashPassword, hashValue, hmacValue, maskDestination, signAccessToken, signRefreshToken, verifyPassword, verifyRefreshToken } from "../utils/security.js";
+import { createId, hashPassword, hashValue, hmacValue, maskDestination, signAccessToken, signRefreshToken, verifyPassword, verifyRefreshToken, signOnboardingToken, verifyOnboardingToken } from "../utils/security.js";
 import { normalizeEmail } from "../utils/validation.js";
 import { randomInt } from "node:crypto";
 import { redisClient } from "../config/redis.js";
 import { appConfig } from "../config/app.js";
+import { firebaseAuthVerifier } from "../config/firebase.js";
 
 const otpStore = new Map();
 
-export async function createUser({ role = "user", fullName, email, mobile, languageCode = "en", password, firebaseUid, dateOfBirth, guardianEmail }) {
+export async function createUser({ role = "user", fullName, email, mobile, languageCode = "en", password, firebaseUid, dateOfBirth, guardianEmail, onboardingStatus = "COMPLETED", profileCompletedAt = null, emailVerifiedAt = null, isGuardianConsentVerified = null, guardianConsentStatus = null }) {
   if (!password && !firebaseUid) {
     throw new Error("Password is required.");
   }
 
-  const { calculateAgeFromDob } = await import("../utils/validation.js");
-  const age = calculateAgeFromDob(dateOfBirth);
+  const age = calculateExactAge(dateOfBirth);
   
-  if (dateOfBirth && age === null) {
-    throw new Error("Invalid dateOfBirth format. Must be YYYY-MM-DD.");
-  }
-
   if (role === "user" && age !== null && age < 15) {
     throw new Error("Minimum user age requirement is 15 years.");
   }
@@ -33,10 +29,14 @@ export async function createUser({ role = "user", fullName, email, mobile, langu
   }
 
   const isMinorUser = role === "user" && age !== null && age >= 15 && age < 18;
+  const isConsentVerified = isGuardianConsentVerified !== null ? isGuardianConsentVerified : !isMinorUser;
+  const consentStatus = guardianConsentStatus !== null ? guardianConsentStatus : (isMinorUser ? "PENDING" : "APPROVED");
+  const defaultOnboarding = onboardingStatus !== undefined ? onboardingStatus : (isMinorUser ? "PENDING_GUARDIAN" : "COMPLETED");
 
   const user = {
     id: createId("usr"),
     firebase_uid: firebaseUid || null,
+    firebaseUid: firebaseUid || null,
     role,
     fullName,
     email: email ? normalizeEmail(email) : null,
@@ -46,8 +46,12 @@ export async function createUser({ role = "user", fullName, email, mobile, langu
     dateOfBirth: dateOfBirth || null,
     date_of_birth: dateOfBirth || null,
     guardianEmail: isMinorUser ? (guardianEmail || null) : null,
-    isGuardianConsentVerified: false,
+    isGuardianConsentVerified: isConsentVerified,
     isActive: true,
+    profileCompletedAt,
+    onboardingStatus: defaultOnboarding,
+    emailVerifiedAt,
+    guardianConsentStatus: consentStatus,
     createdAt: new Date().toISOString()
   };
   await repositories.users.create(user);
@@ -76,29 +80,254 @@ export async function loginUser({ email, mobile, password, role }) {
   return createSession(user);
 }
 
-export async function loginWithFirebase(idToken, role) {
-  if (!admin.apps.length) {
-    if (!appConfig.allowFirebaseAuthMock) {
-      throw new Error("Firebase authentication is not configured.");
-    }
-    console.warn("Firebase Admin SDK not initialized. Using explicitly enabled Firebase auth mock.");
-    return createSession(await getOrCreateUser("mock-firebase-uid", `mock-${role}@example.com`, role));
+export function calculateExactAge(dobString) {
+  if (!dobString) return null;
+  const dob = new Date(dobString);
+  if (isNaN(dob.getTime())) return null;
+  
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const m = today.getMonth() - dob.getMonth();
+  
+  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+    age--;
   }
-
-  const decodedToken = await admin.auth().verifyIdToken(idToken);
-  if (!decodedToken.email) {
-    throw new Error("Firebase token does not include a verified email.");
-  }
-  return createSession(await getOrCreateUser(decodedToken.uid, decodedToken.email, role));
+  return age;
 }
 
-async function getOrCreateUser(firebaseUid, email, role) {
+export async function loginWithFirebase(idToken, role, flow = "signin") {
+  let decodedToken;
+  try {
+    decodedToken = await firebaseAuthVerifier.verifyIdToken(idToken);
+  } catch (err) {
+    throw new Error("Firebase token verification failed: " + err.message);
+  }
+
+  if (!decodedToken.email_verified) {
+    throw new Error("Google email is not verified.");
+  }
+  if (decodedToken.firebase?.sign_in_provider !== "google.com") {
+    throw new Error("Unsupported authentication provider.");
+  }
+
+  const email = decodedToken.email;
+  const uid = decodedToken.uid;
+  const name = decodedToken.name || "";
+
+  const normalizedEmail = normalizeEmail(email);
+  const user = await repositories.users.findByEmailAndRole(normalizedEmail, role);
+
+  if (user) {
+    if (!user.isActive) {
+      return { status: "ACCOUNT_RESTRICTED" };
+    }
+
+    if (!user.firebaseUid) {
+      return { status: "ACCOUNT_LINK_REQUIRED", email };
+    }
+
+    if (!user.profileCompletedAt || !user.fullName || !user.dateOfBirth) {
+      const onboardingToken = signOnboardingToken({ firebaseUid: uid, email, name, role, flow });
+      return { status: "PROFILE_REQUIRED", email, name, onboardingToken };
+    }
+
+    const age = calculateExactAge(user.dateOfBirth);
+    if (age !== null && age >= 15 && age < 18 && !user.isGuardianConsentVerified) {
+      return { status: "GUARDIAN_CONSENT_REQUIRED", email };
+    }
+
+    const session = await createSession(user);
+    return { status: "AUTHENTICATED", session };
+  } else {
+    if (flow === "signin") {
+      return { status: "SIGNUP_REQUIRED", email };
+    }
+
+    const onboardingToken = signOnboardingToken({ firebaseUid: uid, email, name, role, flow });
+    return { status: "PROFILE_REQUIRED", email, name, onboardingToken };
+  }
+}
+
+export async function linkGoogleAccount(email, password, idToken, role) {
+  let decodedToken;
+  try {
+    decodedToken = await firebaseAuthVerifier.verifyIdToken(idToken);
+  } catch (err) {
+    throw new Error("Firebase token verification failed: " + err.message);
+  }
+
+  if (!decodedToken.email_verified) {
+    throw new Error("Google email is not verified.");
+  }
+  if (decodedToken.firebase?.sign_in_provider !== "google.com") {
+    throw new Error("Unsupported authentication provider.");
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+  if (normalizeEmail(decodedToken.email) !== normalizedEmail) {
+    throw new Error("Google email does not match target account.");
+  }
+
+  const user = await repositories.users.findByEmailAndRole(normalizedEmail, role);
+  if (!user) {
+    throw new Error("Target account does not exist.");
+  }
+
+  if (!user.isActive) {
+    return { status: "ACCOUNT_RESTRICTED" };
+  }
+
+  if (user.passwordHash && !verifyPassword(password, user.passwordHash)) {
+    throw new Error("Invalid password.");
+  }
+
+  // Link the account
+  const updatedUser = await repositories.users.update(user.id, { firebaseUid: decodedToken.uid });
+
+  if (!updatedUser.profileCompletedAt || !updatedUser.fullName || !updatedUser.dateOfBirth) {
+    const onboardingToken = signOnboardingToken({ firebaseUid: decodedToken.uid, email: decodedToken.email, name: decodedToken.name || "", role, flow: "signin" });
+    return { status: "PROFILE_REQUIRED", email: decodedToken.email, name: decodedToken.name || "", onboardingToken };
+  }
+
+  const age = calculateExactAge(updatedUser.dateOfBirth);
+  if (age !== null && age >= 15 && age < 18 && !updatedUser.isGuardianConsentVerified) {
+    return { status: "GUARDIAN_CONSENT_REQUIRED", email: decodedToken.email };
+  }
+
+  const session = await createSession(updatedUser);
+  return { status: "AUTHENTICATED", session };
+}
+
+export async function completeGoogleOnboarding(onboardingToken, profileData) {
+  const payload = verifyOnboardingToken(onboardingToken);
+  if (!payload) {
+    throw new Error("Invalid or expired onboarding session.");
+  }
+
+  const { firebaseUid, email, role, flow } = payload;
+  const { fullName, dateOfBirth, guardianEmail, termsConsent } = profileData;
+
+  if (!fullName || !dateOfBirth) {
+    throw new Error("Full name and Date of Birth are required.");
+  }
+  if (!termsConsent) {
+    throw new Error("Terms of Service and Privacy Policy consent is required.");
+  }
+
+  const age = calculateExactAge(dateOfBirth);
+  if (age === null) {
+    throw new Error("Invalid Date of Birth format.");
+  }
+
+  if (age < 15) {
+    return { status: "AGE_NOT_ELIGIBLE" };
+  }
+
+  const isMinor = age >= 15 && age < 18;
+  if (isMinor && !guardianEmail) {
+    throw new Error("Guardian email is required for minor accounts.");
+  }
+
   const normalizedEmail = normalizeEmail(email);
   let user = await repositories.users.findByEmailAndRole(normalizedEmail, role);
-  if (!user) {
-    user = await createUser({ role, fullName: `${role} user`, email: normalizedEmail, firebaseUid });
+
+  if (user) {
+    const patch = {
+      firebaseUid,
+      fullName,
+      dateOfBirth,
+      profileCompletedAt: new Date().toISOString(),
+      onboardingStatus: isMinor ? "PENDING_GUARDIAN" : "COMPLETED",
+      emailVerifiedAt: new Date().toISOString(),
+      guardianEmail: isMinor ? guardianEmail : null,
+      isGuardianConsentVerified: !isMinor,
+      guardianConsentStatus: isMinor ? "PENDING" : "APPROVED"
+    };
+    user = await repositories.users.update(user.id, patch);
+  } else {
+    user = await createUser({
+      role,
+      fullName,
+      email: normalizedEmail,
+      firebaseUid,
+      dateOfBirth,
+      guardianEmail: isMinor ? guardianEmail : null,
+      onboardingStatus: isMinor ? "PENDING_GUARDIAN" : "COMPLETED",
+      profileCompletedAt: new Date().toISOString(),
+      emailVerifiedAt: new Date().toISOString(),
+      isGuardianConsentVerified: !isMinor,
+      guardianConsentStatus: isMinor ? "PENDING" : "APPROVED"
+    });
   }
-  return user;
+
+  if (isMinor) {
+    await triggerGuardianConsentEmail(user);
+    return { status: "GUARDIAN_CONSENT_REQUIRED", email };
+  }
+
+  const session = await createSession(user);
+  return { status: "AUTHENTICATED", session };
+}
+
+export async function approveGuardianConsent(consentToken) {
+  const payload = verifyOnboardingToken(consentToken);
+  if (!payload || payload.purpose !== "guardian") {
+    throw new Error("Invalid or expired consent token.");
+  }
+
+  const userId = payload.sub;
+  const user = await repositories.users.findById(userId);
+  if (!user) {
+    throw new Error("User does not exist.");
+  }
+
+  const updatedUser = await repositories.users.update(user.id, {
+    onboardingStatus: "COMPLETED",
+    isGuardianConsentVerified: true,
+    guardianConsentStatus: "APPROVED"
+  });
+
+  return { success: true, email: updatedUser.email };
+}
+
+async function triggerGuardianConsentEmail(user) {
+  const token = signOnboardingToken({ sub: user.id, purpose: "guardian" });
+  const link = `http://localhost:4173/#/auth/guardian-approve?token=${token}`;
+  
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  
+  if (!smtpUser || !smtpPass) {
+    console.warn(`[Onboarding] SMTP credentials not configured. Mock Link: ${link}`);
+    return;
+  }
+  
+  const host = process.env.SMTP_HOST || "smtp.gmail.com";
+  const port = Number(process.env.SMTP_PORT || 587);
+  const secure = process.env.SMTP_SECURE === "true" || port === 465;
+  const requireTLS = process.env.SMTP_REQUIRE_TLS !== "false";
+  const fromAddress = process.env.SMTP_FROM || `"MindHeal Consent" <${smtpUser}>`;
+
+  try {
+    const nodemailer = await import("nodemailer");
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      requireTLS,
+      auth: { user: smtpUser, pass: smtpPass }
+    });
+
+    await transporter.sendMail({
+      from: fromAddress,
+      to: user.guardianEmail,
+      subject: `MindHeal Guardian Consent Request for ${user.fullName}`,
+      html: `<p>Parent/guardian consent is required for ${user.fullName} to use MindHeal.</p>
+             <p>Please click this link to approve: <a href="${link}">${link}</a></p>`
+    });
+  } catch (err) {
+    console.error(`Failed to send guardian consent email: ${err.message}`);
+  }
 }
 
 export async function createSession(user) {
@@ -179,15 +408,23 @@ const verificationProofTtlSeconds = 15 * 60;
 const inMemoryStore = new Map();
 
 async function redisGet(key) {
-  if (!redisClient.isOpen) return inMemoryStore.get(key) || null;
+  if (!redisClient.isOpen) {
+    if (appConfig.env === "production") {
+      throw new Error("OTP store is unavailable.");
+    }
+    return inMemoryStore.get(key) || null;
+  }
   return await redisClient.get(key);
 }
 
 async function redisSetEx(key, ttlSeconds, value) {
   if (!redisClient.isOpen) {
+    if (appConfig.env === "production") {
+      throw new Error("OTP store is unavailable.");
+    }
     inMemoryStore.set(key, value);
     const ms = Math.min(ttlSeconds * 1000, 2147483647);
-    setTimeout(() => inMemoryStore.delete(key), ms);
+    setTimeout(() => inMemoryStore.delete(key), ms).unref();
     return;
   }
   await redisClient.setEx(key, ttlSeconds, value);
@@ -195,6 +432,9 @@ async function redisSetEx(key, ttlSeconds, value) {
 
 async function redisDel(key) {
   if (!redisClient.isOpen) {
+    if (appConfig.env === "production") {
+      throw new Error("OTP store is unavailable.");
+    }
     inMemoryStore.delete(key);
     return;
   }
@@ -273,6 +513,11 @@ async function sendEmailOtp(email, code, challengeId) {
         }
       }
     }
+  }
+
+  if (process.env.NODE_ENV === "test" || appConfig.env === "test" || process.env.REPOSITORY_DRIVER === "memory") {
+    console.log(`[TEST NOTICE] Mocking email dispatch to ${maskedEmail}.`);
+    return { provider: "mock", status: "mock_delivered" };
   }
 
   // Fallback / Staging SMTP Driver

@@ -21,6 +21,7 @@ import { escapeHtml, formatInr, getFormData, html, toast } from "./utils/dom.js"
 import { bindMoodStudioForm, parseMoodNote, renderMoodStudio } from "./features/mood-studio.js";
 import { renderWalletTransactionsTable } from "./features/wallet-transactions.js";
 import { renderInsightLab } from "./features/insight-lab.js";
+import { renderPeerTalk } from "./features/peer-talk.js";
 import { t, getSelectedLanguage, handleLanguageChange, langCodes, translateDOM } from "./utils/i18n.js";
 
 const app = document.querySelector("#app");
@@ -201,6 +202,33 @@ function saveAiMessages() {
 }
 
 async function render() {
+  if (!state.config) {
+    try {
+      state.config = await api.getConfig();
+      if (state.config && state.config.firebase && state.config.firebase.apiKey) {
+        if (typeof firebase !== "undefined" && !firebase.apps.length) {
+          firebase.initializeApp(state.config.firebase);
+          console.log("Firebase client SDK initialized successfully");
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to load public config:", e.message);
+    }
+  }
+
+  if (!state.promotions) {
+    try {
+      const pRes = await api.getActivePromotions();
+      if (pRes.success && pRes.data && pRes.data.length > 0) {
+        state.promotions = pRes.data;
+      } else {
+        state.promotions = [];
+      }
+    } catch (e) {
+      state.promotions = [];
+    }
+  }
+
   const page = await resolvePage(state.route.path);
   
   if (state.language === "Arabic") {
@@ -209,15 +237,20 @@ async function render() {
     document.documentElement.setAttribute("dir", "ltr");
   }
 
-  const isAuthOrPanel = state.route.path.startsWith("/panel") || state.route.path.startsWith("/auth") || state.route.path.startsWith("/services/ai");
+  const panelServiceRoutes = ["/services/ai", "/services/cbt", "/services/focus", "/services/tests", "/services/diary", "/services/courses", "/services/games", "/services/map", "/services/group"];
+  const isAuthOrPanel = state.route.path.startsWith("/panel") || state.route.path.startsWith("/auth") || panelServiceRoutes.some(r => state.route.path.startsWith(r));
+
   
   app.innerHTML = html`
     <div class="app-shell">
       ${!isAuthOrPanel ? siteHeader() : ""}
       ${page}
       ${shouldShowFooter(state.route.path) ? siteFooter() : ""}
+      ${!isAuthOrPanel ? mobileBottomNav() : ""}
+      ${linkGoogleAccountModal()}
     </div>
   `;
+
   
   // Translate the entire rendered tree!
   translateDOM(app);
@@ -226,6 +259,52 @@ async function render() {
   attachPageHandlers();
   initScrollObserver();
   window.scrollTo({ top: 0, behavior: "instant" });
+
+  window.dismissPromo = function() {
+    sessionStorage.setItem("promo-dismissed", "true");
+    const modal = document.getElementById("promo-popup-overlay");
+    if (modal) {
+      modal.classList.add("promo-popup-hiding");
+      setTimeout(() => modal.remove(), 350);
+    }
+  };
+
+  // Show promo popup (only on public pages, once per session)
+  const showPromo = !sessionStorage.getItem("promo-dismissed")
+    && state.promotions && state.promotions.length > 0
+    && !isAuthOrPanel;
+
+  if (showPromo && !document.getElementById("promo-popup-overlay")) {
+    setTimeout(() => {
+      const promos = state.promotions;
+      const overlay = document.createElement("div");
+      overlay.id = "promo-popup-overlay";
+      overlay.className = "promo-popup-overlay";
+      overlay.innerHTML = `
+        <div class="promo-popup" role="dialog" aria-modal="true" aria-label="Promotional Offer">
+          <button class="promo-popup-close" onclick="window.dismissPromo()" aria-label="Close">
+            <i class="ph-bold ph-x"></i>
+          </button>
+          <div class="promo-popup-header">
+            <div class="promo-popup-icon"><i class="ph-fill ph-megaphone-simple"></i></div>
+            <span class="promo-popup-badge">Special Offer</span>
+          </div>
+          <div class="promo-popup-body">
+            ${promos.map((p, i) => `
+              <div class="promo-popup-item${i > 0 ? ' promo-popup-item-sep' : ''}">
+                <p>${escapeHtml(p.message)}</p>
+              </div>
+            `).join("")}
+          </div>
+          <button class="btn primary promo-popup-cta" onclick="window.dismissPromo()">Got it!</button>
+        </div>
+      `;
+      overlay.addEventListener("click", (e) => {
+        if (e.target === overlay) window.dismissPromo();
+      });
+      document.body.appendChild(overlay);
+    }, 1200);
+  }
 
   if (state.route.path.startsWith("/panel/user") && state.panelSection === "counsellors") {
     initGoogleMap();
@@ -298,6 +377,23 @@ async function resolvePage(path) {
   const loggedIn = !!(data && data.auth);
   state.auth = data?.auth;
   
+  if (loggedIn && data.auth.onboardingStatus !== "COMPLETED") {
+    if (data.auth.onboardingStatus === "PENDING_GUARDIAN") {
+      if (path !== "/auth/guardian-pending" && path !== "/auth/logout") {
+        window.location.hash = "/auth/guardian-pending";
+        return guardianPendingPage(data.auth);
+      }
+    } else {
+      if (path !== "/auth/complete-profile" && path !== "/auth/logout") {
+        window.location.hash = "/auth/complete-profile";
+        return completeProfilePage();
+      }
+    }
+  }
+
+  if (path === "/auth/complete-profile") return completeProfilePage();
+  if (path === "/auth/guardian-pending") return guardianPendingPage(data?.auth);
+  
   if (loggedIn && data.auth.language) {
     state.language = data.auth.language;
     localStorage.setItem("mindheal-language", data.auth.language);
@@ -315,6 +411,10 @@ async function resolvePage(path) {
       return userPanel();
     }
     if (path === "/services/games") {
+      state.panelSection = "cbt";
+      return userPanel();
+    }
+    if (path === "/services/cbt") {
       state.panelSection = "cbt";
       return userPanel();
     }
@@ -355,6 +455,11 @@ async function resolvePage(path) {
   if (path === "/services/map") return serviceHealingMap();
   if (path === "/services/tests") return servicePsychologicalTests();
   if (path === "/services/diary") return serviceCBTDiary();
+  if (path === "/services/cbt") {
+    toast("Please log in to access CBT Tools.", "error");
+    return authPage("user", "login");
+  }
+
   if (path === "/services/courses") return servicePsychologyCourses();
 
   if (path === "/counsellors") return publicCounsellorsPage();
@@ -428,7 +533,22 @@ function publicCounsellorsPage() {
 
 function siteHeader() {
   const activePath = state.route.path;
-  const isDarkTop = activePath === '/counsellors' || activePath === '/services/dream' || activePath === '/services/dreams';
+  const darkTopPages = [
+    '/counsellors',
+    '/services/dream', '/services/dreams',
+    '/services/handwriting',
+    '/services/signature',
+    '/services/group',
+    '/services/games',
+    '/services/focus',
+    '/services/map',
+    '/services/tests',
+    '/services/diary',
+    '/services/courses',
+    '/crisis'
+  ];
+  const isDarkTop = darkTopPages.includes(activePath);
+
   
   const langCodesShort = {
     "English": "EN",
@@ -476,8 +596,7 @@ function siteHeader() {
                 <a href="#/services/dream" style="display:flex;align-items:center;gap:12px;color:var(--color-charcoal);text-decoration:none;"><i class="ph-fill ph-moon-stars" style="color:var(--color-coral);font-size:20px;"></i> ${t("Dream Analysis")}</a>
                 <a href="#/services/handwriting" style="display:flex;align-items:center;gap:12px;color:var(--color-charcoal);text-decoration:none;"><i class="ph-fill ph-pen-nib" style="color:var(--color-coral);font-size:20px;"></i> handwriting Analysis</a>
                 <a href="#/services/signature" style="display:flex;align-items:center;gap:12px;color:var(--color-charcoal);text-decoration:none;"><i class="ph-fill ph-signature" style="color:var(--color-coral);font-size:20px;"></i> ${t("Signature & Script")}</a>
-                <a href="#/services/group" style="display:flex;align-items:center;gap:12px;color:var(--color-charcoal);text-decoration:none;"><i class="ph-fill ph-users-three" style="color:var(--color-coral);font-size:20px;"></i> Group Healing Sessions</a>
-                <a href="#/services/games" style="display:flex;align-items:center;gap:12px;color:var(--color-charcoal);text-decoration:none;"><i class="ph-fill ph-brain" style="color:var(--color-coral);font-size:20px;"></i> Mind Training Games</a>
+                <a href="#/services/cbt" style="display:flex;align-items:center;gap:12px;color:var(--color-charcoal);text-decoration:none;"><i class="ph-fill ph-brain" style="color:var(--color-coral);font-size:20px;"></i> CBT Tools</a>
                 <a href="#/services/focus" style="display:flex;align-items:center;gap:12px;color:var(--color-charcoal);text-decoration:none;"><i class="ph-fill ph-target" style="color:var(--color-coral);font-size:20px;"></i> Focus Tools</a>
                 <a href="#/services/map" style="display:flex;align-items:center;gap:12px;color:var(--color-charcoal);text-decoration:none;"><i class="ph-fill ph-map-pin" style="color:var(--color-coral);font-size:20px;"></i> Healing Location Map</a>
                 <a href="#/services/tests" style="display:flex;align-items:center;gap:12px;color:var(--color-charcoal);text-decoration:none;"><i class="ph-fill ph-clipboard-text" style="color:var(--color-coral);font-size:20px;"></i> Psychological Tests</a>
@@ -613,7 +732,34 @@ function siteHeader() {
   `;
 }
 
+function mobileBottomNav() {
+  const path = state.route.path;
+  const isHome     = path === '/';
+  const isServices = path.startsWith('/services');
+  const isAI       = path.startsWith('/services/ai');
+  const isCounsellors = path.startsWith('/counsellors');
+  const isPanel    = path.startsWith('/panel');
+
+  const tab = (href, iconClass, label, active) => html`
+    <a href="${href}" class="mob-tab ${active ? 'mob-tab--active' : ''}">
+      <i class="${iconClass}"></i>
+      <span>${label}</span>
+    </a>
+  `;
+
+  return html`
+    <nav class="mobile-bottom-nav" aria-label="App navigation">
+      ${tab('#/', 'ph-fill ph-house-simple', t('Home'), isHome)}
+      ${tab('#/services', 'ph-fill ph-squares-four', t('Services'), isServices && !isAI)}
+      ${tab(state.auth ? '#/panel/user?section=ai' : '#/auth/user-signup', 'ph-fill ph-robot', t('AI Chat'), isAI)}
+      ${tab('#/counsellors', 'ph-fill ph-users-three', t('Therapists'), isCounsellors)}
+      ${tab(state.auth ? '#/panel/user' : '#/auth/user-login', 'ph-fill ph-user-circle', state.auth ? t('Profile') : t('Login'), isPanel)}
+    </nav>
+  `;
+}
+
 function siteFooter() {
+
   return html`
     <footer class="bg-charcoal" style="padding:80px 0 40px 0;border-top:1px solid rgba(255,255,255,0.1);color:rgba(255,255,255,0.6);">
       <div class="container grid-4" style="margin-bottom:64px;">
@@ -709,24 +855,54 @@ function sectionHero() {
       <div class="orb-breathe delay-1" style="position:absolute;width:600px;height:600px;background:rgba(255,255,255,0.5);border-radius:50%;top:0;right:-100px;filter:blur(100px);"></div>
       <div class="orb-breathe delay-2" style="position:absolute;width:400px;height:400px;background:rgba(182,166,204,0.15);border-radius:50%;top:40%;left:20%;filter:blur(100px);"></div>
       
-      <div class="container split-55-45" style="position:relative;z-index:10;align-items:center;">
-        <!-- Left column -->
-        <div class="reveal-up">
-          <span style="display:inline-flex;align-items:center;gap:8px;background:rgba(224,106,78,0.1);padding:8px 16px;border-radius:999px;color:var(--color-coral);font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:32px;"><i class="ph-fill ph-sparkle"></i> ${t("India's First AI-Guided Mental Wellness Platform")}</span>
-          <h1 style="font-family:var(--font-serif);font-size:72px;line-height:1.1;color:var(--color-charcoal);margin-bottom:32px;">
+      <div class="container split-55-45 hero-content-grid" style="position:relative;z-index:10;align-items:center;">
+        <!-- Left column (text content) -->
+        <div class="reveal-up hero-text-col">
+          <span class="hero-badge" style="display:inline-flex;align-items:center;gap:8px;background:rgba(224,106,78,0.1);padding:8px 16px;border-radius:999px;color:var(--color-coral);font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:32px;"><i class="ph-fill ph-sparkle"></i> ${t("India's First AI-Guided Mental Wellness Platform")}</span>
+          <h1 class="hero-headline" style="font-family:var(--font-serif);font-size:72px;line-height:1.1;color:var(--color-charcoal);margin-bottom:32px;">
             ${t("Rewire Your Mind.")}<br/>
             <span style="color:var(--color-coral);font-style:italic;">${t("Reclaim Your Life.")}</span>
           </h1>
-          <p style="font-size:20px;line-height:1.6;color:var(--color-text-muted);margin-bottom:48px;max-width:90%;">
+          <p class="hero-sub" style="font-size:20px;line-height:1.6;color:var(--color-text-muted);margin-bottom:48px;max-width:90%;">
             ${t("Stop waiting months for therapy. Access our free clinical AI instantly, use evidence-based CBT tools, or book the top 1% of human experts today.")}
           </p>
-          <div style="display:flex;gap:16px;align-items:center;">
+
+          <!-- Desktop CTA row -->
+          <div class="hero-cta-desktop" style="display:flex;gap:16px;align-items:center;">
             <a href="${ctaLink}" class="btn primary hover-lift" style="background:var(--color-coral);color:white;border-radius:999px;height:56px;padding:0 32px;font-size:18px;border:none;">${ctaText}</a>
             <span style="color:rgba(0,0,0,0.4);font-weight:600;">${t("or")}</span>
             <a href="#/counsellors" class="btn ghost hover-lift" style="border:1px solid rgba(0,0,0,0.4);color:var(--color-charcoal);border-radius:999px;height:56px;padding:0 32px;font-size:18px;background:transparent;">${t("Book a Therapist")}</a>
           </div>
-          
-          <div style="margin-top:64px;display:flex;gap:32px;align-items:center;">
+
+          <!-- Mobile CTA (compact sizing) -->
+          <div class="hero-cta-mobile">
+            <a href="${ctaLink}" class="btn primary hover-lift hero-mobile-btn-primary">${ctaText}</a>
+            <a href="#/counsellors" class="hero-mobile-btn-secondary">
+              ${t("Book a Therapist")} <i class="ph-bold ph-arrow-right"></i>
+            </a>
+          </div>
+
+          <!-- Mobile quick-action chips (app shortcuts) -->
+          <div class="hero-app-chips">
+            <a href="${state.auth ? '#/panel/user?section=ai' : '#/auth/user-signup'}" class="app-chip primary">
+              <i class="ph-fill ph-robot"></i> ${t("AI Chat")}
+            </a>
+            <a href="#/services/dream" class="app-chip secondary">
+              <i class="ph-fill ph-moon-stars"></i> ${t("Dream")}
+            </a>
+            <a href="#/services/cbt" class="app-chip secondary">
+              <i class="ph-fill ph-brain"></i> ${t("CBT Tools")}
+            </a>
+            <a href="#/counsellors" class="app-chip secondary">
+              <i class="ph-fill ph-users"></i> ${t("Therapists")}
+            </a>
+            <a href="#/services/tests" class="app-chip secondary">
+              <i class="ph-fill ph-clipboard-text"></i> ${t("Tests")}
+            </a>
+          </div>
+
+          <!-- Desktop stats (shown above image on desktop, hidden on mobile) -->
+          <div class="hero-stats hero-stats-desktop" style="margin-top:64px;display:flex;gap:32px;align-items:center;">
             <div style="display:flex;align-items:center;gap:16px;">
               <div style="display:flex;">
                 <img src="https://i.pravatar.cc/100?img=1" style="width:40px;height:40px;border-radius:50%;border:2px solid var(--color-cream);position:relative;z-index:5;" />
@@ -743,19 +919,48 @@ function sectionHero() {
               <div style="font-size:14px;color:var(--color-text-muted);margin-top:4px;">${t("Verified Experts")}</div>
             </div>
           </div>
+
+          <!-- ── MOBILE-ONLY HERO IMAGE ── -->
+          <div class="hero-mobile-image reveal-up">
+            <img src="assets/images/Hero_Image.png" alt="Calm wellness" />
+          </div>
+
+          <!-- Mobile stats — shown BELOW the image on mobile -->
+          <div class="hero-stats hero-stats-mobile">
+            <div class="hero-stats-mobile-inner">
+              <div class="hero-stat-item">
+                <div style="display:flex;">
+                  <img src="https://i.pravatar.cc/100?img=1" style="width:32px;height:32px;border-radius:50%;border:2px solid var(--color-cream);position:relative;z-index:5;" />
+                  <img src="https://i.pravatar.cc/100?img=2" style="width:32px;height:32px;border-radius:50%;border:2px solid var(--color-cream);margin-left:-8px;position:relative;z-index:4;" />
+                  <img src="https://i.pravatar.cc/100?img=3" style="width:32px;height:32px;border-radius:50%;border:2px solid var(--color-cream);margin-left:-8px;position:relative;z-index:3;" />
+                  <div style="width:32px;height:32px;border-radius:50%;border:2px solid var(--color-cream);margin-left:-8px;position:relative;z-index:1;background:white;color:var(--color-charcoal);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;">50k</div>
+                </div>
+                <div style="font-size:12px;color:var(--color-text-muted);line-height:1.4;">${t("Active Users")}<br/>${t("Healing Daily")}</div>
+              </div>
+              <div class="hero-stat-divider"></div>
+              <div class="hero-stat-item">
+                <div style="font-family:var(--font-serif);font-size:26px;color:var(--color-coral);line-height:1;font-weight:700;">500+</div>
+                <div style="font-size:12px;color:var(--color-text-muted);line-height:1.4;">${t("Verified Experts")}</div>
+              </div>
+            </div>
+          </div>
+
         </div>
         
-        <!-- Empty right column -->
+        <!-- Empty right column (desktop image fills this via absolute positioning) -->
         <div style="position:relative;"></div>
       </div>
 
-      <!-- Absolutely positioned image flush with bottom -->
-      <div class="reveal-up delay-200" style="position:absolute; bottom:0; right:max(0px, calc(50vw - 720px)); width:50%; max-width:800px; z-index:5; pointer-events:none;">
+      <!-- Desktop: Absolutely positioned image flush with bottom -->
+      <div class="reveal-up delay-200 hero-desktop-image" style="position:absolute; bottom:0; right:max(0px, calc(50vw - 720px)); width:50%; max-width:800px; z-index:5; pointer-events:none;">
          <img src="assets/images/Hero_Image.png" alt="Calm wellness" style="width:100%; max-height:85vh; object-fit:contain; object-position:bottom right; display:block;" />
       </div>
     </section>
   `;
 }
+
+
+
 
 function sectionTrustStrip() {
   return html`
@@ -839,41 +1044,16 @@ function sectionServices() {
         <div data-category="self-care" class="reveal-up delay-100 bento-card-custom" onclick="location.hash='#/auth/user-signup'" style="background:#093a3e;color:white;min-height:460px;${filter !== 'all' && filter !== 'self-care' ? 'display:none;' : ''}">
           <div style="z-index:2;margin-bottom:24px;">
             <div style="width:56px;height:56px;background:rgba(255,255,255,0.1);border-radius:14px;display:flex;align-items:center;justify-content:center;color:white;font-size:28px;margin-bottom:24px;"><i class="ph-fill ph-chart-line-up"></i></div>
-            <h3 style="font-family:var(--font-serif);font-size:28px;line-height:1.2;margin-bottom:12px;">${t("Mood Studio Analytics")}</h3>
+            <h3 style="font-family:var(--font-serif);font-size:28px;line-height:1.2;margin-bottom:12px;color:#ffffff !important;">${t("Mood Studio Analytics")}</h3>
+
             <p style="font-size:15px;color:rgba(255,255,255,0.7);line-height:1.6;">${t("Log mood factors and visualize trends instantly with dynamic diagnostic indicators tracking your mind, body, and rest metrics.")}</p>
           </div>
           
-          <div style="display:flex;gap:16px;justify-content:space-between;align-items:flex-end;margin-top:auto;width:100%;height:160px;overflow:visible;">
-            <!-- Mini Card Left (Horizontal Bars) -->
-            <div class="bento-mini-card left" style="background:white;border-radius:16px;padding:14px;width:48%;box-shadow:0 8px 24px rgba(0,0,0,0.15);transform:translateY(10px) rotate(-2deg);transition:all 0.4s cubic-bezier(0.16,1,0.3,1);">
-              <div style="font-size:10px;font-weight:800;color:#94a3b8;margin-bottom:10px;letter-spacing:0.05em;">SPECTRUM</div>
-              <div style="display:flex;flex-direction:column;gap:6px;">
-                <div>
-                  <div style="display:flex;justify-content:space-between;font-size:9px;color:#64748b;font-weight:600;margin-bottom:2px;"><span>Energy</span><span>80%</span></div>
-                  <div style="width:100%;height:4px;background:#f1f5f9;border-radius:2px;"><div class="progress-fill-energy" style="height:100%;background:var(--color-coral);border-radius:2px;"></div></div>
-                </div>
-                <div>
-                  <div style="display:flex;justify-content:space-between;font-size:9px;color:#64748b;font-weight:600;margin-bottom:2px;"><span>Sleep</span><span>65%</span></div>
-                  <div style="width:100%;height:4px;background:#f1f5f9;border-radius:2px;"><div class="progress-fill-sleep" style="height:100%;background:#805ad5;border-radius:2px;"></div></div>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Mini Card Right (Overlapping circular bubble metrics) -->
-            <div class="bento-mini-card right" style="background:white;border-radius:16px;padding:14px;width:48%;box-shadow:0 8px 24px rgba(0,0,0,0.15);transform:translateY(20px) rotate(2deg);transition:all 0.4s cubic-bezier(0.16,1,0.3,1);height:115px;display:flex;flex-direction:column;justify-content:space-between;">
-              <div style="font-size:10px;font-weight:800;color:#94a3b8;letter-spacing:0.05em;">DIAGNOSTICS</div>
-              <div style="position:relative;height:64px;width:100%;display:flex;justify-content:center;align-items:center;">
-                <!-- SVG Overlapping Bubble Chart -->
-                <svg viewBox="0 0 100 60" style="width:80px;height:50px;">
-                  <circle cx="35" cy="30" r="22" fill="#319795" fill-opacity="0.75" class="diag-circle-1" />
-                  <circle cx="65" cy="30" r="18" fill="var(--color-coral)" fill-opacity="0.8" class="diag-circle-2" />
-                  <circle cx="50" cy="22" r="14" fill="#2b6cb0" fill-opacity="0.7" class="diag-circle-3" />
-                  <text x="35" y="33" font-size="7" font-weight="700" fill="white" text-anchor="middle">39%</text>
-                  <text x="65" y="33" font-size="7" font-weight="700" fill="white" text-anchor="middle">26%</text>
-                </svg>
-              </div>
-            </div>
+          <!-- Realistic Image Asset / PNG Placeholder -->
+          <div style="position:relative;height:180px;width:100%;overflow:hidden;margin-top:auto;border-radius:16px;">
+            <img class="bento-cutout-img" src="assets/images/magnific-mood-studio.png" alt="Mood Studio Analytics infographic illustration" style="width:100%;height:100%;object-fit:cover;object-position:center;border-radius:16px;opacity:0.92;" />
           </div>
+
         </div>
 
         <!-- Card 3A: CBT Toolkit (Dream Analysis module with cutout) -->
@@ -885,7 +1065,8 @@ function sectionServices() {
           </div>
           
           <!-- Realistic Image Cutout -->
-          <img class="bento-cutout-img" src="assets/images/dream_cutout.png" alt="Dream Analysis illustration" style="bottom:-10px;right:-15px;width:62%;opacity:0.92;z-index:1;" />
+          <img class="bento-cutout-img" src="assets/images/dream_cutout.png" alt="Dream Analysis illustration" style="bottom:-10px;right:-25px;width:92%;opacity:0.92;z-index:1;" />
+
           
           <div style="display:flex;flex-direction:column;gap:16px;width:70%;margin-top:auto;z-index:2;position:relative;">
             <div class="bento-sidebar-item-card" style="padding:12px 16px;background:rgba(255,255,255,0.9);backdrop-filter:blur(8px);">
@@ -1096,11 +1277,13 @@ window.currentTestState = { testIndex: 0, questionIndex: 0, score: 0, isFinished
 window.changeTestPreview = function(index, el) {
   if (el) {
     document.querySelectorAll('.test-list-item').forEach(item => item.classList.remove('active'));
+    document.querySelectorAll('.mobile-quiz-chip').forEach(chip => chip.classList.remove('active'));
     el.classList.add('active');
   }
   window.currentTestState = { testIndex: index, questionIndex: 0, score: 0, isFinished: false };
   window.renderTestContent();
 };
+
 
 window.handleTestAnswer = function(points) {
   const state = window.currentTestState;
@@ -1221,6 +1404,16 @@ function sectionTests() {
           </ul>
         </div>
         <div class="reveal-up delay-100">
+          <!-- Mobile Horizontal Quiz Chip Bar -->
+          <div class="mobile-quiz-chips-wrapper">
+            ${tests.map((test, index) => `
+              <a onclick="window.changeTestPreview(${index}, this); return false;" class="mobile-quiz-chip ${index === 0 ? 'active' : ''}">
+                ${t(test.short)}
+              </a>
+            `).join('')}
+          </div>
+
+
           <div style="background:#2A2A28;border-radius:24px;padding:48px;position:relative;overflow:hidden;">
             <div id="test-preview-card" class="test-preview-card" style="opacity: 1; transform: translateY(0);">
               <div style="margin-bottom:32px;">
@@ -1246,6 +1439,7 @@ function sectionTests() {
             </div>
           </div>
         </div>
+
       </div>
     </section>
   `;
@@ -2036,6 +2230,16 @@ function otpVerificationScreen(role, target, panelPath) {
             <h1>Enter verification code</h1>
             <p class="page-subtitle" style="margin-bottom: 24px;">We sent a 6-digit verification code to <strong style="color: var(--color-charcoal);">${target}</strong>. Please enter it below to activate your account.</p>
             
+            ${state.otpDevCode ? `
+            <div style="background: #fff8e1; border: 1.5px dashed #f6a623; border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px;">
+              <i class="ph ph-flask" style="font-size: 22px; color: #f6a623; flex-shrink: 0;"></i>
+              <div style="flex: 1;">
+                <div style="font-size: 11px; font-weight: 700; color: #b07d10; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px;">Dev Mode — OTP Code</div>
+                <div style="font-size: 26px; font-weight: 900; letter-spacing: 0.35em; color: #1a1a2e; font-family: monospace;">${state.otpDevCode}</div>
+              </div>
+              <button type="button" onclick="document.getElementById('otp-code').value='${state.otpDevCode}'" style="background: #f6a623; color: white; border: none; border-radius: 8px; padding: 6px 14px; font-size: 13px; font-weight: 600; cursor: pointer;">Auto-fill</button>
+            </div>` : ""}
+            
             <div class="field full-width" style="margin-bottom: 20px;">
               <label for="otp-code">One-Time Password (OTP)</label>
               <div class="input-wrapper" style="position: relative; display: flex; align-items: center; width: 100%;">
@@ -2337,21 +2541,15 @@ function authPage(role, mode) {
                 <div class="auth-divider">
                   <span>or continue with</span>
                 </div>
-                <div style="display:flex;gap:12px;">
-                  <button type="button" class="social-btn" data-social-provider="Google">
-                    <svg class="social-logo-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <div style="display:flex;justify-content:center;">
+                  <button type="button" class="social-btn" data-social-provider="Google" style="width:100%;justify-content:center;gap:12px;">
+                    <svg class="social-logo-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin:0;">
                       <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                       <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
                       <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
                       <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                     </svg>
                     <span>Google</span>
-                  </button>
-                  <button type="button" class="social-btn" data-social-provider="Facebook">
-                    <svg class="social-logo-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" fill="#1877F2"/>
-                    </svg>
-                    <span>Facebook</span>
                   </button>
                 </div>
               </div>
@@ -2446,6 +2644,7 @@ async function userPanel() {
       ["insight-lab", "Insight Lab"],
       ["ai", "AI Chat"],
       ["counsellors", "Counsellors"],
+      ["peer-talk", "Talk to Someone"],
       ["cbt", "CBT Tools"],
       ["reports", "Reports"],
       ["wallet", "Wallet"]
@@ -2458,6 +2657,9 @@ async function userPanel() {
 function userPanelContent(section, dashboard, data) {
   if (section === "insight-lab") {
     return renderInsightLab(state, dashboard, data);
+  }
+  if (section === "peer-talk") {
+    return renderPeerTalk(state, dashboard, data);
   }
   const liveSessions = data.sessions || [];
   const upcomingSessions = liveSessions.length
@@ -3464,6 +3666,7 @@ async function adminPanel() {
       ["finance", "Finance"],
       ["cms", "CMS"],
       ["crisis", "Crisis Events"],
+      ["peer-talk", "Peer Marketplace"],
       ["audit", "Audit Logs"]
     ],
     adminPanelContent(state.panelSection, dashboard, data),
@@ -3472,6 +3675,81 @@ async function adminPanel() {
 }
 
 function adminPanelContent(section, dashboard, data) {
+  if (section === "promotions") {
+    // Wait for the data to be loaded asynchronously, we use a placeholder and then fetch
+    setTimeout(async () => {
+      const container = document.getElementById("admin-promotions-container");
+      if (!container) return;
+      try {
+        const res = await api.getAdminPromotions();
+        if (!res.success) throw new Error(res.error?.message || "Failed to load promotions");
+        
+        let htmlStr = `
+          <div class="panel-hero">
+            <div>
+              <h1 class="page-title">Promotional Banners</h1>
+              <p class="page-subtitle">Manage generic information or promotional offers displayed at the top of the site.</p>
+            </div>
+            <button class="btn primary" onclick="document.getElementById('new-promo-form').style.display='block'">+ New Promo</button>
+          </div>
+          
+          <div id="new-promo-form" style="display:none; background:white; padding:24px; border-radius:12px; border:1px solid var(--color-border); margin-bottom:24px;">
+            <h3>Create New Promotion</h3>
+            <div style="display:flex; gap:16px; margin-top:16px;">
+              <input type="text" id="new-promo-message" class="input" style="flex:1;" placeholder="Enter promotional message (e.g. Flash Sale: 20% off therapy sessions!)">
+              <label style="display:flex; align-items:center; gap:8px;">
+                <input type="checkbox" id="new-promo-active" checked> Active
+              </label>
+              <button class="btn primary" onclick="window.createAdminPromo()">Save</button>
+              <button class="btn text" onclick="document.getElementById('new-promo-form').style.display='none'">Cancel</button>
+            </div>
+          </div>
+        `;
+        
+        if (res.data.length === 0) {
+          htmlStr += `<div class="empty-state">No promotional banners created yet.</div>`;
+        } else {
+          htmlStr += `
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Message</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+          `;
+          for (const p of res.data) {
+            htmlStr += `
+              <tr>
+                <td style="max-width:300px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(p.message)}</td>
+                <td>
+                  <span class="status-pill ${p.isActive ? 'success' : 'secondary'}">${p.isActive ? 'Active' : 'Inactive'}</span>
+                </td>
+                <td>${new Date(p.createdAt).toLocaleDateString()}</td>
+                <td>
+                  <div class="form-actions">
+                    <button class="btn ${p.isActive ? 'secondary' : 'primary'}" onclick="window.toggleAdminPromo('${p.id}', ${!p.isActive})">${p.isActive ? 'Deactivate' : 'Activate'}</button>
+                    <button class="btn danger" onclick="window.deleteAdminPromo('${p.id}')">Delete</button>
+                  </div>
+                </td>
+              </tr>
+            `;
+          }
+          htmlStr += `</tbody></table>`;
+        }
+        container.innerHTML = htmlStr;
+      } catch (e) {
+        container.innerHTML = `<div class="empty-state text-danger">${e.message}</div>`;
+      }
+    }, 0);
+    
+    return html`<div id="admin-promotions-container"><div class="spinner"></div> Loading promotions...</div>`;
+  }
+
+
   if (section === "users") {
     return tablePanel("Users", ["Name", "Email", "Role", "Created"], data.users.map((user) => [user.name || user.fullName || "Demo user", user.email || "Not set", user.role, new Date(user.createdAt).toLocaleDateString()]));
   }
@@ -3519,6 +3797,35 @@ function adminPanelContent(section, dashboard, data) {
       ${tablePanelMarkup(["Counsellor / Applicant", "Speciality / Title", "License", "Status", "Actions"], rows.length ? rows : [["No counsellors or applications found", "-", "-", "-", "-"]])}
     `;
   }
+  if (section === "peer-talk") {
+    const list = data.peerListeners || [];
+    const rows = list.map((item) => {
+      const status = item.verificationStatus || "pending";
+      const actionCell = status === "pending"
+        ? `<div class="form-actions"><button class="btn primary" type="button" data-action="verify-peer" data-profile-id="${item.id}" data-status="approved">Approve</button><button class="btn secondary" type="button" data-action="verify-peer" data-profile-id="${item.id}" data-status="rejected">Reject</button></div>`
+        : status === "approved"
+        ? `<button class="btn secondary" style="background:#E53E3E;color:white;border:none;" type="button" data-action="suspend-peer" data-profile-id="${item.id}">Suspend</button>`
+        : `<span class="status-pill warning">${status}</span>`;
+      return [
+        item.publicDisplayName || "Peer Listener",
+        item.shortBio || "-",
+        (item.languages || []).join(", "),
+        `<span class="status-pill ${status === "approved" ? "success" : status === "rejected" ? "danger" : "warning"}">${status}</span>`,
+        actionCell
+      ];
+    });
+
+    return html`
+      <div class="panel-hero">
+        <div>
+          <h1 class="page-title">Peer Listener Directory</h1>
+          <p class="page-subtitle">Verify, approve, reject, or suspend Peer Listeners & Conversation Partners.</p>
+        </div>
+      </div>
+      ${tablePanelMarkup(["Display Name", "Bio", "Languages", "Status", "Actions"], rows.length ? rows : [["No listeners or applications found", "-", "-", "-", "-"]])}
+    `;
+  }
+
   if (section === "ai") {
     const configs = data.apiConfigurations?.length
       ? data.apiConfigurations
@@ -3885,8 +4192,83 @@ function panelShell(role, title, subtitle, navItems, content, backendStatus = "o
 function attachGlobalHandlers() {
   document.querySelectorAll("[data-action='toggle-menu']").forEach((button) => {
     button.addEventListener("click", () => {
-      state.navOpen = !state.navOpen;
-      render();
+      const drawer = document.getElementById("primary-menu");
+      if (!drawer) return;
+
+      const isNowOpen = drawer.classList.toggle("open");
+      state.navOpen = isNowOpen;
+
+      if (isNowOpen) {
+        // ── Inject close (×) button if missing ──
+        if (!drawer.querySelector(".mobile-drawer-close")) {
+          const closeBtn = document.createElement("button");
+          closeBtn.className = "mobile-drawer-close";
+          closeBtn.setAttribute("aria-label", "Close menu");
+          closeBtn.innerHTML = `<i class="ph-bold ph-x"></i>`;
+          closeBtn.style.cssText = `
+            position:fixed;top:18px;right:20px;z-index:1001;
+            background:transparent;border:none;
+            font-size:26px;cursor:pointer;
+            color:var(--color-charcoal);line-height:1;padding:4px;
+          `;
+          closeBtn.addEventListener("click", () => {
+            drawer.classList.remove("open");
+            state.navOpen = false;
+            // collapse all open sub-menus
+            drawer.querySelectorAll(".mega-dropdown.mobile-expanded").forEach(d => {
+              d.classList.remove("mobile-expanded");
+            });
+          });
+          drawer.appendChild(closeBtn);
+        }
+
+        // ── Wire sub-menu accordion (Services & Resources) ──
+        // Remove old listeners by replacing each trigger with a clone
+        drawer.querySelectorAll(".nav-item").forEach((item) => {
+          const trigger = item.querySelector(":scope > a");
+          const dropdown = item.querySelector(".mega-dropdown");
+          if (!trigger || !dropdown) return;
+
+          // Clone trick: removes any previously attached listeners
+          const newTrigger = trigger.cloneNode(true);
+          trigger.parentNode.replaceChild(newTrigger, trigger);
+
+          const caret = newTrigger.querySelector(".ph-caret-down");
+
+          newTrigger.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const isOpen = dropdown.classList.toggle("mobile-expanded");
+            if (caret) {
+              caret.style.transform = isOpen ? "rotate(180deg)" : "rotate(0deg)";
+              caret.style.transition = "transform 0.2s ease";
+            }
+          });
+        });
+
+        // ── Close drawer when any sub-link or plain nav link is tapped ──
+        drawer.querySelectorAll("a").forEach((link) => {
+          const parentItem = link.closest(".nav-item");
+          const hasMegaDropdown = parentItem?.querySelector(".mega-dropdown");
+          const isTopLevelTrigger = parentItem && hasMegaDropdown && link === parentItem.querySelector(":scope > a");
+          if (isTopLevelTrigger) return;
+
+          link.addEventListener("click", () => {
+            drawer.classList.remove("open");
+            state.navOpen = false;
+            drawer.querySelectorAll(".mega-dropdown.mobile-expanded").forEach(d => {
+              d.classList.remove("mobile-expanded");
+            });
+          });
+        });
+
+      } else {
+        // Closing: collapse all expanded sub-menus
+        drawer.querySelectorAll(".mega-dropdown.mobile-expanded").forEach(d => {
+          d.classList.remove("mobile-expanded");
+        });
+      }
     });
   });
 
@@ -3900,6 +4282,165 @@ function attachGlobalHandlers() {
       render();
     });
   });
+}
+
+
+function calculateClientAge(dobString) {
+  if (!dobString) return null;
+  const dob = new Date(dobString);
+  if (isNaN(dob.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const m = today.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+    age--;
+  }
+  return age;
+}
+
+function completeProfilePage() {
+  const email = state.onboardingEmail || "";
+  const name = state.onboardingName || "";
+  let dobVal = state.onboardingDob || "";
+  let showGuardian = false;
+  if (dobVal) {
+    const age = calculateClientAge(dobVal);
+    if (age !== null && age >= 15 && age < 18) {
+      showGuardian = true;
+    }
+  }
+
+  return html`
+    <div class="auth-split-layout" style="background: linear-gradient(135deg, rgba(243, 244, 246, 0.8) 0%, rgba(229, 231, 235, 0.8) 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center;">
+      <main class="auth-wrap" style="width: 100%; max-width: 520px; padding: 20px;">
+        <div class="auth-card" style="background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.5); box-shadow: 0 20px 40px rgba(0,0,0,0.06); border-radius: 24px; padding: 40px;">
+          <div class="eyebrow" style="color: var(--color-primary); font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; font-size: 12px; margin-bottom: 8px;">Onboarding</div>
+          <h1 style="font-size: 32px; font-weight: 700; color: var(--color-text); margin-bottom: 8px;">Complete your profile</h1>
+          <p class="page-subtitle" style="color: var(--color-text-muted); margin-bottom: 32px;">Please provide your basic details to activate your account securely.</p>
+          
+          ${state.onboardingError ? html`
+            <div class="auth-error-banner" style="background: #FEF2F2; border: 1px solid #FCA5A5; color: #991B1B; padding: 14px 16px; border-radius: 12px; margin-bottom: 24px; font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 10px;">
+              <i class="ph-fill ph-warning-circle" style="font-size: 20px; color: #DC2626;"></i>
+              <span>${state.onboardingError}</span>
+            </div>
+          ` : ""}
+
+          <form data-form="complete-profile" style="display: flex; flex-direction: column; gap: 20px;">
+            <div class="field">
+              <label for="ob-email" style="font-weight: 600; font-size: 14px; color: var(--color-text); margin-bottom: 6px;">Email address (locked)</label>
+              <div class="input-wrapper" style="position: relative; display: flex; align-items: center; width: 100%;">
+                <input id="ob-email" name="email" value="${email}" readonly style="background: var(--color-bg-light); color: var(--color-text-muted); cursor: not-allowed; padding-left: 48px; width: 100%; border: 1px solid var(--color-border); border-radius: 12px; height: 50px; font-size: 15px;" />
+                <i class="ph ph-envelope field-icon" style="position: absolute; left: 16px; color: var(--color-text-muted); font-size: 20px;"></i>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="ob-name" style="font-weight: 600; font-size: 14px; color: var(--color-text); margin-bottom: 6px;">Full name</label>
+              <div class="input-wrapper" style="position: relative; display: flex; align-items: center; width: 100%;">
+                <input id="ob-name" name="fullName" value="${name}" required style="padding-left: 48px; width: 100%; border: 1px solid var(--color-border); border-radius: 12px; height: 50px; font-size: 15px;" />
+                <i class="ph ph-user field-icon" style="position: absolute; left: 16px; color: var(--color-text-muted); font-size: 20px;"></i>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="ob-dob" style="font-weight: 600; font-size: 14px; color: var(--color-text); margin-bottom: 6px;">Date of Birth</label>
+              <div class="input-wrapper" style="position: relative; display: flex; align-items: center; width: 100%;">
+                <input id="ob-dob" name="dateOfBirth" type="date" value="${dobVal}" required style="padding-left: 48px; width: 100%; border: 1px solid var(--color-border); border-radius: 12px; height: 50px; font-size: 15px;" />
+                <i class="ph ph-calendar field-icon" style="position: absolute; left: 16px; color: var(--color-text-muted); font-size: 20px;"></i>
+              </div>
+            </div>
+
+            <div id="guardian-email-wrapper" style="display: ${showGuardian ? 'flex' : 'none'}; flex-direction: column; gap: 6px;">
+              <label for="ob-guardian" style="font-weight: 600; font-size: 14px; color: var(--color-text);">Parent or Guardian's Email</label>
+              <div class="input-wrapper" style="position: relative; display: flex; align-items: center; width: 100%;">
+                <input id="ob-guardian" name="guardianEmail" type="email" placeholder="guardian@example.com" ?required="${showGuardian}" style="padding-left: 48px; width: 100%; border: 1px solid var(--color-border); border-radius: 12px; height: 50px; font-size: 15px;" />
+                <i class="ph ph-shield-check field-icon" style="position: absolute; left: 16px; color: var(--color-text-muted); font-size: 20px;"></i>
+              </div>
+              <p style="font-size: 12px; color: var(--color-primary); margin: 0; font-weight: 500;">Note: As a minor user, parent/guardian approval is required to activate your account.</p>
+            </div>
+
+            <div class="field" style="flex-direction: row; align-items: flex-start; gap: 10px; margin-top: 8px;">
+              <input id="ob-terms" name="termsConsent" type="checkbox" required style="margin-top: 4px;" />
+              <label for="ob-terms" style="font-size: 13.5px; line-height: 1.4; color: var(--color-text-muted); cursor: pointer; font-weight: 500;">
+                I agree to the <a href="#/legal/user-terms" target="_blank" style="color: var(--color-primary); text-decoration: underline;">Terms of Service</a> and consent to the <a href="#/legal/user-privacy" target="_blank" style="color: var(--color-primary); text-decoration: underline;">Privacy Policy</a>.
+              </label>
+            </div>
+
+            <button class="btn primary full-width" type="submit" style="height: 50px; border-radius: 12px; font-size: 16px; font-weight: 600; margin-top: 10px;">Activate Account</button>
+          </form>
+          
+          <div style="margin-top: 24px; text-align: center;">
+            <button class="ghost-link" data-action="ob-logout" style="background: transparent; border: none; color: var(--color-text-muted); cursor: pointer; font-size: 14px; font-weight: 500; text-decoration: underline;">Cancel and Logout</button>
+          </div>
+        </div>
+      </main>
+    </div>
+  `;
+}
+
+function guardianPendingPage(user) {
+  const email = user?.guardianEmail || state.guardianPendingEmail || "";
+  return html`
+    <div class="auth-split-layout" style="background: linear-gradient(135deg, rgba(239, 246, 255, 0.8) 0%, rgba(219, 234, 254, 0.8) 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center;">
+      <main class="auth-wrap" style="width: 100%; max-width: 500px; padding: 20px;">
+        <div class="auth-card" style="background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.5); box-shadow: 0 20px 40px rgba(0,0,0,0.06); border-radius: 24px; padding: 40px; text-align: center;">
+          <div style="width: 80px; height: 80px; background: rgba(59, 130, 246, 0.1); color: var(--color-primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px;">
+            <i class="ph ph-shield-warning" style="font-size: 40px;"></i>
+          </div>
+          <h1 style="font-size: 28px; font-weight: 700; color: var(--color-text); margin-bottom: 12px;">Guardian Consent Required</h1>
+          <p style="color: var(--color-text-muted); font-size: 15px; line-height: 1.6; margin-bottom: 24px;">
+            Your account setup is complete, but parent/guardian approval is required because you are under 18 years old.
+          </p>
+          <div style="background: var(--color-bg-light); border: 1px solid var(--color-border); border-radius: 12px; padding: 16px; margin-bottom: 30px;">
+            <p style="margin: 0; font-size: 13px; color: var(--color-text-muted); font-weight: 500;">Consent Request Sent To:</p>
+            <p style="margin: 4px 0 0; font-size: 16px; color: var(--color-text); font-weight: 600;">${email}</p>
+          </div>
+          
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <button class="btn primary full-width" data-action="guardian-check" style="height: 50px; border-radius: 12px; font-size: 16px; font-weight: 600;">
+              I have approved - Check Status
+            </button>
+            <button class="btn secondary full-width" data-action="ob-logout" style="height: 50px; border-radius: 12px; font-size: 16px; font-weight: 600; background: transparent; border: 1px solid var(--color-border); color: var(--color-text);">
+              Logout
+            </button>
+          </div>
+        </div>
+      </main>
+    </div>
+  `;
+}
+
+function linkGoogleAccountModal() {
+  if (!state.linkModal) return "";
+  return html`
+    <div class="modal-overlay" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 10000; animation: fadeIn 0.3s ease;">
+      <div class="modal-card" style="background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(24px); border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 24px; padding: 40px; width: 100%; max-width: 440px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); animation: scaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);">
+        <h2 style="font-size: 24px; font-weight: 700; color: var(--color-text); margin-bottom: 8px;">Link Google Account</h2>
+        <p style="color: var(--color-text-muted); font-size: 14px; line-height: 1.5; margin-bottom: 24px;">
+          An account already exists for <strong>${state.linkModal.email}</strong>. Please enter your password to link your Google sign-in.
+        </p>
+
+        ${state.linkError ? html`
+          <div class="auth-error-banner" style="background: #FEF2F2; border: 1px solid #FCA5A5; color: #991B1B; padding: 12px 14px; border-radius: 10px; margin-bottom: 20px; font-size: 13.5px; display: flex; align-items: center; gap: 8px;">
+            <i class="ph ph-warning-circle" style="font-size: 18px; color: #DC2626;"></i>
+            <span>${state.linkError}</span>
+          </div>
+        ` : ""}
+
+        <form data-form="link-google" style="display: flex; flex-direction: column; gap: 16px;">
+          <div class="field">
+            <label for="link-pwd" style="font-weight: 600; font-size: 13px; color: var(--color-text); margin-bottom: 4px;">Password</label>
+            <input id="link-pwd" name="password" type="password" required placeholder="Enter password" style="width: 100%; border: 1px solid var(--color-border); border-radius: 12px; height: 46px; padding: 0 16px; font-size: 14.5px;" />
+          </div>
+
+          <div style="display: flex; gap: 12px; margin-top: 8px;">
+            <button type="button" data-action="close-link-modal" class="btn secondary" style="flex: 1; border-radius: 12px; height: 46px; border: 1px solid var(--color-border);">Cancel</button>
+            <button type="submit" class="btn primary" style="flex: 1; border-radius: 12px; height: 46px;">Link Account</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
 }
 
 function attachPageHandlers() {
@@ -4035,9 +4576,13 @@ function attachPageHandlers() {
           state.otpPanel = form.dataset.panel;
           state.signupPayload = cleanPayload;
           state.challengeId = res.challengeId;
+          state.otpDevCode = res.devCode || null;
           state.authError = "";
           
-          toast(`Verification code sent to ${state.otpTarget}. Please check your inbox/SMS.`);
+          const msg = res.devCode
+            ? `Dev mode: Your OTP code is ${res.devCode} (auto-fill available below)`
+            : `Verification code sent to ${state.otpTarget}. Please check your inbox/SMS.`;
+          toast(msg);
           render();
         } catch (err) {
           const msg = err.message || "Failed to send OTP.";
@@ -4101,7 +4646,11 @@ function attachPageHandlers() {
         toast(`Sending new OTP code to ${state.otpTarget}...`);
         const res = await api.sendOtp(state.otpTarget);
         state.challengeId = res.challengeId;
-        toast(`New 6-digit OTP code sent to ${state.otpTarget}!`);
+        state.otpDevCode = res.devCode || null;
+        const resendMsg = res.devCode
+          ? `Dev mode: New OTP is ${res.devCode}`
+          : `New 6-digit OTP code sent to ${state.otpTarget}!`;
+        toast(resendMsg);
         render();
       } catch (err) {
         toast(`Failed to resend OTP: ${err.message}`, "error");
@@ -4118,14 +4667,215 @@ function attachPageHandlers() {
     });
   });
 
+  // Onboarding complete-profile form submission
+  document.querySelectorAll("[data-form='complete-profile']").forEach((form) => {
+    // Dynamic DOB listener to toggle guardian input
+    const dobInput = form.querySelector("#ob-dob");
+    if (dobInput) {
+      const handleDobChange = () => {
+        const val = dobInput.value;
+        state.onboardingDob = val;
+        const age = calculateClientAge(val);
+        const wrapper = form.querySelector("#guardian-email-wrapper");
+        const guardianField = form.querySelector("#ob-guardian");
+        if (age !== null && age >= 15 && age < 18) {
+          wrapper.style.display = "flex";
+          if (guardianField) guardianField.required = true;
+        } else {
+          wrapper.style.display = "none";
+          if (guardianField) guardianField.required = false;
+        }
+      };
+      dobInput.addEventListener("change", handleDobChange);
+      dobInput.addEventListener("input", handleDobChange);
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const payload = getFormData(form);
+      const dobVal = payload.dateOfBirth;
+      const age = calculateClientAge(dobVal);
+      
+      if (age !== null && age < 15) {
+        toast("Minimum user age requirement is 15 years.", "error");
+        return;
+      }
+
+      toast("Activating account...");
+      try {
+        const res = await api.completeProfile(state.onboardingToken, {
+          fullName: payload.fullName,
+          dateOfBirth: dobVal,
+          guardianEmail: payload.guardianEmail || null,
+          termsConsent: !!payload.termsConsent
+        });
+
+        if (res.status === "AUTHENTICATED") {
+          toast("Profile activated! Welcome to MindHeal.");
+          state.onboardingToken = null;
+          state.onboardingEmail = null;
+          state.onboardingName = null;
+          state.onboardingDob = null;
+          state.onboardingError = "";
+          const targetPanel = state.onboardingPanel || "/panel/user";
+          state.onboardingPanel = null;
+          navigate(targetPanel);
+        } else if (res.status === "GUARDIAN_CONSENT_REQUIRED") {
+          state.guardianPendingEmail = payload.guardianEmail;
+          toast("Guardian consent required. An email has been sent.", "warning");
+          navigate("/auth/guardian-pending");
+        } else if (res.status === "AGE_NOT_ELIGIBLE") {
+          toast("Account registration rejected. Under age eligibility limit.", "error");
+          navigate("/");
+        }
+      } catch (err) {
+        state.onboardingError = err.message || "Failed to complete onboarding.";
+        toast(state.onboardingError, "error");
+        render();
+      }
+    });
+  });
+
+  // Onboarding account-linking form submission
+  document.querySelectorAll("[data-form='link-google']").forEach((form) => {
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const payload = getFormData(form);
+      toast("Linking accounts...");
+      try {
+        const res = await api.linkGoogle(state.linkModal.email, payload.password, state.linkModal.idToken, state.linkModal.role);
+        state.linkModal = null;
+        state.linkError = "";
+        
+        if (res.status === "AUTHENTICATED") {
+          toast("Accounts linked! Welcome back.");
+          const targetPanel = state.linkModal?.panel || "/panel/user";
+          navigate(targetPanel);
+        } else if (res.status === "PROFILE_REQUIRED") {
+          state.onboardingToken = res.onboardingToken;
+          state.onboardingEmail = res.email;
+          state.onboardingName = res.name;
+          state.onboardingRole = state.linkModal?.role || "user";
+          state.onboardingPanel = state.linkModal?.panel || "/panel/user";
+          toast("Onboarding required: please complete your profile.", "info");
+          navigate("/auth/complete-profile");
+        } else if (res.status === "GUARDIAN_CONSENT_REQUIRED") {
+          state.guardianPendingEmail = res.email;
+          toast("Guardian consent pending.", "warning");
+          navigate("/auth/guardian-pending");
+        }
+      } catch (err) {
+        state.linkError = err.message || "Failed to link Google account.";
+        toast(state.linkError, "error");
+        render();
+      }
+    });
+  });
+
+  // Modal Cancel handler
+  document.querySelectorAll("[data-action='close-link-modal']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.linkModal = null;
+      state.linkError = "";
+      render();
+    });
+  });
+
+  // Logout / Cancel onboarding
+  document.querySelectorAll("[data-action='ob-logout']").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      try {
+        await api.logout();
+      } catch {}
+      localStorage.removeItem("mindheal-access-token");
+      state.auth = null;
+      state.onboardingToken = null;
+      state.onboardingEmail = null;
+      state.onboardingName = null;
+      state.onboardingDob = null;
+      state.onboardingError = "";
+      state.guardianPendingEmail = null;
+      toast("Logged out successfully.");
+      navigate("/");
+    });
+  });
+
+  // Check guardian consent status manually
+  document.querySelectorAll("[data-action='guardian-check']").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      toast("Checking approval status...");
+      try {
+        const data = await api.getState().catch(() => null);
+        if (data && data.auth && data.auth.onboardingStatus === "COMPLETED") {
+          toast("Approval verified! Loading dashboard.");
+          navigate("/panel/user");
+        } else {
+          toast("Guardian approval is still pending. Please verify your parent has clicked the approval link.", "info");
+        }
+      } catch (err) {
+        toast("Unable to check status. Please try again.", "error");
+      }
+    });
+  });
+
   document.querySelectorAll(".social-btn").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const provider = btn.dataset.socialProvider;
       const form = btn.closest("form");
       const role = form.dataset.role || "user";
+      const mode = form.dataset.mode || "signin";
       
       toast(`Connecting with ${provider}...`);
       
+      if (provider === "Google" && typeof firebase !== "undefined" && firebase.apps.length) {
+        try {
+          const googleProvider = new firebase.auth.GoogleAuthProvider();
+          googleProvider.setCustomParameters({ prompt: 'select_account' });
+          const result = await firebase.auth().signInWithPopup(googleProvider);
+          const idToken = await result.user.getIdToken();
+          
+          toast("Verifying credentials...");
+          const res = await api.loginWithFirebase(role, idToken, mode);
+          
+          if (res.status === "AUTHENTICATED") {
+            toast(`Welcome! Logged in successfully via Google.`);
+            state.authError = "";
+            navigate(form.dataset.panel);
+          } else if (res.status === "PROFILE_REQUIRED") {
+            state.onboardingToken = res.onboardingToken;
+            state.onboardingEmail = res.email;
+            state.onboardingName = res.name;
+            state.onboardingRole = role;
+            state.onboardingPanel = form.dataset.panel;
+            toast("Profile setup required to complete registration.", "info");
+            navigate("/auth/complete-profile");
+          } else if (res.status === "GUARDIAN_CONSENT_REQUIRED") {
+            state.guardianPendingEmail = res.email;
+            toast("Guardian consent is required to activate your account.", "warning");
+            navigate("/auth/guardian-pending");
+          } else if (res.status === "SIGNUP_REQUIRED") {
+            state.authError = "Google account is not registered. Please sign up first.";
+            toast(state.authError, "error");
+            render();
+          } else if (res.status === "ACCOUNT_LINK_REQUIRED") {
+            state.linkModal = { email: res.email, idToken, role, panel: form.dataset.panel };
+            toast("This email matches a password account. Linking required.", "warning");
+            render();
+          } else if (res.status === "ACCOUNT_RESTRICTED") {
+            state.authError = "Your account has been restricted or suspended.";
+            toast(state.authError, "error");
+            render();
+          }
+          return;
+        } catch (err) {
+          const msg = err.message || "Google authentication failed.";
+          state.authError = msg;
+          toast(`Google sign-in failed: ${msg}`, "error");
+          render();
+          return;
+        }
+      }
+
       try {
         // Create or authenticate social user account via API
         const randomId = Math.floor(100 + Math.random() * 900);
@@ -4598,6 +5348,42 @@ function attachPageHandlers() {
         await render();
       } catch (error) {
         toast(error.message || "Verification update failed.", "error");
+      }
+    });
+  });
+
+  document.querySelectorAll("[data-action='verify-peer']").forEach((button) => {
+    button.addEventListener("click", async () => {
+      try {
+        const id = button.dataset.profileId;
+        const status = button.dataset.status;
+        const endpoint = status === "approved" ? `/admin/peer-talk/listeners/${id}/approve` : `/admin/peer-talk/listeners/${id}/reject`;
+        const res = await api.request(endpoint, { method: "POST", body: { reason: "Admin review decision" } });
+        if (res.ok) {
+          toast(`Peer Listener application ${status}.`);
+          await render();
+        } else {
+          toast(res.error?.message || "Verification failed.", "error");
+        }
+      } catch (error) {
+        toast(error.message || "Verification failed.", "error");
+      }
+    });
+  });
+
+  document.querySelectorAll("[data-action='suspend-peer']").forEach((button) => {
+    button.addEventListener("click", async () => {
+      try {
+        const id = button.dataset.profileId;
+        const res = await api.request(`/admin/peer-talk/listeners/${id}/suspend`, { method: "POST", body: { reason: "Admin suspension" } });
+        if (res.ok) {
+          toast(`Peer Listener suspended.`);
+          await render();
+        } else {
+          toast(res.error?.message || "Suspension failed.", "error");
+        }
+      } catch (error) {
+        toast(error.message || "Suspension failed.", "error");
       }
     });
   });
@@ -5671,4 +6457,49 @@ window.saveGroundingSession = function() {
     localStorage.setItem("mindheal-grounding-sessions", JSON.stringify(existing.slice(0, 20)));
   } catch(e) {}
   if (typeof window.toast === "function") toast("Grounding session saved! ✅");
+};
+
+// ═══════════════════════════════════════════════
+// PROMOTIONAL BANNERS — Admin Event Handlers
+// ═══════════════════════════════════════════════
+
+window.createAdminPromo = async function() {
+  const msgInput = document.getElementById("new-promo-message");
+  const activeInput = document.getElementById("new-promo-active");
+  if (!msgInput || !msgInput.value.trim()) {
+    toast("Please enter a message.", "error");
+    return;
+  }
+  
+  try {
+    const res = await api.createPromotion(msgInput.value.trim(), activeInput.checked);
+    if (!res.success) throw new Error(res.error?.message || "Failed to create promotion");
+    toast("Promotion created successfully.");
+    if (typeof window.triggerAppRender === "function") window.triggerAppRender();
+  } catch (e) {
+    toast(e.message, "error");
+  }
+};
+
+window.toggleAdminPromo = async function(id, newState) {
+  try {
+    const res = await api.updatePromotion(id, { isActive: newState });
+    if (!res.success) throw new Error(res.error?.message || "Failed to update promotion");
+    toast(newState ? "Promotion activated." : "Promotion deactivated.");
+    if (typeof window.triggerAppRender === "function") window.triggerAppRender();
+  } catch (e) {
+    toast(e.message, "error");
+  }
+};
+
+window.deleteAdminPromo = async function(id) {
+  if (!confirm("Are you sure you want to delete this promotion?")) return;
+  try {
+    const res = await api.deletePromotion(id);
+    if (!res.success) throw new Error(res.error?.message || "Failed to delete promotion");
+    toast("Promotion deleted.");
+    if (typeof window.triggerAppRender === "function") window.triggerAppRender();
+  } catch (e) {
+    toast(e.message, "error");
+  }
 };

@@ -1,5 +1,6 @@
 import busboy from "busboy";
 import { StorageService } from "../services/storage.service.js";
+import { repositories } from "../repositories/index.js";
 
 const allowedMimeTypes = new Set([
   "image/jpeg",
@@ -44,7 +45,52 @@ export function uploadFile(context) {
         if (!validation.valid) {
           return resolve(apiError(400, "UNSUPPORTED_FILE_TYPE", "Upload must be a JPG, PNG, PDF, or DOCX file."));
         }
+
+        // Peer talk security validations
+        const url = new URL(context.req.url || "", "http://localhost");
+        const peerSessionId = context.req.headers["x-peer-session-id"] || url.searchParams.get("peerSessionId");
         
+        if (peerSessionId) {
+          const session = await repositories.peerSessions.findById(peerSessionId);
+          if (!session) {
+            return resolve(apiError(404, "SESSION_NOT_FOUND", "Peer session not found."));
+          }
+
+          const currentUser = context.user || context.req?.user;
+          if (!currentUser) {
+            return resolve(apiError(401, "UNAUTHORIZED", "User context not found."));
+          }
+
+          const listenerProfile = await repositories.peerListenerProfiles.findById(session.listenerProfileId);
+          if (!listenerProfile) {
+            return resolve(apiError(404, "LISTENER_NOT_FOUND", "Listener profile not found."));
+          }
+
+          if (session.requesterUserId !== currentUser.id && listenerProfile.userId !== currentUser.id) {
+            return resolve(apiError(403, "FORBIDDEN", "You are not authorized for this session."));
+          }
+
+          // Enforce 5-minute timer gate
+          const timeElapsedSeconds = (Date.now() - new Date(session.startedAt).getTime()) / 1000;
+          if (timeElapsedSeconds < 300) {
+            return resolve(apiError(403, "GATE_LOCKED", "File sharing is locked during the first 5 minutes."));
+          }
+
+          // Enforce dual consent
+          const consents = await repositories.peerSessionConsents.findBySessionId(session.id);
+          const reqConsent = consents.find(c => c.userId === session.requesterUserId && c.capability === "file_sharing" && c.consentStatus === "granted");
+          const listConsent = consents.find(c => c.userId === listenerProfile.userId && c.capability === "file_sharing" && c.consentStatus === "granted");
+
+          if (!reqConsent || !listConsent) {
+            return resolve(apiError(403, "CONSENT_REQUIRED", "Both users must grant file sharing consent."));
+          }
+        }
+
+        // Clean/Strip EXIF metadata for images
+        if (mimeType === "image/jpeg") {
+          fileBuffer = stripJpegExif(fileBuffer);
+        }
+
         const upload = await StorageService.uploadFile(fileBuffer, filename, mimeType, 'uploads');
         resolve({
           status: 200,
@@ -188,4 +234,35 @@ function readStoragePath(body) {
 
 function apiError(status, code, message) {
   return { status, body: { success: false, error: { code, message } } };
+}
+
+function stripJpegExif(buffer) {
+  if (!isJpeg(buffer)) return buffer;
+  try {
+    let i = 2;
+    const cleaned = [buffer.subarray(0, 2)];
+    while (i < buffer.length - 1) {
+      if (buffer[i] === 0xFF) {
+        const marker = buffer[i + 1];
+        if (marker === 0xD9) {
+          cleaned.push(buffer.subarray(i));
+          break;
+        }
+        if (marker === 0xE1) {
+          const length = buffer.readUInt16BE(i + 2);
+          i += 2 + length;
+          continue;
+        }
+        const length = buffer.readUInt16BE(i + 2);
+        cleaned.push(buffer.subarray(i, i + 2 + length));
+        i += 2 + length;
+      } else {
+        i++;
+      }
+    }
+    return Buffer.concat(cleaned);
+  } catch (err) {
+    console.error("Failed to strip EXIF, returning original buffer:", err);
+    return buffer;
+  }
 }

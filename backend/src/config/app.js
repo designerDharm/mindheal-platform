@@ -1,3 +1,6 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 const env = process.env.NODE_ENV || "development";
 const jwtAccessSecret = resolveJwtSecret("JWT_ACCESS_SECRET", "development-access-secret-change-me", env);
 const jwtRefreshSecret = resolveJwtSecret("JWT_REFRESH_SECRET", "development-refresh-secret-change-me", env);
@@ -24,10 +27,22 @@ export const appConfig = {
   defaultLanguage: "en",
   supportedRoles: ["user", "counsellor", "admin"],
   allowFirebaseAuthMock: process.env.FIREBASE_AUTH_MOCK_ENABLED === "true" && process.env.NODE_ENV !== "production",
-  isOtpTestMode: env !== "production" && isOtpTestMode,
+  isOtpTestMode: env === "test" || (env !== "production" && isOtpTestMode),
   allowedOrigins,
   rateLimitWindowMs: 15 * 60 * 1000,
-  rateLimitMaxRequests: 1000
+  rateLimitMaxRequests: 1000,
+  peerTalk: {
+    enabled: process.env.PEER_TALK_ENABLED === "true" || env !== "production",
+    payAndTalkEnabled: process.env.PEER_PAY_AND_TALK_ENABLED === "true" || env !== "production",
+    talkAndEarnEnabled: process.env.PEER_TALK_AND_EARN_ENABLED === "true" || env !== "production",
+    voiceEnabled: process.env.PEER_VOICE_ENABLED === "true" || env !== "production",
+    videoEnabled: process.env.PEER_VIDEO_ENABLED === "true" || env !== "production",
+    fileSharingEnabled: process.env.PEER_FILE_SHARING_ENABLED === "true" || env !== "production",
+    newListenerApplicationsEnabled: process.env.PEER_NEW_LISTENER_APPLICATIONS_ENABLED === "true" || env !== "production",
+    directPaymentEnabled: process.env.PEER_DIRECT_PAYMENT_ENABLED !== "false",
+    walletPaymentEnabled: process.env.PEER_WALLET_PAYMENT_ENABLED === "true" || env !== "production",
+    autoPayoutEnabled: process.env.PEER_AUTO_PAYOUT_ENABLED === "true"
+  }
 };
 
 function resolveJwtSecret(envName, developmentFallback, currentEnv) {

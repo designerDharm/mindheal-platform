@@ -189,6 +189,167 @@ export async function crisisEvents({ query = {} }) {
   return ok(await repositories.crisisEvents.list(limit, offset));
 }
 
+export async function peerListeners() {
+  const list = await repositories.peerListenerProfiles.list();
+  const detailed = [];
+  for (const item of list) {
+    const verification = await repositories.peerListenerVerifications.findByProfileId(item.id);
+    const presence = await repositories.peerListenerPresence.findByProfileId(item.id);
+    detailed.push({ ...item, verification, presence });
+  }
+  return ok(detailed);
+}
+
+export async function peerListenerApplications() {
+  const list = await repositories.peerListenerProfiles.list({ verificationStatus: "pending" });
+  const detailed = [];
+  for (const item of list) {
+    const verification = await repositories.peerListenerVerifications.findByProfileId(item.id);
+    detailed.push({ ...item, verification });
+  }
+  return ok(detailed);
+}
+
+export async function approvePeerListener({ params, user }) {
+  const profile = await repositories.peerListenerProfiles.findById(params.id);
+  if (!profile) return badRequest("Peer listener profile not found.");
+
+  const updatedProfile = await repositories.peerListenerProfiles.update(params.id, {
+    verificationStatus: "approved",
+    approvedAt: new Date().toISOString(),
+    approvedBy: user.id
+  });
+
+  const verification = await repositories.peerListenerVerifications.findByProfileId(params.id);
+  if (verification) {
+    await repositories.peerListenerVerifications.update(verification.id, {
+      identityVerificationStatus: "approved",
+      selfieLivenessStatus: "approved",
+      panVerificationStatus: "approved",
+      payoutAccountStatus: "approved",
+      trainingAcknowledgementStatus: "approved",
+      reviewedBy: user.id,
+      reviewedAt: new Date().toISOString()
+    });
+  }
+
+  await repositories.auditLogs.create({
+    userId: user.id,
+    action: "APPROVE_PEER_LISTENER",
+    entityType: "PeerListenerProfile",
+    entityId: params.id,
+    newValue: { status: "approved" }
+  });
+
+  return ok(updatedProfile);
+}
+
+export async function rejectPeerListener({ params, body, user }) {
+  const profile = await repositories.peerListenerProfiles.findById(params.id);
+  if (!profile) return badRequest("Peer listener profile not found.");
+
+  const updatedProfile = await repositories.peerListenerProfiles.update(params.id, {
+    verificationStatus: "rejected"
+  });
+
+  const verification = await repositories.peerListenerVerifications.findByProfileId(params.id);
+  if (verification) {
+    await repositories.peerListenerVerifications.update(verification.id, {
+      identityVerificationStatus: "rejected",
+      selfieLivenessStatus: "rejected",
+      panVerificationStatus: "rejected",
+      payoutAccountStatus: "rejected",
+      trainingAcknowledgementStatus: "rejected",
+      rejectionReason: body.reason || "Does not meet community standards",
+      reviewedBy: user.id,
+      reviewedAt: new Date().toISOString()
+    });
+  }
+
+  await repositories.auditLogs.create({
+    userId: user.id,
+    action: "REJECT_PEER_LISTENER",
+    entityType: "PeerListenerProfile",
+    entityId: params.id,
+    newValue: { status: "rejected", reason: body.reason }
+  });
+
+  return ok(updatedProfile);
+}
+
+export async function suspendPeerListener({ params, body, user }) {
+  const profile = await repositories.peerListenerProfiles.findById(params.id);
+  if (!profile) return badRequest("Peer listener profile not found.");
+
+  const updatedProfile = await repositories.peerListenerProfiles.update(params.id, {
+    verificationStatus: "suspended",
+    suspendedAt: new Date().toISOString(),
+    suspensionReason: body.reason || "Policy violations"
+  });
+
+  await repositories.auditLogs.create({
+    userId: user.id,
+    action: "SUSPEND_PEER_LISTENER",
+    entityType: "PeerListenerProfile",
+    entityId: params.id,
+    newValue: { status: "suspended", reason: body.reason }
+  });
+
+  return ok(updatedProfile);
+}
+
+export async function getPromotionalBanners() {
+  return ok(await repositories.promotionalBanners.listAll());
+}
+
+export async function createPromotionalBanner({ body, user }) {
+  if (!body.message) return badRequest("Message is required");
+  const banner = await repositories.promotionalBanners.create({
+    message: body.message,
+    isActive: body.isActive || false
+  });
+  
+  await repositories.auditLogs.create({
+    userId: user.id,
+    action: "CREATE_PROMO_BANNER",
+    entityType: "PromotionalBanner",
+    entityId: banner.id,
+    newValue: banner
+  });
+  
+  return ok(banner);
+}
+
+export async function updatePromotionalBanner({ params, body, user }) {
+  const banner = await repositories.promotionalBanners.update(params.id, body);
+  if (!banner) return badRequest("Banner not found");
+  
+  await repositories.auditLogs.create({
+    userId: user.id,
+    action: "UPDATE_PROMO_BANNER",
+    entityType: "PromotionalBanner",
+    entityId: params.id,
+    newValue: body
+  });
+  
+  return ok(banner);
+}
+
+export async function deletePromotionalBanner({ params, user }) {
+  const success = await repositories.promotionalBanners.delete(params.id);
+  if (!success) return badRequest("Banner not found");
+  
+  await repositories.auditLogs.create({
+    userId: user.id,
+    action: "DELETE_PROMO_BANNER",
+    entityType: "PromotionalBanner",
+    entityId: params.id,
+    newValue: null
+  });
+  
+  return ok({ success: true });
+}
+
 import { executeWeeklyPayoutBatch } from "../services/payout.service.js";
 
 export async function runPayoutBatch({ user }) {

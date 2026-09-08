@@ -1,6 +1,6 @@
 import { repositories } from "../repositories/index.js";
 import * as aiService from "../services/ai.service.js";
-import { credit, debit } from "../services/wallet.service.js";
+import { credit, debit, reserveCredits, releaseCredits } from "../services/wallet.service.js";
 import { badRequest, created, ok } from "../utils/http.js";
 import { createId, hashValue } from "../utils/security.js";
 import { calculateAgeFromDob, requireFields } from "../utils/validation.js";
@@ -42,8 +42,6 @@ export async function createSignatureReport({ body, user }) {
 export async function listReports({ user }) {
   return ok(await repositories.reports.listForUser(user));
 }
-
-import { credit, debit, reserveCredits, releaseCredits } from "../services/wallet.service.js";
 
 export async function unlockReport({ params, user }) {
   const report = await repositories.reports.findById(params.id);

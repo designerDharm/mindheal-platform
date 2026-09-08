@@ -127,3 +127,18 @@ function safeEqual(left, right) {
   const b = Buffer.from(right);
   return a.length === b.length && timingSafeEqual(a, b);
 }
+
+export function signOnboardingToken(payload) {
+  return signToken(
+    {
+      ...payload,
+      type: "onboarding"
+    },
+    appConfig.jwtAccessSecret,
+    600 // 10 minutes TTL
+  );
+}
+
+export function verifyOnboardingToken(token) {
+  return verifyToken(token, appConfig.jwtAccessSecret, "onboarding");
+}

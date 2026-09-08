@@ -14,6 +14,7 @@ const server = createServer((req, res) => {
 });
 
 import { autoCleanStalePendingBookings } from "./controllers/session.controller.js";
+import { autoCleanExpiredPeerRequests } from "./controllers/peer.controller.js";
 
 const io = initializeSockets(server);
 
@@ -24,4 +25,8 @@ server.listen(appConfig.port, () => {
   // Auto-clean stale pending session bookings (older than 24 hours) every hour
   autoCleanStalePendingBookings();
   setInterval(autoCleanStalePendingBookings, 60 * 60 * 1000);
+
+  // Auto-clean expired peer requests every 30 seconds
+  autoCleanExpiredPeerRequests();
+  setInterval(autoCleanExpiredPeerRequests, 30 * 1000);
 });

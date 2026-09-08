@@ -129,6 +129,11 @@ async function authenticate(req, route) {
 
   const user = await repositories.users.findById(payload.sub);
   if (!user) return { error: unauthorized("User session is no longer active.") };
+  
+  if (user.onboardingStatus !== "COMPLETED" && !req.url.includes("/user/me") && !req.url.includes("/auth/logout") && !req.url.includes("/auth/refresh")) {
+    return { error: forbidden("Your profile onboarding is incomplete. Please complete your profile to access this resource.") };
+  }
+
   if (!route.roles.includes(user.role)) return { error: forbidden() };
 
   // Non-negotiable product rule: Block guardian accounts from accessing AI features or private user content
@@ -157,10 +162,14 @@ function calculateAge(dobString) {
 
 function applyHeaders(req, res) {
   const origin = req.headers.origin;
-  if (appConfig.allowedOrigins.includes(origin)) {
+  const isAllowed = origin && appConfig.allowedOrigins.includes(origin);
+  if (isAllowed) {
     res.setHeader("access-control-allow-origin", origin);
-  } else if (appConfig.allowedOrigins.includes("*")) {
-    res.setHeader("access-control-allow-origin", "*");
+    res.setHeader("access-control-allow-credentials", "true");
+  } else {
+    const defaultOrigin = appConfig.allowedOrigins.find(o => o !== "*") || "http://localhost:4173";
+    res.setHeader("access-control-allow-origin", defaultOrigin);
+    res.setHeader("access-control-allow-credentials", "true");
   }
   
   res.setHeader("access-control-allow-methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");

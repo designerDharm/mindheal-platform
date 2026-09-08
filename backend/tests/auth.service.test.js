@@ -98,21 +98,34 @@ test("auth flow", async (t) => {
   await t.test("OTP should work locally with in-memory development fallback", async () => {
     const issued = await issueOtp("otp-local@example.com");
 
-    assert.strictEqual(issued.destination, "otp-local@example.com");
+    assert.strictEqual(issued.maskedDestination, "ot***l@example.com");
+    assert.ok(issued.challengeId);
     assert.ok(issued.devCode);
-    assert.strictEqual(await verifyOtp("otp-local@example.com", issued.devCode), true);
-    assert.strictEqual(await verifyOtp("otp-local@example.com", issued.devCode), false);
+    
+    const verification = await verifyOtp(issued.challengeId, issued.devCode, "otp-local@example.com");
+    assert.strictEqual(verification.verified, true);
+
+    await assert.rejects(
+      () => verifyOtp(issued.challengeId, issued.devCode, "otp-local@example.com"),
+      /Challenge expired or invalid/
+    );
   });
 
   await t.test("OTP should use Redis when available", async () => {
     await withFakeRedis(async (store) => {
       const issued = await issueOtp("otp-redis@example.com");
 
-      assert.strictEqual(store.size, 1);
-      assert.strictEqual(await verifyOtp("otp-redis@example.com", "000000"), false);
-      assert.strictEqual(store.size, 1);
-      assert.strictEqual(await verifyOtp("otp-redis@example.com", issued.devCode), true);
-      assert.strictEqual(store.size, 0);
+      assert.ok(store.size >= 1);
+      
+      await assert.rejects(
+        () => verifyOtp(issued.challengeId, "000000", "otp-redis@example.com"),
+        /Invalid verification code/
+      );
+
+      const verification = await verifyOtp(issued.challengeId, issued.devCode, "otp-redis@example.com");
+      assert.strictEqual(verification.verified, true);
+      assert.strictEqual(store.has(`otp_challenge:${issued.challengeId}`), false);
+      assert.strictEqual(store.has(`otp_active_challenge:otp-redis@example.com`), false);
     });
   });
 
@@ -128,7 +141,7 @@ test("auth flow", async (t) => {
   await t.test("OTP verify should fail closed in production when Redis is unavailable", async () => {
     await withProductionRedisUnavailable(async () => {
       await assert.rejects(
-        () => verifyOtp("otp-prod@example.com", "123456"),
+        () => verifyOtp("challenge-id-prod", "123456", "otp-prod@example.com"),
         /OTP store is unavailable/
       );
     });

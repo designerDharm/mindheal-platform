@@ -36,11 +36,26 @@ export async function register({ body, headers = {}, ip }) {
   }
 }
 
-export async function login({ body }) {
+function parseCookies(req) {
+  const list = {};
+  const rc = req.headers.cookie;
+  if (rc) {
+    rc.split(';').forEach((cookie) => {
+      const parts = cookie.split('=');
+      list[parts.shift().trim()] = decodeURIComponent(parts.join('='));
+    });
+  }
+  return list;
+}
+
+export async function login({ body, res }) {
   if (body.idToken) {
     try {
-      const session = await authService.loginWithFirebase(body.idToken, body.role || "user");
-      return ok(session);
+      const result = await authService.loginWithFirebase(body.idToken, body.role || "user", body.flow || "signin");
+      if (result.status === "PROFILE_REQUIRED") {
+        res.setHeader("Set-Cookie", `onboarding_token=${result.onboardingToken}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=600`);
+      }
+      return ok(result);
     } catch (err) {
       return badRequest("Invalid Firebase Token", err.message);
     }
@@ -57,6 +72,47 @@ export async function login({ body }) {
     return ok(session);
   } catch (err) {
     return unauthorized("Invalid email, password, or role.");
+  }
+}
+
+export async function completeProfile({ body, req, res }) {
+  const token = parseCookies(req).onboarding_token || req.headers["authorization"]?.replace("Bearer ", "") || body?.onboardingToken;
+  if (!token) {
+    return unauthorized("Onboarding session expired or missing.");
+  }
+
+  try {
+    const result = await authService.completeGoogleOnboarding(token, body);
+    if (result.status === "AUTHENTICATED") {
+      res.setHeader("Set-Cookie", "onboarding_token=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0");
+    }
+    return ok(result);
+  } catch (err) {
+    return badRequest(err.message);
+  }
+}
+
+export async function link({ body }) {
+  const missing = requireFields(body, ["email", "password", "idToken"]);
+  if (missing) return badRequest("Email, password, and idToken are required.", missing);
+
+  try {
+    const result = await authService.linkGoogleAccount(body.email, body.password, body.idToken, body.role || "user");
+    return ok(result);
+  } catch (err) {
+    return badRequest(err.message);
+  }
+}
+
+export async function approveGuardian({ body }) {
+  const token = body?.token;
+  if (!token) return badRequest("Token is required.");
+
+  try {
+    const result = await authService.approveGuardianConsent(token);
+    return ok(result);
+  } catch (err) {
+    return badRequest(err.message);
   }
 }
 

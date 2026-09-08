@@ -1,76 +1,129 @@
 import { createId } from "../utils/security.js";
 import { repositories } from "../repositories/index.js";
+import { getBalance, debit } from "./wallet.service.js";
+import { postJournalTransaction } from "./double_entry.service.js";
 
 /**
  * Weekly Payout Engine Worker
- * Aggregates eligible counsellor earnings (completed sessions >= 7 days old)
+ * Aggregates eligible counsellor and peer listener earnings
  * and batches them for weekly payout processing.
  */
 export async function executeWeeklyPayoutBatch(executedByUserId = "usr_admin") {
+  const result = {
+    counsellors: null,
+    peerListeners: null,
+    auditLogId: null
+  };
+
+  // --- 1. Counsellor Payout Batching ---
   const allLedgers = await repositories.wallets.allLedgerEntries();
-  
-  // 1. Filter all pending counsellor earnings
   const pendingEarningEntries = allLedgers.filter(
     (e) => e.entryType === "session_counsellor_pending_earning" && e.direction === "credit"
   );
 
-  if (!pendingEarningEntries.length) {
-    return { status: "no_eligible_earnings", batch: null };
-  }
-
   const cutoffTime = Date.now() - 7 * 24 * 60 * 60 * 1000; // 7-day eligibility delay
-  const eligibleEntries = pendingEarningEntries.filter(
+  const eligibleCounsellorEntries = pendingEarningEntries.filter(
     (e) => new Date(e.createdAt || 0).getTime() <= cutoffTime
   );
 
-  if (!eligibleEntries.length) {
-    return { status: "no_matured_earnings", message: "Pending earnings exist but have not reached 7-day eligibility period.", batch: null };
+  if (eligibleCounsellorEntries.length) {
+    let totalGrossPaise = 0;
+    let totalCommissionPaise = 0;
+    let totalPayoutPaise = 0;
+    const counsellorEarningsMap = new Map();
+
+    for (const entry of eligibleCounsellorEntries) {
+      const amountPaise = Number(entry.amountPaise || 0);
+      totalPayoutPaise += amountPaise;
+      
+      const grossPaise = Math.floor((amountPaise * 10000) / 9000);
+      const commissionPaise = grossPaise - amountPaise;
+
+      totalGrossPaise += grossPaise;
+      totalCommissionPaise += commissionPaise;
+
+      const counsellorWalletId = entry.walletId;
+      const existing = counsellorEarningsMap.get(counsellorWalletId) || 0;
+      counsellorEarningsMap.set(counsellorWalletId, existing + amountPaise);
+    }
+
+    const batchId = createId("bat");
+    result.counsellors = {
+      id: batchId,
+      batchReference: `COUNSELLOR_PAYOUT_BATCH_${Date.now()}`,
+      totalGrossPaise,
+      totalCommissionPaise,
+      totalPayoutPaise,
+      counsellorCount: counsellorEarningsMap.size,
+      status: "processed"
+    };
   }
 
-  // 2. Aggregate earnings per counsellor
-  let totalGrossPaise = 0;
-  let totalCommissionPaise = 0;
-  let totalPayoutPaise = 0;
-  const counsellorEarningsMap = new Map();
+  // --- 2. Peer Listener Payout Batching ---
+  const peerProfiles = await repositories.peerListenerProfiles.listAll();
+  const activePeerProfiles = peerProfiles.filter(p => p.verificationStatus === "approved");
+  
+  let peerPayoutCount = 0;
+  let totalPeerPayoutPaise = 0;
+  const peerPayoutsList = [];
 
-  for (const entry of eligibleEntries) {
-    const amountPaise = Number(entry.amountPaise || 0);
-    totalPayoutPaise += amountPaise;
-    
-    // Approximate gross and commission for tracking (10% BPS)
-    const grossPaise = Math.floor((amountPaise * 10000) / 9000);
-    const commissionPaise = grossPaise - amountPaise;
+  for (const profile of activePeerProfiles) {
+    const balancePaise = await getBalance(profile.userId);
+    if (balancePaise > 0) {
+      const amountInr = balancePaise / 100;
+      
+      // Debit the wallet to lock/deduct the payout
+      await debit(profile.userId, amountInr, "peer_payout", {
+        referenceType: "PeerListenerProfile",
+        referenceId: profile.id
+      });
 
-    totalGrossPaise += grossPaise;
-    totalCommissionPaise += commissionPaise;
+      // Post double-entry journal for this payout
+      const payoutJournal = await postJournalTransaction({
+        journalType: "PEER_PAYOUT",
+        businessReferenceType: "PeerListenerProfile",
+        businessReferenceId: profile.id,
+        idempotencyKey: `payout_${profile.id}_${Date.now()}`,
+        description: `Weekly payout of ${amountInr} INR for peer listener ${profile.id}`,
+        entries: [
+          { accountKey: `USER_AVAILABLE_${profile.userId}`, entrySide: "debit", amountPaise: balancePaise },
+          { accountKey: "BANK_CLEARING", entrySide: "credit", amountPaise: balancePaise }
+        ]
+      });
+      await repositories.journalTransactions.create(payoutJournal);
 
-    const counsellorWalletId = entry.walletId;
-    const existing = counsellorEarningsMap.get(counsellorWalletId) || 0;
-    counsellorEarningsMap.set(counsellorWalletId, existing + amountPaise);
+      peerPayoutCount++;
+      totalPeerPayoutPaise += balancePaise;
+      peerPayoutsList.push({
+        listenerProfileId: profile.id,
+        userId: profile.userId,
+        amountPaise: balancePaise
+      });
+    }
   }
 
-  const batchId = createId("bat");
-  const payoutBatch = {
-    id: batchId,
-    batchReference: `PAYOUT_BATCH_${Date.now()}`,
-    totalGrossPaise,
-    totalCommissionPaise,
-    totalPayoutPaise,
-    counsellorCount: counsellorEarningsMap.size,
-    status: "processing",
-    executedBy: executedByUserId,
-    createdAt: new Date().toISOString()
-  };
+  if (peerPayoutCount > 0) {
+    const batchId = createId("bat");
+    result.peerListeners = {
+      id: batchId,
+      batchReference: `PEER_PAYOUT_BATCH_${Date.now()}`,
+      totalPayoutPaise: totalPeerPayoutPaise,
+      listenerCount: peerPayoutCount,
+      status: "processed",
+      payouts: peerPayoutsList
+    };
+  }
 
-  // 3. Record Payout Batch & Audit Event
+  // --- 3. Record Payout Audit Event ---
+  const auditId = createId("aud");
   await repositories.auditLogs.create({
-    id: createId("aud"),
+    id: auditId,
     userId: executedByUserId,
     action: "EXECUTE_PAYOUT_BATCH",
     entityType: "PayoutBatch",
-    entityId: batchId,
-    newValue: payoutBatch
+    newValue: result
   });
 
-  return { status: "success", batch: payoutBatch };
+  result.auditLogId = auditId;
+  return { status: "success", data: result };
 }

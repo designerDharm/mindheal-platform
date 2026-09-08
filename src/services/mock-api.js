@@ -25,6 +25,7 @@ async function request(path, options = {}) {
     const apiBaseUrl = getApiBaseUrl();
     const response = await fetch(`${apiBaseUrl}${path}`, {
       method: options.method || "GET",
+      credentials: "include",
       headers: { "content-type": "application/json", ...authHeaders(), ...(options.headers || {}) },
       body: options.body ? JSON.stringify(options.body) : undefined
     });
@@ -62,7 +63,7 @@ async function uploadFile(file) {
 export const api = {
   async getState() {
     // Parallel network requests to gather all live data
-    const [users, counsellorData, reports, wallet, walletTransactions, analytics, remoteCounsellors, myProfile, moodHistory, serviceCatalog, apiConfigurations, availabilitySlots, mySessions, contactLeads, crisisEvents] = await Promise.all([
+    const [users, counsellorData, reports, wallet, walletTransactions, analytics, remoteCounsellors, myProfile, moodHistory, serviceCatalog, apiConfigurations, availabilitySlots, mySessions, contactLeads, crisisEvents, peerTalkDashboard, peerListeners] = await Promise.all([
       request("/admin/users").catch(() => ({ ok: false })),
       request("/admin/counsellors").catch(() => ({ ok: false })),
       request("/analysis/reports").catch(() => ({ ok: false })),
@@ -77,7 +78,9 @@ export const api = {
       request("/counsellors/me/slots").catch(() => ({ ok: false })),
       request("/sessions/my").catch(() => ({ ok: false })),
       request("/admin/contacts").catch(() => ({ ok: false })),
-      request("/admin/crisis-events").catch(() => ({ ok: false }))
+      request("/admin/crisis-events").catch(() => ({ ok: false })),
+      request("/peer-talk/dashboard").catch(() => ({ ok: false })),
+      request("/peer-listeners").catch(() => ({ ok: false }))
     ]);
 
     const walletBalance = wallet.ok ? Math.round((wallet.data.balancePaise || 0) / 100) : 0;
@@ -106,6 +109,8 @@ export const api = {
       walletTransactions: walletTransactions.ok ? walletTransactions.data : [],
       analysisSubmissions: backendReports,
       moodHistory: backendMoodHistory,
+      peerTalkState: peerTalkDashboard.ok ? peerTalkDashboard.data : null,
+      peerListeners: peerListeners.ok ? peerListeners.data : [],
       dashboard: {
         user: {
           ...dashboardSeed.user,
@@ -183,6 +188,64 @@ export const api = {
       return remote.data.user || remote.data;
     }
     throw new Error(remote.error?.message || "Login failed");
+  },
+
+  async loginWithFirebase(role, idToken, flow = "signin") {
+    const remote = await request("/auth/login", {
+      method: "POST",
+      body: { idToken, role, flow }
+    });
+
+    if (remote.ok) {
+      if (remote.data.session) {
+        localStorage.setItem("mindheal-access-token", remote.data.session.accessToken);
+        return { status: remote.data.status, user: remote.data.session.user };
+      }
+      return remote.data;
+    }
+    throw new Error(remote.error?.message || "Firebase login failed");
+  },
+
+  async completeProfile(onboardingToken, profileData) {
+    const remote = await request("/auth/complete-profile", {
+      method: "POST",
+      body: { onboardingToken, ...profileData }
+    });
+
+    if (remote.ok) {
+      if (remote.data.session) {
+        localStorage.setItem("mindheal-access-token", remote.data.session.accessToken);
+      }
+      return remote.data;
+    }
+    throw new Error(remote.error?.message || "Profile completion failed");
+  },
+
+  async linkGoogle(email, password, idToken, role) {
+    const remote = await request("/auth/link", {
+      method: "POST",
+      body: { email, password, idToken, role }
+    });
+
+    if (remote.ok) {
+      if (remote.data.session) {
+        localStorage.setItem("mindheal-access-token", remote.data.session.accessToken);
+      }
+      return remote.data;
+    }
+    throw new Error(remote.error?.message || "Account linking failed");
+  },
+
+  async approveGuardian(token) {
+    const remote = await request("/auth/guardian/approve", {
+      method: "POST",
+      body: { token }
+    });
+
+    if (remote.ok) {
+      return remote.data;
+    }
+    throw new Error(remote.error?.message || "Guardian approval failed");
   },
 
   async sendOtp(destination) {
@@ -474,5 +537,74 @@ export const api = {
     });
     if (remote.ok) return remote.data;
     throw new Error(remote.error?.message || "Payment failed");
+  },
+
+  async createScreening(screeningType) {
+    const remote = await request("/screenings", {
+      method: "POST",
+      body: { screeningType }
+    });
+    return { success: remote.ok, data: remote.data, error: remote.error };
+  },
+
+  async completeScreening(id, score, responses) {
+    const remote = await request(`/screenings/${id}/complete`, {
+      method: "POST",
+      body: { score, responses }
+    });
+    return { success: remote.ok, data: remote.data, error: remote.error };
+  },
+
+  async getMyScreenings() {
+    const remote = await request("/screenings/me");
+    return { success: remote.ok, data: remote.data, error: remote.error };
+  },
+
+  async getWalletBalance() {
+    const remote = await request("/wallet/balance");
+    return { success: remote.ok, data: remote.data, error: remote.error };
+  },
+
+  async getPeerDashboardState() {
+    const remote = await request("/peer-talk/dashboard");
+    return { success: remote.ok, data: remote.data, error: remote.error };
+  },
+
+  async request(path, options = {}) {
+    return await request(path, options);
+  },
+
+  async getActivePromotions() {
+    const remote = await request("/promotions/active");
+    return { success: remote.ok, data: remote.data, error: remote.error };
+  },
+
+  async getAdminPromotions() {
+    const remote = await request("/admin/promotions");
+    return { success: remote.ok, data: remote.data, error: remote.error };
+  },
+
+  async createPromotion(message, isActive) {
+    const remote = await request("/admin/promotions", {
+      method: "POST",
+      body: { message, isActive }
+    });
+    return { success: remote.ok, data: remote.data, error: remote.error };
+  },
+
+  async updatePromotion(id, payload) {
+    const remote = await request(`/admin/promotions/${id}`, {
+      method: "PUT",
+      body: payload
+    });
+    return { success: remote.ok, data: remote.data, error: remote.error };
+  },
+
+  async deletePromotion(id) {
+    const remote = await request(`/admin/promotions/${id}`, {
+      method: "DELETE"
+    });
+    return { success: remote.ok, data: remote.data, error: remote.error };
   }
 };
+

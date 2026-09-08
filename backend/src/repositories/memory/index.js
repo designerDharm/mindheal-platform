@@ -22,12 +22,43 @@ export const memoryRepositories = {
       return store.users.find((user) => user.mobile === mobile && user.role === role) || null;
     },
     create(user) {
-      store.users.push(user);
-      return user;
+      const mapped = {
+        ...user,
+        firebaseUid: user.firebaseUid || user.firebase_uid || null,
+        firebase_uid: user.firebaseUid || user.firebase_uid || null,
+        dateOfBirth: user.dateOfBirth || user.date_of_birth || null,
+        date_of_birth: user.dateOfBirth || user.date_of_birth || null,
+        profileCompletedAt: user.profileCompletedAt || user.profile_completed_at || null,
+        profile_completed_at: user.profileCompletedAt || user.profile_completed_at || null,
+        onboardingStatus: user.onboardingStatus || user.onboarding_status || 'COMPLETED',
+        onboarding_status: user.onboardingStatus || user.onboarding_status || 'COMPLETED',
+        emailVerifiedAt: user.emailVerifiedAt || user.email_verified_at || null,
+        email_verified_at: user.emailVerifiedAt || user.email_verified_at || null,
+        guardianConsentStatus: user.guardianConsentStatus || user.guardian_consent_status || 'APPROVED',
+        guardian_consent_status: user.guardianConsentStatus || user.guardian_consent_status || 'APPROVED'
+      };
+      store.users.push(mapped);
+      return mapped;
     },
     update(id, patch) {
       const user = this.findById(id);
-      if (user) Object.assign(user, patch, { updatedAt: new Date().toISOString() });
+      if (user) {
+        Object.assign(user, patch, {
+          firebaseUid: patch.firebaseUid !== undefined ? patch.firebaseUid : (patch.firebase_uid !== undefined ? patch.firebase_uid : user.firebaseUid),
+          firebase_uid: patch.firebaseUid !== undefined ? patch.firebaseUid : (patch.firebase_uid !== undefined ? patch.firebase_uid : user.firebaseUid),
+          dateOfBirth: patch.dateOfBirth !== undefined ? patch.dateOfBirth : (patch.date_of_birth !== undefined ? patch.date_of_birth : user.dateOfBirth),
+          date_of_birth: patch.dateOfBirth !== undefined ? patch.dateOfBirth : (patch.date_of_birth !== undefined ? patch.date_of_birth : user.dateOfBirth),
+          profileCompletedAt: patch.profileCompletedAt !== undefined ? patch.profileCompletedAt : (patch.profile_completed_at !== undefined ? patch.profile_completed_at : user.profileCompletedAt),
+          profile_completed_at: patch.profileCompletedAt !== undefined ? patch.profileCompletedAt : (patch.profile_completed_at !== undefined ? patch.profile_completed_at : user.profileCompletedAt),
+          onboardingStatus: patch.onboardingStatus !== undefined ? patch.onboardingStatus : (patch.onboarding_status !== undefined ? patch.onboarding_status : user.onboardingStatus),
+          onboarding_status: patch.onboardingStatus !== undefined ? patch.onboardingStatus : (patch.onboarding_status !== undefined ? patch.onboarding_status : user.onboardingStatus),
+          emailVerifiedAt: patch.emailVerifiedAt !== undefined ? patch.emailVerifiedAt : (patch.email_verified_at !== undefined ? patch.email_verified_at : user.emailVerifiedAt),
+          email_verified_at: patch.emailVerifiedAt !== undefined ? patch.emailVerifiedAt : (patch.email_verified_at !== undefined ? patch.email_verified_at : user.emailVerifiedAt),
+          guardianConsentStatus: patch.guardianConsentStatus !== undefined ? patch.guardianConsentStatus : (patch.guardian_consent_status !== undefined ? patch.guardian_consent_status : user.guardianConsentStatus),
+          guardian_consent_status: patch.guardianConsentStatus !== undefined ? patch.guardian_consent_status : (patch.guardian_consent_status !== undefined ? patch.guardian_consent_status : user.guardianConsentStatus),
+          updatedAt: new Date().toISOString()
+        });
+      }
       return user;
     }
   },
@@ -402,6 +433,358 @@ export const memoryRepositories = {
     }
   },
 
+  ledgerAccounts: {
+    async findByKey(accountKey) {
+      store.ledgerAccounts ||= [];
+      return store.ledgerAccounts.find(a => a.accountKey === accountKey) || null;
+    },
+    async findOrCreate(account) {
+      store.ledgerAccounts ||= [];
+      let existing = await this.findByKey(account.accountKey);
+      if (existing) return existing;
+      const acc = { id: account.id || createId("lac"), ...account, status: account.status || "active", createdAt: new Date().toISOString() };
+      store.ledgerAccounts.push(acc);
+      return acc;
+    }
+  },
+
+  journalTransactions: {
+    async create(journal) {
+      store.journalTransactions ||= [];
+      store.doubleEntryLedger ||= [];
+      const j = { id: journal.id || createId("jnl"), ...journal, createdAt: new Date().toISOString() };
+      store.journalTransactions.push(j);
+      if (journal.entries) {
+        for (const entry of journal.entries) {
+          const account = await memoryRepositories.ledgerAccounts.findOrCreate({
+            accountKey: entry.accountKey,
+            ownerType: "user",
+            ownerId: entry.accountKey.split("_").pop(),
+            accountType: "ASSET"
+          });
+          store.doubleEntryLedger.push({
+            id: entry.id || createId("ent"),
+            journalTransactionId: j.id,
+            ledgerAccountId: account.id,
+            entrySide: entry.entrySide,
+            amountPaise: entry.amountPaise,
+            sequenceNumber: entry.sequenceNumber || 1,
+            createdAt: new Date().toISOString()
+          });
+        }
+      }
+      return j;
+    }
+  },
+
+  peerListenerProfiles: {
+    async findById(id) {
+      store.peerListenerProfiles ||= [];
+      return store.peerListenerProfiles.find(p => p.id === id) || null;
+    },
+    async findByUserId(userId) {
+      store.peerListenerProfiles ||= [];
+      return store.peerListenerProfiles.find(p => p.userId === userId) || null;
+    },
+    async create(profile) {
+      store.peerListenerProfiles ||= [];
+      store.peerListenerProfiles.push(profile);
+      return profile;
+    },
+    async update(id, patch) {
+      const profile = await this.findById(id);
+      if (profile) Object.assign(profile, patch, { updatedAt: new Date().toISOString() });
+      return profile;
+    },
+    async list({ status, verificationStatus } = {}) {
+      store.peerListenerProfiles ||= [];
+      return store.peerListenerProfiles.filter(p => {
+        if (verificationStatus && p.verificationStatus !== verificationStatus) return false;
+        return true;
+      });
+    }
+  },
+
+  peerListenerVerifications: {
+    async findByProfileId(profileId) {
+      store.peerListenerVerifications ||= [];
+      return store.peerListenerVerifications.find(v => v.listenerProfileId === profileId) || null;
+    },
+    async create(verif) {
+      store.peerListenerVerifications ||= [];
+      store.peerListenerVerifications.push(verif);
+      return verif;
+    },
+    async update(id, patch) {
+      store.peerListenerVerifications ||= [];
+      const verif = store.peerListenerVerifications.find(v => v.id === id);
+      if (verif) Object.assign(verif, patch, { updatedAt: new Date().toISOString() });
+      return verif;
+    }
+  },
+
+  peerListenerRates: {
+    async findByProfileId(profileId) {
+      store.peerListenerRates ||= [];
+      return store.peerListenerRates.filter(r => r.listenerProfileId === profileId && r.enabled !== false);
+    },
+    async createOrUpdate(rate) {
+      store.peerListenerRates ||= [];
+      let existing = store.peerListenerRates.find(r => r.listenerProfileId === rate.listenerProfileId && r.sessionDurationMinutes === rate.sessionDurationMinutes);
+      if (existing) {
+        Object.assign(existing, rate, { updatedAt: new Date().toISOString() });
+        return existing;
+      }
+      const r = { id: rate.id || createId("plr"), ...rate, enabled: rate.enabled !== false, createdAt: new Date().toISOString() };
+      store.peerListenerRates.push(r);
+      return r;
+    }
+  },
+
+  peerListenerPresence: {
+    async findByProfileId(profileId) {
+      store.peerListenerPresence ||= [];
+      return store.peerListenerPresence.find(p => p.listenerProfileId === profileId) || null;
+    },
+    async createOrUpdate(presence) {
+      store.peerListenerPresence ||= [];
+      let existing = store.peerListenerPresence.find(p => p.listenerProfileId === presence.listenerProfileId);
+      if (existing) {
+        Object.assign(existing, presence, { version: (existing.version || 1) + 1, updatedAt: new Date().toISOString() });
+        return existing;
+      }
+      const p = { ...presence, version: 1, updatedAt: new Date().toISOString() };
+      store.peerListenerPresence.push(p);
+      return p;
+    },
+    async reapExpiredHeartbeats(timeoutSeconds = 60) {
+      store.peerListenerPresence ||= [];
+      const cutoff = Date.now() - timeoutSeconds * 1000;
+      const reaped = [];
+      store.peerListenerPresence.forEach(p => {
+        if (p.currentStatus !== 'offline' && new Date(p.heartbeatAt || 0).getTime() < cutoff) {
+          p.currentStatus = 'offline';
+          p.socketConnectionId = null;
+          p.updatedAt = new Date().toISOString();
+          reaped.push(p);
+        }
+      });
+      return reaped;
+    }
+  },
+
+  peerSessionRequests: {
+    async findById(id) {
+      store.peerSessionRequests ||= [];
+      return store.peerSessionRequests.find(r => r.id === id) || null;
+    },
+    async create(request) {
+      store.peerSessionRequests ||= [];
+      store.peerSessionRequests.push(request);
+      return request;
+    },
+    async update(id, patch) {
+      const req = await this.findById(id);
+      if (req) Object.assign(req, patch, { updatedAt: new Date().toISOString() });
+      return req;
+    },
+    async listForUser(userId) {
+      store.peerSessionRequests ||= [];
+      return store.peerSessionRequests.filter(r => r.requesterUserId === userId);
+    },
+    async listForListener(profileId) {
+      store.peerSessionRequests ||= [];
+      return store.peerSessionRequests.filter(r => r.listenerProfileId === profileId);
+    }
+  },
+
+  peerSessionQuotes: {
+    async findById(id) {
+      store.peerSessionQuotes ||= [];
+      return store.peerSessionQuotes.find(q => q.id === id) || null;
+    },
+    async findByRequestId(requestId) {
+      store.peerSessionQuotes ||= [];
+      return store.peerSessionQuotes.find(q => q.peerSessionRequestId === requestId) || null;
+    },
+    async create(quote) {
+      store.peerSessionQuotes ||= [];
+      store.peerSessionQuotes.push(quote);
+      return quote;
+    },
+    async updateStatus(id, status) {
+      const q = await this.findById(id);
+      if (q) q.status = status;
+      return q;
+    }
+  },
+
+  peerSessions: {
+    async findById(id) {
+      store.peerSessions ||= [];
+      return store.peerSessions.find(s => s.id === id) || null;
+    },
+    async create(session) {
+      store.peerSessions ||= [];
+      store.peerSessions.push(session);
+      return session;
+    },
+    async update(id, patch) {
+      const s = await this.findById(id);
+      if (s) Object.assign(s, patch, { updatedAt: new Date().toISOString() });
+      return s;
+    },
+    async listForUser(user) {
+      store.peerSessions ||= [];
+      if (user.role === "admin") return store.peerSessions;
+      return store.peerSessions.filter(s => s.requesterUserId === user.id || s.listenerProfileId === user.id);
+    }
+  },
+
+  peerSessionConsents: {
+    async findBySessionId(sessionId) {
+      store.peerSessionConsents ||= [];
+      return store.peerSessionConsents.filter(c => c.peerSessionId === sessionId);
+    },
+    async createOrUpdate(consent) {
+      store.peerSessionConsents ||= [];
+      let existing = store.peerSessionConsents.find(c => c.peerSessionId === consent.peerSessionId && c.userId === consent.userId && c.capability === consent.capability);
+      if (existing) {
+        Object.assign(existing, consent, { grantedAt: consent.consentStatus === 'granted' ? new Date().toISOString() : existing.grantedAt, revokedAt: consent.consentStatus === 'revoked' ? new Date().toISOString() : existing.revokedAt });
+        return existing;
+      }
+      const c = { id: consent.id || createId("psc"), ...consent, createdAt: new Date().toISOString() };
+      store.peerSessionConsents.push(c);
+      return c;
+    }
+  },
+
+  peerSessionEvents: {
+    async create(event) {
+      store.peerSessionEvents ||= [];
+      const ev = { id: event.id || createId("pse"), ...event, createdAt: new Date().toISOString() };
+      store.peerSessionEvents.push(ev);
+      return ev;
+    },
+    async listForSession(sessionId) {
+      store.peerSessionEvents ||= [];
+      return store.peerSessionEvents.filter(e => e.peerSessionId === sessionId).sort((a,b) => a.sequenceNumber - b.sequenceNumber);
+    }
+  },
+
+  peerFeedback: {
+    async create(feedback) {
+      store.peerFeedback ||= [];
+      const f = { id: feedback.id || createId("pfb"), ...feedback, createdAt: new Date().toISOString() };
+      store.peerFeedback.push(f);
+      return f;
+    },
+    async findBySessionAndUser(sessionId, userId) {
+      store.peerFeedback ||= [];
+      return store.peerFeedback.find(f => f.peerSessionId === sessionId && f.userId === userId) || null;
+    }
+  },
+
+  peerReports: {
+    async create(report) {
+      store.peerReports ||= [];
+      const r = { id: report.id || createId("prp"), status: "open", ...report, createdAt: new Date().toISOString() };
+      store.peerReports.push(r);
+      return r;
+    },
+    async list() {
+      store.peerReports ||= [];
+      return store.peerReports;
+    },
+    async updateStatus(id, status, notes, resolvedBy) {
+      store.peerReports ||= [];
+      const r = store.peerReports.find(x => x.id === id);
+      if (r) Object.assign(r, { status, resolutionNotes: notes, resolvedBy, resolvedAt: new Date().toISOString() });
+      return r;
+    }
+  },
+
+  peerBlocks: {
+    async create(block) {
+      store.peerBlocks ||= [];
+      let existing = store.peerBlocks.find(b => b.blockerUserId === block.blockerUserId && b.blockedUserId === block.blockedUserId);
+      if (existing) return existing;
+      const b = { id: block.id || createId("pbk"), ...block, createdAt: new Date().toISOString() };
+      store.peerBlocks.push(b);
+      return b;
+    },
+    async remove(blockerUserId, blockedUserId) {
+      store.peerBlocks ||= [];
+      store.peerBlocks = store.peerBlocks.filter(b => !(b.blockerUserId === blockerUserId && b.blockedUserId === blockedUserId));
+      return true;
+    },
+    async isBlocked(userA, userB) {
+      store.peerBlocks ||= [];
+      return store.peerBlocks.some(b => (b.blockerUserId === userA && b.blockedUserId === userB) || (b.blockerUserId === userB && b.blockedUserId === userA));
+    }
+  },
+
+  peerPolicyAcceptances: {
+    async create(acceptance) {
+      store.peerPolicyAcceptances ||= [];
+      let existing = store.peerPolicyAcceptances.find(a => a.userId === acceptance.userId && a.policyType === acceptance.policyType && a.policyVersion === acceptance.policyVersion);
+      if (existing) return existing;
+      const a = { id: acceptance.id || createId("ppa"), ...acceptance, acceptedAt: new Date().toISOString() };
+      store.peerPolicyAcceptances.push(a);
+      return a;
+    },
+    async findLatest(userId, policyType) {
+      store.peerPolicyAcceptances ||= [];
+      const userList = store.peerPolicyAcceptances.filter(a => a.userId === userId && a.policyType === policyType);
+      return userList.sort((a,b) => new Date(b.acceptedAt) - new Date(a.acceptedAt))[0] || null;
+    }
+  },
+
+  peerChatMessages: {
+    async create(message) {
+      store.peerChatMessages ||= [];
+      const msg = { id: message.id || createId("msg"), ...message, createdAt: new Date().toISOString() };
+      store.peerChatMessages.push(msg);
+      return msg;
+    },
+    async listForSession(sessionId) {
+      store.peerChatMessages ||= [];
+      return store.peerChatMessages.filter(m => m.peerSessionId === sessionId);
+    }
+  },
+
+  screenings: {
+    async create(screening) {
+      store.screenings ||= [];
+      const scr = {
+        id: screening.id || createId("scr"),
+        ...screening,
+        status: screening.status || "started",
+        createdAt: new Date().toISOString()
+      };
+      store.screenings.push(scr);
+      return scr;
+    },
+    async update(id, updates) {
+      store.screenings ||= [];
+      const scr = store.screenings.find(s => s.id === id);
+      if (!scr) return null;
+      if (updates.status !== undefined) scr.status = updates.status;
+      if (updates.score !== undefined) scr.score = updates.score;
+      if (updates.responsesJson !== undefined) scr.responsesJson = updates.responsesJson;
+      if (updates.completedAt !== undefined) scr.completedAt = updates.completedAt;
+      return scr;
+    },
+    async findById(id) {
+      store.screenings ||= [];
+      return store.screenings.find(s => s.id === id) || null;
+    },
+    async listForUser(userId) {
+      store.screenings ||= [];
+      return store.screenings.filter(s => s.userId === userId).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+    }
+  },
+
   analytics: {
     summary() {
       return {
@@ -412,6 +795,44 @@ export const memoryRepositories = {
         reports: store.analysisReports.length,
         ledgerEntries: store.ledgerEntries.length
       };
+    }
+  },
+
+  promotionalBanners: {
+    async listAll() {
+      store.promotionalBanners ||= [];
+      return [...store.promotionalBanners].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    },
+    async getActive() {
+      store.promotionalBanners ||= [];
+      return store.promotionalBanners.filter(b => b.isActive).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    },
+    async create(data) {
+      store.promotionalBanners ||= [];
+      const banner = {
+        id: data.id || createId("promo"),
+        message: data.message,
+        isActive: data.isActive || false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      store.promotionalBanners.push(banner);
+      return banner;
+    },
+    async update(id, updates) {
+      store.promotionalBanners ||= [];
+      const banner = store.promotionalBanners.find(b => b.id === id);
+      if (!banner) return null;
+      if (updates.message !== undefined) banner.message = updates.message;
+      if (updates.isActive !== undefined) banner.isActive = updates.isActive;
+      banner.updatedAt = new Date().toISOString();
+      return banner;
+    },
+    async delete(id) {
+      store.promotionalBanners ||= [];
+      const initialLength = store.promotionalBanners.length;
+      store.promotionalBanners = store.promotionalBanners.filter(b => b.id !== id);
+      return store.promotionalBanners.length !== initialLength;
     }
   }
 };

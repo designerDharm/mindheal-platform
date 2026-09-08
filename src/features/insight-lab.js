@@ -2,38 +2,108 @@ import { html, escapeHtml, toast, formatInr } from "../utils/dom.js";
 import { t } from "../utils/i18n.js";
 import { api } from "../services/mock-api.js?v=5";
 
+const SCREENING_QUESTIONS = {
+  low_mood: [
+    { text: "Little interest or pleasure in doing things?", category: "Interest" },
+    { text: "Feeling down, depressed, or hopeless?", category: "Mood" },
+    { text: "Trouble falling or staying asleep, or sleeping too much?", category: "Sleep" },
+    { text: "Feeling tired or having little energy?", category: "Energy" },
+    { text: "Poor appetite or overeating?", category: "Appetite" },
+    { text: "Feeling bad about yourself — or that you are a failure?", category: "Self-worth" }
+  ],
+  anxiety: [
+    { text: "Feeling nervous, anxious or on edge?", category: "Nervousness" },
+    { text: "Not being able to stop or control worrying?", category: "Worry" },
+    { text: "Worrying too much about different things?", category: "Worry scope" },
+    { text: "Trouble relaxing?", category: "Relaxation" },
+    { text: "Being so restless that it is hard to sit still?", category: "Restlessness" },
+    { text: "Becoming easily annoyed or irritable?", category: "Irritability" }
+  ],
+  burnout: [
+    { text: "Feeling emotionally exhausted or drained by work?", category: "Exhaustion" },
+    { text: "Feeling less interested or more cynical about your job?", category: "Cynicism" },
+    { text: "Feeling like you aren't achieving or accomplishing enough?", category: "Efficacy" },
+    { text: "Struggling to find energy or motivation to start your day?", category: "Motivation" }
+  ],
+  counsellor_match: [
+    { text: "What is your primary reason for seeking counselling?", options: ["Stress/Burnout", "Anxiety/Panic", "Low mood/Depression", "Relationship issues", "Personal growth"], type: "select" },
+    { text: "What is your preferred language for counselling sessions?", options: ["English", "Hindi", "Both"], type: "select" },
+    { text: "Do you have a preferred gender for your counsellor?", options: ["Female", "Male", "No Preference"], type: "select" },
+    { text: "Have you attended therapy or clinical counselling before?", options: ["Yes, frequently", "Yes, in the past", "No, this is my first time"], type: "select" }
+  ]
+};
+
+const PHQ_ANSWERS = [
+  { label: "Not at all", value: 0 },
+  { label: "Several days", value: 1 },
+  { label: "More than half the days", value: 2 },
+  { label: "Nearly every day", value: 3 }
+];
+
 export function renderInsightLab(state, dashboard, data) {
   const activeTab = state.insightLabTab || "scan";
 
   return html`
     <div class="insight-lab-wrapper" style="display:flex;flex-direction:column;gap:32px;">
       <!-- Header Banner & Credit Wallet Bar -->
-      <div class="panel-hero" style="background:linear-gradient(135deg, #1A1A18 0%, #2D2A26 100%);color:white;padding:32px;border-radius:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:20px;">
-        <div>
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-            <span class="status-pill warning" style="background:rgba(224,90,71,0.2);color:#E05A47;border:1px solid rgba(224,90,71,0.4);font-weight:700;">18+ NON-DIAGNOSTIC LAB</span>
-            <span style="font-size:12px;color:rgba(255,255,255,0.6);">SSoT Rule-Governed Engine</span>
-          </div>
-          <h1 class="page-title" style="font-family:var(--font-serif);font-size:32px;margin:0 0 8px 0;color:white;">MindHeal Insight Lab</h1>
-          <p class="page-subtitle" style="margin:0;color:rgba(255,255,255,0.7);max-width:650px;font-size:14px;line-height:1.5;">
-            Engaging AI-assisted self-reflection, wellness screenings, and care navigation. Designed for personal awareness — <strong>not clinical diagnosis</strong>.
-          </p>
+      <div class="panel-hero insight-lab-hero" style="position:relative;overflow:hidden;background:linear-gradient(135deg, #1A1A18 0%, #252220 60%, #2D2A26 100%);color:white;padding:40px 40px 36px;border-radius:24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:24px;">
+        <!-- Decorative background orbs -->
+        <div style="position:absolute;inset:0;pointer-events:none;overflow:hidden;">
+          <div style="position:absolute;top:-60px;right:240px;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle, rgba(224,90,71,0.18) 0%, transparent 70%);"></div>
+          <div style="position:absolute;bottom:-80px;right:80px;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle, rgba(49,151,149,0.12) 0%, transparent 70%);"></div>
+          <div style="position:absolute;top:0;left:40%;width:1px;height:100%;background:linear-gradient(to bottom, transparent, rgba(255,255,255,0.04), transparent);"></div>
         </div>
 
-        <!-- AI Credit Wallet Badge -->
-        <div style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);padding:16px 24px;border-radius:16px;display:flex;align-items:center;gap:16px;">
-          <div style="width:44px;height:44px;border-radius:50%;background:var(--color-coral);display:flex;align-items:center;justify-content:center;font-size:22px;color:white;">
-            <i class="ph-bold ph-lightning"></i>
+        <!-- Left: Text content -->
+        <div style="position:relative;z-index:1;flex:1;min-width:280px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+            <span class="status-pill warning" style="background:rgba(224,90,71,0.18);color:#F07060;border:1px solid rgba(224,90,71,0.35);font-weight:700;letter-spacing:0.04em;font-size:11px;padding:5px 12px;border-radius:99px;">18+ NON-DIAGNOSTIC LAB</span>
+            <span style="font-size:12px;color:rgba(255,255,255,0.4);display:flex;align-items:center;gap:5px;"><i class="ph-bold ph-shield-check" style="color:rgba(255,255,255,0.35);font-size:13px;"></i>SSoT Rule-Governed Engine</span>
           </div>
-          <div>
-            <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">AI Credit Wallet</div>
-            <div style="font-size:24px;font-weight:800;color:white;line-height:1.1;">
-              ${state.aiCredits !== undefined ? state.aiCredits : 25} <span style="font-size:13px;font-weight:400;color:rgba(255,255,255,0.7);">Credits</span>
+          <h1 class="page-title" style="font-family:var(--font-serif);font-size:clamp(26px,4vw,40px);margin:0 0 10px 0;color:white;line-height:1.15;font-weight:800;letter-spacing:-0.02em;">MindHeal Insight Lab</h1>
+          <p class="page-subtitle" style="margin:0 0 24px 0;color:rgba(255,255,255,0.6);max-width:560px;font-size:14px;line-height:1.6;">
+            Engaging AI-assisted self-reflection, wellness screenings, and care navigation. Designed for personal awareness — <strong style="color:rgba(255,255,255,0.85);">not clinical diagnosis</strong>.
+          </p>
+          <!-- Stat pills row -->
+          <div style="display:flex;flex-wrap:wrap;gap:10px;">
+            <div style="display:flex;align-items:center;gap:7px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);border-radius:99px;padding:6px 14px;font-size:12px;font-weight:600;color:rgba(255,255,255,0.75);">
+              <i class="ph-fill ph-brain" style="color:#E05A47;font-size:14px;"></i> 5 Screenings
+            </div>
+            <div style="display:flex;align-items:center;gap:7px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);border-radius:99px;padding:6px 14px;font-size:12px;font-weight:600;color:rgba(255,255,255,0.75);">
+              <i class="ph-fill ph-sparkle" style="color:#319795;font-size:14px;"></i> AI-Powered
+            </div>
+            <div style="display:flex;align-items:center;gap:7px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);border-radius:99px;padding:6px 14px;font-size:12px;font-weight:600;color:rgba(255,255,255,0.75);">
+              <i class="ph-fill ph-lock-key" style="color:#a78bfa;font-size:14px;"></i> Private & Secure
             </div>
           </div>
-          <button class="btn primary" onclick="window.openCreditRechargeModal()" style="height:36px;padding:0 16px;font-size:13px;">Recharge</button>
+        </div>
+
+        <!-- Right: AI Credit Wallet Card -->
+        <div style="position:relative;z-index:1;flex-shrink:0;">
+          <div style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);padding:20px 24px;border-radius:20px;display:flex;flex-direction:column;gap:16px;min-width:200px;backdrop-filter:blur(12px);">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="width:42px;height:42px;border-radius:14px;background:linear-gradient(135deg,#e05a47,#c0392b);display:flex;align-items:center;justify-content:center;font-size:20px;color:white;box-shadow:0 4px 14px rgba(224,90,71,0.4);">
+                <i class="ph-bold ph-lightning"></i>
+              </div>
+              <div>
+                <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:2px;">AI Credit Wallet</div>
+                <div style="font-size:26px;font-weight:800;color:white;line-height:1;display:flex;align-items:baseline;gap:5px;">
+                  ${state.aiCredits !== undefined ? state.aiCredits : 25}
+                  <span style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.5);">Credits</span>
+                </div>
+              </div>
+            </div>
+            <!-- Mini progress bar -->
+            <div style="height:3px;background:rgba(255,255,255,0.1);border-radius:99px;overflow:hidden;">
+              <div style="height:100%;width:${Math.min(100, ((state.aiCredits !== undefined ? state.aiCredits : 25) / 100) * 100)}%;background:linear-gradient(90deg,#e05a47,#f07060);border-radius:99px;transition:width 0.4s ease;"></div>
+            </div>
+            <button class="btn primary" onclick="window.openCreditRechargeModal()" style="width:100%;height:38px;padding:0;font-size:13px;font-weight:700;letter-spacing:0.02em;border-radius:12px;">
+              <i class="ph-bold ph-plus-circle" style="margin-right:5px;"></i>Recharge
+            </button>
+          </div>
         </div>
       </div>
+
 
       <!-- Feature Tabs Navigation -->
       <div style="display:flex;gap:8px;border-bottom:1px solid var(--color-border);padding-bottom:12px;overflow-x:auto;white-space:nowrap;">
@@ -75,40 +145,89 @@ function renderTabContent(tab, state) {
           <span style="font-size:13px;font-weight:700;color:var(--color-coral);"><i class="ph-bold ph-lightning"></i> Costs 2 Credits</span>
         </div>
 
-        <form id="wellness-scan-form" onsubmit="window.handleWellnessScanSubmit(event)" style="display:flex;flex-direction:column;gap:20px;">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+        <form id="wellness-scan-form" onsubmit="window.handleWellnessScanSubmit(event)" style="display:flex;flex-direction:column;gap:28px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:28px;">
+            
+            <!-- Question 1 -->
             <div class="field">
-              <label>1. Energy & Fatigue Level</label>
-              <select name="energy" required style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--color-border);">
-                <option value="high">High Energy & Rested</option>
-                <option value="moderate" selected>Moderate / Occasional Tiredness</option>
-                <option value="low">Low Energy / Constant Fatigue</option>
-              </select>
+              <label style="font-weight:700;margin-bottom:12px;font-size:14px;color:var(--color-charcoal);">1. Energy & Fatigue Level</label>
+              <input type="hidden" name="energy" id="scan-energy-input" value="moderate" />
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+                <div class="scan-option-card" onclick="window.setScanOption('energy', 'high')" id="opt-energy-high" style="border:2px solid var(--color-border);border-radius:12px;padding:12px 6px;text-align:center;cursor:pointer;background:#fafafa;transition:all 0.2s;">
+                  <div style="font-size:20px;margin-bottom:4px;">🔋</div>
+                  <div style="font-weight:600;font-size:11px;">Rested</div>
+                </div>
+                <div class="scan-option-card" onclick="window.setScanOption('energy', 'moderate')" id="opt-energy-moderate" style="border:2px solid var(--color-coral);border-radius:12px;padding:12px 6px;text-align:center;cursor:pointer;background:#FFF9F7;transition:all 0.2s;">
+                  <div style="font-size:20px;margin-bottom:4px;">🔌</div>
+                  <div style="font-weight:600;font-size:11px;">Tired</div>
+                </div>
+                <div class="scan-option-card" onclick="window.setScanOption('energy', 'low')" id="opt-energy-low" style="border:2px solid var(--color-border);border-radius:12px;padding:12px 6px;text-align:center;cursor:pointer;background:#fafafa;transition:all 0.2s;">
+                  <div style="font-size:20px;margin-bottom:4px;">🪫</div>
+                  <div style="font-weight:600;font-size:11px;">Exhausted</div>
+                </div>
+              </div>
             </div>
+
+            <!-- Question 2 -->
             <div class="field">
-              <label>2. Stress & Tension</label>
-              <select name="stress" required style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--color-border);">
-                <option value="low">Low / Manageable</option>
-                <option value="moderate" selected>Moderate Stress</option>
-                <option value="high">High Stress / Overwhelmed</option>
-              </select>
+              <label style="font-weight:700;margin-bottom:12px;font-size:14px;color:var(--color-charcoal);">2. Stress & Tension</label>
+              <input type="hidden" name="stress" id="scan-stress-input" value="moderate" />
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+                <div class="scan-option-card" onclick="window.setScanOption('stress', 'low')" id="opt-stress-low" style="border:2px solid var(--color-border);border-radius:12px;padding:12px 6px;text-align:center;cursor:pointer;background:#fafafa;transition:all 0.2s;">
+                  <div style="font-size:20px;margin-bottom:4px;">🍃</div>
+                  <div style="font-weight:600;font-size:11px;">Calm</div>
+                </div>
+                <div class="scan-option-card" onclick="window.setScanOption('stress', 'moderate')" id="opt-stress-moderate" style="border:2px solid var(--color-coral);border-radius:12px;padding:12px 6px;text-align:center;cursor:pointer;background:#FFF9F7;transition:all 0.2s;">
+                  <div style="font-size:20px;margin-bottom:4px;">⚡</div>
+                  <div style="font-weight:600;font-size:11px;">Moderate</div>
+                </div>
+                <div class="scan-option-card" onclick="window.setScanOption('stress', 'high')" id="opt-stress-high" style="border:2px solid var(--color-border);border-radius:12px;padding:12px 6px;text-align:center;cursor:pointer;background:#fafafa;transition:all 0.2s;">
+                  <div style="font-size:20px;margin-bottom:4px;">🔥</div>
+                  <div style="font-weight:600;font-size:11px;">Overloaded</div>
+                </div>
+              </div>
             </div>
+
+            <!-- Question 3 -->
             <div class="field">
-              <label>3. Sleep Quality (Last 7 Days)</label>
-              <select name="sleep" required style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--color-border);">
-                <option value="good">Restful (7+ Hours)</option>
-                <option value="fair" selected>Restless / Interrupted</option>
-                <option value="poor">Insomnia / Severe Waking</option>
-              </select>
+              <label style="font-weight:700;margin-bottom:12px;font-size:14px;color:var(--color-charcoal);">3. Sleep Quality (Last 7 Days)</label>
+              <input type="hidden" name="sleep" id="scan-sleep-input" value="fair" />
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+                <div class="scan-option-card" onclick="window.setScanOption('sleep', 'good')" id="opt-sleep-good" style="border:2px solid var(--color-border);border-radius:12px;padding:12px 6px;text-align:center;cursor:pointer;background:#fafafa;transition:all 0.2s;">
+                  <div style="font-size:20px;margin-bottom:4px;">🌙</div>
+                  <div style="font-weight:600;font-size:11px;">Deep</div>
+                </div>
+                <div class="scan-option-card" onclick="window.setScanOption('sleep', 'fair')" id="opt-sleep-fair" style="border:2px solid var(--color-coral);border-radius:12px;padding:12px 6px;text-align:center;cursor:pointer;background:#FFF9F7;transition:all 0.2s;">
+                  <div style="font-size:20px;margin-bottom:4px;">😴</div>
+                  <div style="font-weight:600;font-size:11px;">Restless</div>
+                </div>
+                <div class="scan-option-card" onclick="window.setScanOption('sleep', 'poor')" id="opt-sleep-poor" style="border:2px solid var(--color-border);border-radius:12px;padding:12px 6px;text-align:center;cursor:pointer;background:#fafafa;transition:all 0.2s;">
+                  <div style="font-size:20px;margin-bottom:4px;">⏰</div>
+                  <div style="font-weight:600;font-size:11px;">Insomnia</div>
+                </div>
+              </div>
             </div>
+
+            <!-- Question 4 -->
             <div class="field">
-              <label>4. Overthinking & Worry Loops</label>
-              <select name="overthinking" required style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--color-border);">
-                <option value="minimal">Minimal / Rare</option>
-                <option value="frequent" selected>Frequent Racing Thoughts</option>
-                <option value="constant">Constant Worry Loops</option>
-              </select>
+              <label style="font-weight:700;margin-bottom:12px;font-size:14px;color:var(--color-charcoal);">4. Overthinking & Worry Loops</label>
+              <input type="hidden" name="overthinking" id="scan-overthinking-input" value="frequent" />
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+                <div class="scan-option-card" onclick="window.setScanOption('overthinking', 'minimal')" id="opt-overthinking-minimal" style="border:2px solid var(--color-border);border-radius:12px;padding:12px 6px;text-align:center;cursor:pointer;background:#fafafa;transition:all 0.2s;">
+                  <div style="font-size:20px;margin-bottom:4px;">🌊</div>
+                  <div style="font-weight:600;font-size:11px;">Quiet</div>
+                </div>
+                <div class="scan-option-card" onclick="window.setScanOption('overthinking', 'frequent')" id="opt-overthinking-frequent" style="border:2px solid var(--color-coral);border-radius:12px;padding:12px 6px;text-align:center;cursor:pointer;background:#FFF9F7;transition:all 0.2s;">
+                  <div style="font-size:20px;margin-bottom:4px;">🌀</div>
+                  <div style="font-weight:600;font-size:11px;">Racing</div>
+                </div>
+                <div class="scan-option-card" onclick="window.setScanOption('overthinking', 'constant')" id="opt-overthinking-constant" style="border:2px solid var(--color-border);border-radius:12px;padding:12px 6px;text-align:center;cursor:pointer;background:#fafafa;transition:all 0.2s;">
+                  <div style="font-size:20px;margin-bottom:4px;">🌪️</div>
+                  <div style="font-weight:600;font-size:11px;">Constant</div>
+                </div>
+              </div>
             </div>
+
           </div>
 
           <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:12px;">
@@ -124,6 +243,96 @@ function renderTabContent(tab, state) {
   }
 
   if (tab === 'screenings') {
+    const active = state && state.activeScreening;
+    const completed = state && state.completedScreeningResult;
+
+    if (active) {
+      const questions = SCREENING_QUESTIONS[active.type];
+      const currentQ = questions[active.currentQuestionIndex];
+      const progress = Math.round(((active.currentQuestionIndex) / questions.length) * 100);
+
+      return html`
+        <div style="max-width:600px;margin:20px auto;padding:32px;background:white;border-radius:24px;box-shadow:0 10px 30px rgba(0,0,0,0.05);border:1px solid var(--color-border);display:flex;flex-direction:column;gap:24px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:12px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:1px;">Question ${active.currentQuestionIndex + 1} of ${questions.length}</span>
+            <button class="btn secondary" onclick="window.exitScreeningSession()" style="padding:6px 12px;font-size:12px;"><i class="ph-bold ph-x"></i> Cancel</button>
+          </div>
+          <div style="width:100%;height:6px;background:var(--color-bg);border-radius:3px;overflow:hidden;">
+            <div style="width:${progress}%;height:100%;background:var(--color-coral);transition:width 0.3s ease;"></div>
+          </div>
+
+          <div>
+            ${currentQ.category ? `<span class="status-pill info" style="margin-bottom:8px;font-size:11px;">${currentQ.category}</span>` : ""}
+            <h2 style="font-family:var(--font-serif);font-size:24px;color:var(--color-charcoal);margin:0;line-height:1.4;">${currentQ.text}</h2>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            ${(currentQ.options || PHQ_ANSWERS).map((ans, idx) => {
+              const label = typeof ans === "string" ? ans : ans.label;
+              const val = typeof ans === "string" ? label : ans.value;
+              return `
+                <div class="answer-row" 
+                     onclick="window.selectScreeningAnswer('${val}')" 
+                     onmouseover="this.style.background='var(--color-bg)'; this.style.borderColor='var(--color-coral)';" 
+                     onmouseout="this.style.background='white'; this.style.borderColor='var(--color-border)';"
+                     style="padding:16px 20px;border:1px solid var(--color-border);border-radius:12px;cursor:pointer;font-size:15px;font-weight:600;color:var(--color-charcoal);transition:all 0.2s ease;display:flex;align-items:center;justify-content:space-between;">
+                  <span>${label}</span>
+                  <i class="ph-bold ph-caret-right" style="color:var(--color-text-muted);"></i>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    if (completed) {
+      let title = "";
+      let desc = "";
+      let color = "";
+      let badge = "";
+
+      if (completed.type === 'low_mood') {
+        title = "Low-Mood & Energy Result";
+        badge = completed.score < 5 ? "Minimal / Mild" : completed.score < 10 ? "Moderate" : "Severe";
+        color = completed.score < 5 ? "success" : completed.score < 10 ? "warning" : "error";
+        desc = `Your self-reflection score is ${completed.score} out of 18. This indicates a ${badge.toLowerCase()} pattern. Reflect on your daily energy cycles and consider setting micro-goals to support focus.`;
+      } else if (completed.type === 'anxiety') {
+        title = "Anxiety & Overthinking Result";
+        badge = completed.score < 5 ? "Minimal / Mild" : completed.score < 10 ? "Moderate" : "Severe";
+        color = completed.score < 5 ? "success" : completed.score < 10 ? "warning" : "error";
+        desc = `Your self-reflection score is ${completed.score} out of 18. This indicates a ${badge.toLowerCase()} worrying level. Worry loops can be interrupted with grounding exercises and breath focus.`;
+      } else if (completed.type === 'burnout') {
+        title = "Burnout & Exhaustion Result";
+        badge = completed.score < 4 ? "Healthy / Low Risk" : completed.score < 8 ? "Moderate Burnout" : "Severe Exhaustion";
+        color = completed.score < 4 ? "success" : completed.score < 8 ? "warning" : "error";
+        desc = `Your self-reflection score is ${completed.score} out of 12. This indicates a ${badge.toLowerCase()} state. Recovery gaps and work detachment strategies can be explored to restore emotional energy.`;
+      } else {
+        title = "Therapy Match Complete";
+        badge = "Ready to Connect";
+        color = "success";
+        desc = "We have compiled your goals and preferences. Based on your input, we recommend verified clinical counsellors who specialize in anxiety, burnout management, and language alignment.";
+      }
+
+      return html`
+        <div style="max-width:600px;margin:20px auto;padding:40px;background:white;border-radius:24px;box-shadow:0 10px 30px rgba(0,0,0,0.05);border:1px solid var(--color-border);text-align:center;display:flex;flex-direction:column;align-items:center;gap:24px;">
+          <div style="width:64px;height:64px;border-radius:32px;background:var(--color-bg);display:flex;align-items:center;justify-content:center;color:var(--color-coral);">
+            <i class="ph-bold ph-check-circle" style="font-size:36px;"></i>
+          </div>
+          <div>
+            <h2 style="font-family:var(--font-serif);font-size:28px;margin:0 0 8px 0;color:var(--color-charcoal);">${title}</h2>
+            <span class="status-pill ${color}" style="font-size:13px;font-weight:700;padding:6px 14px;border-radius:20px;">${badge}</span>
+          </div>
+          <p style="font-size:15px;color:var(--color-text-muted);line-height:1.6;margin:0;max-width:480px;">${desc}</p>
+          
+          <div style="display:flex;gap:16px;width:100%;margin-top:8px;">
+            <button class="btn primary" onclick="window.location.hash='#/panel/user?section=counsellors'" style="flex:1;">Match with Counsellors</button>
+            <button class="btn secondary" onclick="window.clearScreeningResult()" style="flex:1;">Back to Insight Lab</button>
+          </div>
+        </div>
+      `;
+    }
+
     return html`
       <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(320px, 1fr));gap:24px;">
         <div class="dashboard-card" style="padding:24px;background:white;border-radius:16px;display:flex;flex-direction:column;gap:12px;">
@@ -133,7 +342,7 @@ function renderTabContent(tab, state) {
           </div>
           <h3 style="font-family:var(--font-serif);font-size:20px;margin:0;">Low-Mood & Energy Screen</h3>
           <p style="font-size:13px;color:var(--color-text-muted);margin:0;">Validated symptom check for persistent low energy and mood patterns.</p>
-          <button class="btn secondary" onclick="toast('Low-Mood Screening session initiated.')" style="margin-top:auto;">Start Screening</button>
+          <button class="btn secondary" onclick="window.startScreeningSession('low_mood')" style="margin-top:auto;">Start Screening</button>
         </div>
 
         <div class="dashboard-card" style="padding:24px;background:white;border-radius:16px;display:flex;flex-direction:column;gap:12px;">
@@ -143,7 +352,7 @@ function renderTabContent(tab, state) {
           </div>
           <h3 style="font-family:var(--font-serif);font-size:20px;margin:0;">Anxiety & Overthinking Check</h3>
           <p style="font-size:13px;color:var(--color-text-muted);margin:0;">Evaluate restlessness, worry loops, and functional impact.</p>
-          <button class="btn secondary" onclick="toast('Anxiety Check session initiated.')" style="margin-top:auto;">Start Check</button>
+          <button class="btn secondary" onclick="window.startScreeningSession('anxiety')" style="margin-top:auto;">Start Check</button>
         </div>
 
         <div class="dashboard-card" style="padding:24px;background:white;border-radius:16px;display:flex;flex-direction:column;gap:12px;">
@@ -153,7 +362,7 @@ function renderTabContent(tab, state) {
           </div>
           <h3 style="font-family:var(--font-serif);font-size:20px;margin:0;">Burnout & Exhaustion Reflection</h3>
           <p style="font-size:13px;color:var(--color-text-muted);margin:0;">Reflect on work detachment, emotional exhaustion, and recovery gaps.</p>
-          <button class="btn secondary" onclick="toast('Burnout Reflection initiated.')" style="margin-top:auto;">Start Reflection</button>
+          <button class="btn secondary" onclick="window.startScreeningSession('burnout')" style="margin-top:auto;">Start Reflection</button>
         </div>
 
         <div class="dashboard-card" style="padding:24px;background:white;border-radius:16px;display:flex;flex-direction:column;gap:12px;">
@@ -163,7 +372,7 @@ function renderTabContent(tab, state) {
           </div>
           <h3 style="font-family:var(--font-serif);font-size:20px;margin:0;">Therapy Readiness & Match</h3>
           <p style="font-size:13px;color:var(--color-text-muted);margin:0;">Match transparently with verified clinical experts based on your goals.</p>
-          <button class="btn primary" onclick="window.location.hash='#/panel/user?section=counsellors'" style="margin-top:auto;">Match Counsellor</button>
+          <button class="btn primary" onclick="window.startScreeningSession('counsellor_match')" style="margin-top:auto;background:var(--color-coral);border-color:var(--color-coral);color:white;">Match Counsellor</button>
         </div>
       </div>
     `;
@@ -686,20 +895,98 @@ window.switchInsightLabTab = function(tab) {
   }
 };
 
+window.setScanOption = function(field, value) {
+  // Update hidden input
+  const input = document.getElementById(`scan-${field}-input`);
+  if (input) input.value = value;
+
+  // Toggle active class visually
+  const groupCards = document.querySelectorAll(`[id^="opt-${field}-"]`);
+  groupCards.forEach(card => {
+    card.style.borderColor = "var(--color-border)";
+    card.style.background = "#fafafa";
+  });
+
+  const selectedCard = document.getElementById(`opt-${field}-${value}`);
+  if (selectedCard) {
+    selectedCard.style.borderColor = "var(--color-coral)";
+    selectedCard.style.background = "#FFF9F7";
+  }
+};
+
 window.handleWellnessScanSubmit = function(e) {
   e.preventDefault();
+  const form = e.target;
+  const energy = form.energy.value;
+  const stress = form.stress.value;
+  const sleep = form.sleep.value;
+  const overthinking = form.overthinking.value;
+  
   const resultDiv = document.getElementById("wellness-scan-result");
   if (!resultDiv) return;
 
+  // Compute summary dynamically!
+  let summary = "";
+  let focusAreas = [];
+  let strengths = [];
+
+  // Energy logic
+  if (energy === "high") {
+    strengths.push("🔋 Good energy baseline");
+  } else if (energy === "low") {
+    focusAreas.push("🪫 Chronic fatigue / burnout risk");
+  } else {
+    focusAreas.push("🔌 Occasional tiredness");
+  }
+
+  // Stress logic
+  if (stress === "low") {
+    strengths.push("🍃 Calm & manageable stress");
+  } else if (stress === "high") {
+    focusAreas.push("⚡ High stress load");
+  } else {
+    focusAreas.push("⚡ Moderate daily stress");
+  }
+
+  // Sleep logic
+  if (sleep === "good") {
+    strengths.push("🌙 Restful sleep pattern");
+  } else if (sleep === "poor") {
+    focusAreas.push("⏰ Insufficient sleep / insomnia");
+  } else {
+    focusAreas.push("😴 Restless sleep");
+  }
+
+  // Overthinking logic
+  if (overthinking === "minimal") {
+    strengths.push("🌊 Calm thinking baseline");
+  } else if (overthinking === "constant") {
+    focusAreas.push("🌪️ Constant worry loops");
+  } else {
+    focusAreas.push("🌀 Frequent racing thoughts");
+  }
+
+  // Generate personalized text
+  if (stress === "high" || overthinking === "constant" || sleep === "poor") {
+    summary = "Your results suggest a high load of stress, restlessness, or worry. It might be a helpful time to try a grounding exercise, journal your thoughts in our CBT suite, or talk to one of our peer listeners for supportive, active listening.";
+  } else if (stress === "moderate" || overthinking === "frequent" || energy === "moderate") {
+    summary = "Your profile shows moderate daily stress and worry loops. You have solid awareness! Keeping track of these moments using the CBT Situation Log can help identify patterns.";
+  } else {
+    summary = "Fantastic! You are experiencing a high level of mental wellness, deep rest, and low stress. Continue checking in periodically to maintain this positive baseline.";
+  }
+
   resultDiv.style.display = "block";
   resultDiv.innerHTML = `
-    <h3 style="font-family:var(--font-serif);font-size:18px;margin:0 0 8px 0;color:var(--color-charcoal);">Reflection Summary</h3>
-    <p style="font-size:14px;margin:0 0 12px 0;">Based on your responses, your current stress is moderate with subtle sleep restlessness.</p>
-    <div style="display:flex;gap:12px;align-items:center;">
-      <span class="status-pill success">Going well: High self-awareness</span>
-      <span class="status-pill warning">Focus area: Sleep hygiene</span>
+    <h3 style="font-family:var(--font-serif);font-size:18px;margin:0 0 8px 0;color:var(--color-charcoal);">Personalized Wellness Summary</h3>
+    <p style="font-size:14px;line-height:1.5;margin:0 0 16px 0;color:#2D3748;">${summary}</p>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+      ${strengths.map(s => `<span class="status-pill success" style="background:#E6FFFA;color:#00A389;border:1px solid #B2F5EA;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;">${s}</span>`).join('')}
+      ${focusAreas.map(f => `<span class="status-pill warning" style="background:#FFF5F5;color:#E53E3E;border:1px solid #FED7D7;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;">${f}</span>`).join('')}
     </div>
-    <p style="font-size:12px;color:var(--color-text-muted);margin-top:12px;"><em>Disclaimer: This output is for personal self-reflection and care navigation only. It is not a clinical diagnosis.</em></p>
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid rgba(0,0,0,0.05);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+      <span style="font-size:11px;color:var(--color-text-muted);"><em>Disclaimer: This output is for self-reflection, not clinical diagnosis.</em></span>
+      <button class="btn primary" onclick="window.switchTab('peer-talk')" style="padding:6px 12px;font-size:12px;height:auto;">Talk to a Peer Listener</button>
+    </div>
   `;
   toast("Wellness Scan completed. 2 AI Credits deducted.");
 };
@@ -1076,3 +1363,102 @@ window.renderVoiceMirrorAnalysis = function(transcript) {
   `;
   toast('Voice journal analysed. 2 AI Credits deducted.');
 };
+
+window.startScreeningSession = async function(type) {
+  const state = window.currentAppState;
+  if (!state) return;
+
+  const prices = { low_mood: 3, anxiety: 3, burnout: 2, counsellor_match: 0 };
+  const cost = prices[type];
+
+  if (cost > 0) {
+    const balanceCredits = (state.walletBalance || 0) / 100;
+    if (balanceCredits < cost) {
+      toast(`Insufficient balance. You need ${cost} credits, but only have ${balanceCredits} credits.`);
+      // Redirect to wallet
+      setTimeout(() => {
+        window.location.hash = '#/panel/user?section=wallet';
+      }, 1500);
+      return;
+    }
+  }
+
+  try {
+    const res = await api.createScreening(type);
+    if (res.success && res.data) {
+      state.activeScreening = {
+        type,
+        id: res.data.id,
+        currentQuestionIndex: 0,
+        responses: {},
+        score: 0
+      };
+      toast("Screening session initiated.");
+      if (typeof window.triggerAppRender === "function") window.triggerAppRender();
+    } else {
+      toast(res.error?.message || "Failed to start screening.");
+    }
+  } catch (err) {
+    toast(err.message || "Failed to connect to API.");
+  }
+};
+
+window.selectScreeningAnswer = async function(val) {
+  const state = window.currentAppState;
+  if (!state || !state.activeScreening) return;
+
+  const active = state.activeScreening;
+  const questions = SCREENING_QUESTIONS[active.type];
+  const qIndex = active.currentQuestionIndex;
+
+  active.responses[`q${qIndex}`] = val;
+  if (!isNaN(val)) {
+    active.score += Number(val);
+  }
+
+  if (qIndex + 1 >= questions.length) {
+    // Complete screening session
+    try {
+      const res = await api.completeScreening(active.id, active.score, active.responses);
+      if (res.success) {
+        state.completedScreeningResult = {
+          type: active.type,
+          score: active.score
+        };
+        delete state.activeScreening;
+        toast("Screening completed!");
+        
+        // Refresh wallet balance asynchronously
+        const balRes = await api.getWalletBalance();
+        if (balRes.success && balRes.data) {
+          state.walletBalance = balRes.data.balancePaise || balRes.data.balance || 0;
+        }
+      } else {
+        toast(res.error?.message || "Failed to save screening results.");
+      }
+    } catch (err) {
+      toast(err.message || "Failed to save screening results.");
+    }
+  } else {
+    active.currentQuestionIndex++;
+  }
+  
+  if (typeof window.triggerAppRender === "function") window.triggerAppRender();
+};
+
+window.exitScreeningSession = function() {
+  const state = window.currentAppState;
+  if (state) {
+    delete state.activeScreening;
+    if (typeof window.triggerAppRender === "function") window.triggerAppRender();
+  }
+};
+
+window.clearScreeningResult = function() {
+  const state = window.currentAppState;
+  if (state) {
+    delete state.completedScreeningResult;
+    if (typeof window.triggerAppRender === "function") window.triggerAppRender();
+  }
+};
+
