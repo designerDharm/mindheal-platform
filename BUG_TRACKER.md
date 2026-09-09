@@ -494,13 +494,21 @@
 
 #### MH-18: Logout leaves sensitive chat and diary caches in plaintext
 - **Priority:** P2 (Medium)
-- **Status:** `Open`
-- **Affected Files:** `src/services/mock-api.js`
-- **Reproduction Steps:** Log in, generate AI chat and thought diary entries, click Logout. Inspect `localStorage`.
-- **Expected Result:** All mental health data cleared on logout.
-- **Actual Result (Before Fix):** Plaintext notes and chat history remained in browser storage.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Status:** `Staging verified`
+- **Affected Files:** `src/services/mock-api.js`, `src/main.js`, `src/features/insight-lab.js`, `tests/cache-privacy.test.js`
+- **Reproduction Steps:** Log in, generate AI chat and thought diary entries, click Logout. Inspect `localStorage` and `sessionStorage`.
+- **Expected Result:** All mental health data, diaries, AI conversations, exposures, worry time logs, and wellness data cleared on logout and partitioned cleanly per user so Account B cannot read Account A's cache.
+- **Actual Result (Before Fix):** Plaintext notes, CBT tools, and chat history remained unscoped in browser storage and were not purged during logout, leaving sensitive data accessible to subsequent users on the same device.
+- **Fix Commit:** `e5ef15c` (`fix(auth): protect private browser caches on logout and isolate account storage (MH-18)`)
+- **Verification Evidence:**
+  - Defined `SENSITIVE_STORAGE_KEYS` covering all CBT diaries, exposures, worry time, AI chat, and Insight Lab storage keys.
+  - Implemented `clearPrivateUserData(userId)` in `src/services/mock-api.js` to purge both unscoped and user-partitioned keys from `localStorage` and `sessionStorage`.
+  - Wired `clearAuthSession()` and `api.logout()` to automatically invoke `clearPrivateUserData()`.
+  - Scoped storage keys in `src/main.js` and `src/features/insight-lab.js` using `getAccountScopedStorageKey` and `getLabStorageKey` (`${key}_${userId}`).
+  - Implemented `resetAccountState(userId)` and `loadUserPrivateState(userId)` to reset in-memory state on logout and account switching.
+  - Wired logout UI triggers (`ob-logout`, `logout`, `/auth/logout`) to `performLogout()`.
+  - Automated test suite `tests/cache-privacy.test.js` verified 5/5 tests passing (storage key list, purge routine, cross-account isolation, in-memory state reset on account change, UI event wiring).
+  - Clean run of full test suite `npm test` (31/31 passed) and `npm run check` (0 errors).
 
 #### MH-22: `getState()` couples rendering to session deletion
 - **Priority:** P2 (Medium)

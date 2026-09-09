@@ -50,6 +50,58 @@ export function saveAuthSession(sessionData, persistent = false) {
   }
 }
 
+export const SENSITIVE_STORAGE_KEYS = [
+  "cbt-daily-diary",
+  "cbt-thought-diary",
+  "cbt-exposure-hierarchy",
+  "cbt-behavioral-activation",
+  "cbt-worry-time",
+  "mindheal-ai-chat",
+  "mindheal-thought-mirror-sessions",
+  "mindheal-unsent-letters",
+  "mindheal-grounding-sessions"
+];
+
+export function clearPrivateUserData(userId = null) {
+  try {
+    const storages = [];
+    try { if (typeof sessionStorage !== "undefined" && sessionStorage) storages.push(sessionStorage); } catch {}
+    try { if (typeof localStorage !== "undefined" && localStorage) storages.push(localStorage); } catch {}
+
+    for (const storage of storages) {
+      for (const base of SENSITIVE_STORAGE_KEYS) {
+        storage.removeItem(base);
+        storage.removeItem(`${base}:guest`);
+        storage.removeItem(`${base}_guest`);
+      }
+
+      const keysToRemove = [];
+      const len = typeof storage.length === "number" ? storage.length : 0;
+      for (let i = 0; i < len; i++) {
+        const k = typeof storage.key === "function" ? storage.key(i) : null;
+        if (!k) continue;
+
+        const isSensitive = SENSITIVE_STORAGE_KEYS.some(
+          (base) => k === base || k.startsWith(`${base}:`) || k.startsWith(`${base}_`)
+        );
+        const isUserScoped = k.startsWith("usr_") || k.includes(":usr_") || k.startsWith("mindheal-user-");
+
+        if (isSensitive || isUserScoped) {
+          if (!userId || k.includes(userId)) {
+            keysToRemove.push(k);
+          }
+        }
+      }
+
+      for (const k of keysToRemove) {
+        storage.removeItem(k);
+      }
+    }
+  } catch (err) {
+    console.error("[Auth] Failed to clear private user data:", err);
+  }
+}
+
 export function clearAuthSession() {
   try {
     sessionStorage.removeItem("mindheal-access-token");
@@ -60,6 +112,7 @@ export function clearAuthSession() {
   } catch (err) {
     console.error("[Auth] Failed to clear auth session:", err);
   }
+  clearPrivateUserData();
 }
 
 function authHeaders() {
@@ -742,6 +795,7 @@ export const api = {
   isSessionPersistent,
   saveAuthSession,
   clearAuthSession,
-  refreshAuthSession
+  refreshAuthSession,
+  clearPrivateUserData
 };
 

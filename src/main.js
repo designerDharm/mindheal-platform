@@ -26,6 +26,71 @@ import { t, getSelectedLanguage, handleLanguageChange, langCodes, translateDOM }
 
 const app = document.querySelector("#app");
 
+export function getDefaultAiMessages() {
+  return [
+    { role: "ai", text: "I'm here. Take your time. What feels most present for you today?", safety: "low" },
+    { role: "user", text: "I feel anxious about work and sleep." },
+    { role: "ai", text: "That sounds heavy. Let's slow it down and separate what happened, what you felt, and what your mind predicted.", safety: "low" }
+  ];
+}
+
+export function getDefaultExposures() {
+  return [
+    { id: "exp_1", step: "Say hello to a cashier at the grocery store", anxiety: 30, status: "completed" },
+    { id: "exp_2", step: "Ask a stranger for directions", anxiety: 50, status: "pending" },
+    { id: "exp_3", step: "Sit in a crowded cafe for 15 minutes", anxiety: 70, status: "pending" },
+    { id: "exp_4", step: "Attend a crowded social gathering", anxiety: 90, status: "pending" }
+  ];
+}
+
+export function getDefaultActivities() {
+  return [
+    { id: "act_1", title: "Go for a 10-minute morning walk", category: "Physical", scheduledFor: "Tomorrow 8:00 AM", status: "pending" },
+    { id: "act_2", title: "Call a friend for 5 minutes", category: "Social", scheduledFor: "Wednesday 6:00 PM", status: "pending" }
+  ];
+}
+
+function resolveActiveUserId(userId = null) {
+  if (userId) return userId;
+  try {
+    if (typeof currentUserId !== "undefined" && currentUserId) return currentUserId;
+  } catch {}
+  try {
+    if (typeof state !== "undefined" && state?.auth?.id) return state.auth.id;
+  } catch {}
+  try {
+    if (typeof window !== "undefined" && window?.currentAppState?.auth?.id) return window.currentAppState.auth.id;
+  } catch {}
+  return null;
+}
+
+export function getAccountScopedStorageKey(baseKey, userId = null) {
+  const uid = resolveActiveUserId(userId);
+  return uid ? `${baseKey}:${uid}` : `${baseKey}:guest`;
+}
+
+export function loadUserData(baseKey, fallback, userId = null) {
+  const uid = resolveActiveUserId(userId);
+  const scopedKey = getAccountScopedStorageKey(baseKey, uid);
+  try {
+    const scopedVal = localStorage.getItem(scopedKey);
+    if (scopedVal !== null) return JSON.parse(scopedVal);
+    if (!uid) {
+      const legacyVal = localStorage.getItem(baseKey);
+      if (legacyVal !== null) return JSON.parse(legacyVal);
+    }
+  } catch {}
+  return fallback;
+}
+
+export function saveUserData(baseKey, data, userId = null) {
+  const uid = resolveActiveUserId(userId);
+  const scopedKey = getAccountScopedStorageKey(baseKey, uid);
+  try {
+    localStorage.setItem(scopedKey, JSON.stringify(data));
+  } catch {}
+}
+
 const state = {
   route: parseRoute(),
   authError: "",
@@ -53,21 +118,11 @@ const state = {
   signatureError: "",
   // CBT Toolkit Interactive Sub-features state
   cbtActiveTab: "thought", // "thought", "exposure", "activation", "grounding", "worry"
-  cbtDailyDiaryEntries: JSON.parse(localStorage.getItem("cbt-daily-diary") || "[]"),
-  cbtThoughtEntries: JSON.parse(localStorage.getItem("cbt-thought-diary") || "[]"),
-  cbtExposures: JSON.parse(localStorage.getItem("cbt-exposure-hierarchy") || `[
-    { "id": "exp_1", "step": "Say hello to a cashier at the grocery store", "anxiety": 30, "status": "completed" },
-    { "id": "exp_2", "step": "Ask a stranger for directions", "anxiety": 50, "status": "pending" },
-    { "id": "exp_3", "step": "Sit in a crowded cafe for 15 minutes", "anxiety": 70, "status": "pending" },
-    { "id": "exp_4", "step": "Attend a crowded social gathering", "anxiety": 90, "status": "pending" }
-  ]`),
-  cbtActivities: JSON.parse(localStorage.getItem("cbt-behavioral-activation") || `[
-    { "id": "act_1", "title": "Go for a 10-minute morning walk", "category": "Physical", "scheduledFor": "Tomorrow 8:00 AM", "status": "pending" },
-    { "id": "act_2", "title": "Call a friend for 5 minutes", "category": "Social", "scheduledFor": "Wednesday 6:00 PM", "status": "pending" }
-  ]`),
-  cbtWorryLogs: JSON.parse(localStorage.getItem("cbt-worry-time") || `[
-    { "id": "wor_1", "thought": "What if I fail my presentation tomorrow?", "postponedTo": "6:00 PM", "createdAt": "${new Date().toISOString()}" }
-  ]`),
+  cbtDailyDiaryEntries: loadUserData("cbt-daily-diary", []),
+  cbtThoughtEntries: loadUserData("cbt-thought-diary", []),
+  cbtExposures: loadUserData("cbt-exposure-hierarchy", getDefaultExposures()),
+  cbtActivities: loadUserData("cbt-behavioral-activation", getDefaultActivities()),
+  cbtWorryLogs: loadUserData("cbt-worry-time", []),
   cbtDailyDiaryOpen: false,
   selectedCountryCode: "+91",
   bookingModalOpen: false,
@@ -182,23 +237,106 @@ function navigate(path) {
 
 let appSocket = null;
 
-function loadAiMessages() {
+let currentUserId = null;
+
+function loadAiMessages(userId = null) {
   try {
-    const saved = JSON.parse(localStorage.getItem("mindheal-ai-chat") || "[]");
+    const saved = loadUserData("mindheal-ai-chat", null, userId);
     if (Array.isArray(saved) && saved.length) return saved;
   } catch {}
-
-  return [
-    { role: "ai", text: "I'm here. Take your time. What feels most present for you today?", safety: "low" },
-    { role: "user", text: "I feel anxious about work and sleep." },
-    { role: "ai", text: "That sounds heavy. Let's slow it down and separate what happened, what you felt, and what your mind predicted.", safety: "low" }
-  ];
+  return getDefaultAiMessages();
 }
 
-function saveAiMessages() {
+function saveAiMessages(userId = null) {
   try {
-    localStorage.setItem("mindheal-ai-chat", JSON.stringify(state.aiMessages.slice(-20)));
+    saveUserData("mindheal-ai-chat", state.aiMessages.slice(-20), userId);
   } catch {}
+}
+
+export function resetAccountState(userId = null) {
+  state.auth = null;
+  state.profile = null;
+  state.aiMessages = getDefaultAiMessages();
+  state.cbtDailyDiaryEntries = [];
+  state.cbtThoughtEntries = [];
+  state.cbtExposures = getDefaultExposures();
+  state.cbtActivities = getDefaultActivities();
+  state.cbtWorryLogs = [];
+  state.cbtDailyDiaryOpen = false;
+
+  state.dreamInput = "";
+  state.dreamAnalyzing = false;
+  state.dreamResult = null;
+  state.dreamError = "";
+  state.handwritingInput = "";
+  state.handwritingAnalyzing = false;
+  state.handwritingResult = null;
+  state.handwritingError = "";
+  state.signatureInput = "";
+  state.signatureAnalyzing = false;
+  state.signatureResult = null;
+  state.signatureError = "";
+
+  state.onboardingToken = null;
+  state.onboardingEmail = null;
+  state.onboardingName = null;
+  state.onboardingDob = null;
+  state.onboardingError = "";
+  state.onboardingStayLogged = false;
+  state.guardianPendingEmail = null;
+  state.linkModal = null;
+  state.linkError = "";
+  state.authError = "";
+  state.bookingModalOpen = false;
+  state.bookingModalTarget = null;
+  state.userBookings = [];
+  state.counsellorBookings = [];
+
+  // Insight lab in-memory state
+  state.reflectiveToolOpen = null;
+  state.thoughtMirrorStep = 0;
+  state.thoughtMirrorData = {};
+  state.unsentLetters = [];
+  state.lifeMapEvents = null;
+  state.voiceMirrorPhase = "idle";
+  state.voiceMirrorTranscript = "";
+
+  if (appSocket) {
+    try { appSocket.disconnect(); } catch {}
+    appSocket = null;
+  }
+
+  api.clearPrivateUserData?.(userId);
+}
+
+export function loadUserPrivateState(userId) {
+  if (!userId) {
+    resetAccountState();
+    return;
+  }
+  state.aiMessages = loadAiMessages(userId);
+  state.cbtDailyDiaryEntries = loadUserData("cbt-daily-diary", [], userId);
+  state.cbtThoughtEntries = loadUserData("cbt-thought-diary", [], userId);
+  state.cbtExposures = loadUserData("cbt-exposure-hierarchy", getDefaultExposures(), userId);
+  state.cbtActivities = loadUserData("cbt-behavioral-activation", getDefaultActivities(), userId);
+  state.cbtWorryLogs = loadUserData("cbt-worry-time", [], userId);
+  state.unsentLetters = loadUserData("mindheal-unsent-letters", [], userId);
+}
+
+export async function performLogout() {
+  const activeUid = state.auth?.id || currentUserId;
+  try {
+    await api.logout();
+  } catch (err) {
+    console.error("[Logout] Error during API logout:", err);
+  }
+  api.clearPrivateUserData?.(activeUid);
+  api.clearAuthSession?.();
+  resetAccountState(activeUid);
+  currentUserId = null;
+  state.panelSection = "overview";
+  toast("Logged out successfully.");
+  navigate("/");
 }
 
 async function render() {
@@ -373,8 +511,25 @@ function shouldShowFooter(path) {
 }
 
 async function resolvePage(path) {
+  if (path === "/auth/logout") {
+    await performLogout();
+    return homePage();
+  }
+
   const data = await api.getState().catch(() => null);
   const loggedIn = !!(data && data.auth);
+  const newUserId = data?.auth?.id || null;
+
+  if (currentUserId !== newUserId) {
+    if (currentUserId !== null) {
+      resetAccountState(currentUserId);
+    }
+    currentUserId = newUserId;
+    if (newUserId) {
+      loadUserPrivateState(newUserId);
+    }
+  }
+
   state.auth = data?.auth;
   
   if (loggedIn && data.auth.onboardingStatus !== "COMPLETED") {
@@ -4874,20 +5029,7 @@ function attachPageHandlers() {
   // Logout / Cancel onboarding
   document.querySelectorAll("[data-action='ob-logout']").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      try {
-        await api.logout();
-      } catch {}
-      api.clearAuthSession?.();
-      state.auth = null;
-      state.onboardingToken = null;
-      state.onboardingEmail = null;
-      state.onboardingName = null;
-      state.onboardingDob = null;
-      state.onboardingError = "";
-      state.onboardingStayLogged = false;
-      state.guardianPendingEmail = null;
-      toast("Logged out successfully.");
-      navigate("/");
+      await performLogout();
     });
   });
 
@@ -5028,14 +5170,7 @@ function attachPageHandlers() {
 
   document.querySelectorAll("[data-action='logout']").forEach((button) => {
     button.addEventListener("click", async () => {
-      await api.logout();
-      if (appSocket) {
-        appSocket.disconnect();
-        appSocket = null;
-      }
-      toast("Logged out.");
-      state.panelSection = "overview";
-      navigate("/");
+      await performLogout();
     });
   });
 
@@ -5631,7 +5766,7 @@ function attachPageHandlers() {
         createdAt: new Date().toISOString()
       };
       state.cbtDailyDiaryEntries.unshift(newEntry);
-      localStorage.setItem("cbt-daily-diary", JSON.stringify(state.cbtDailyDiaryEntries));
+      saveUserData("cbt-daily-diary", state.cbtDailyDiaryEntries);
       toast("Daily diary entry saved.");
       form.reset();
       render();
@@ -5654,7 +5789,7 @@ function attachPageHandlers() {
         createdAt: new Date().toISOString()
       };
       state.cbtThoughtEntries.unshift(newEntry);
-      localStorage.setItem("cbt-thought-diary", JSON.stringify(state.cbtThoughtEntries));
+      saveUserData("cbt-thought-diary", state.cbtThoughtEntries);
       toast("Thought record saved.");
       form.reset();
       render();
@@ -5673,7 +5808,7 @@ function attachPageHandlers() {
         status: "pending"
       };
       state.cbtExposures.push(newStep);
-      localStorage.setItem("cbt-exposure-hierarchy", JSON.stringify(state.cbtExposures));
+      saveUserData("cbt-exposure-hierarchy", state.cbtExposures);
       toast("Exposure step added.");
       form.reset();
       render();
@@ -5687,7 +5822,7 @@ function attachPageHandlers() {
       const index = state.cbtExposures.findIndex(item => item.id === targetId);
       if (index !== -1) {
         state.cbtExposures[index].status = state.cbtExposures[index].status === "completed" ? "pending" : "completed";
-        localStorage.setItem("cbt-exposure-hierarchy", JSON.stringify(state.cbtExposures));
+        saveUserData("cbt-exposure-hierarchy", state.cbtExposures);
         render();
       }
     });
@@ -5706,7 +5841,7 @@ function attachPageHandlers() {
         status: "pending"
       };
       state.cbtActivities.push(newActivity);
-      localStorage.setItem("cbt-behavioral-activation", JSON.stringify(state.cbtActivities));
+      saveUserData("cbt-behavioral-activation", state.cbtActivities);
       toast("Activity scheduled.");
       form.reset();
       render();
@@ -5720,7 +5855,7 @@ function attachPageHandlers() {
       const index = state.cbtActivities.findIndex(item => item.id === targetId);
       if (index !== -1) {
         state.cbtActivities[index].status = state.cbtActivities[index].status === "completed" ? "pending" : "completed";
-        localStorage.setItem("cbt-behavioral-activation", JSON.stringify(state.cbtActivities));
+        saveUserData("cbt-behavioral-activation", state.cbtActivities);
         render();
       }
     });
@@ -5738,7 +5873,7 @@ function attachPageHandlers() {
         createdAt: new Date().toISOString()
       };
       state.cbtWorryLogs.push(newWorry);
-      localStorage.setItem("cbt-worry-time", JSON.stringify(state.cbtWorryLogs));
+      saveUserData("cbt-worry-time", state.cbtWorryLogs);
       toast("Worry postponed.");
       form.reset();
       render();
@@ -5750,7 +5885,7 @@ function attachPageHandlers() {
     button.addEventListener("click", () => {
       const targetId = button.dataset.id;
       state.cbtWorryLogs = state.cbtWorryLogs.filter(item => item.id !== targetId);
-      localStorage.setItem("cbt-worry-time", JSON.stringify(state.cbtWorryLogs));
+      saveUserData("cbt-worry-time", state.cbtWorryLogs);
       toast("Worry resolved.");
       render();
     });
@@ -6542,9 +6677,9 @@ window.saveGroundingSession = function() {
     senses: state.groundingDone || []
   };
   try {
-    const existing = JSON.parse(localStorage.getItem("mindheal-grounding-sessions") || "[]");
+    const existing = loadUserData("mindheal-grounding-sessions", []);
     existing.unshift(session);
-    localStorage.setItem("mindheal-grounding-sessions", JSON.stringify(existing.slice(0, 20)));
+    saveUserData("mindheal-grounding-sessions", existing.slice(0, 20));
   } catch(e) {}
   if (typeof window.toast === "function") toast("Grounding session saved! ✅");
 };

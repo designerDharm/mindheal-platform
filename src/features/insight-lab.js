@@ -1130,6 +1130,11 @@ window.thoughtMirrorBack = function() {
   if (typeof window.triggerAppRender === "function") window.triggerAppRender();
 };
 
+function getLabStorageKey(baseKey) {
+  const uid = window.currentAppState?.auth?.id;
+  return uid ? `${baseKey}:${uid}` : `${baseKey}:guest`;
+}
+
 window.thoughtMirrorSubmit = function() {
   const state = window.currentAppState;
   if (!state || !state.thoughtMirrorData) return;
@@ -1144,11 +1149,12 @@ window.thoughtMirrorSubmit = function() {
   state.thoughtMirrorData.beliefAfter = beliefAfterEl ? parseInt(beliefAfterEl.value) : 30;
   state.thoughtMirrorData.savedAt = new Date().toISOString();
 
-  // Persist to localStorage
+  // Persist to account-scoped localStorage
   try {
-    const existing = JSON.parse(localStorage.getItem('mindheal-thought-mirror-sessions') || '[]');
+    const key = getLabStorageKey('mindheal-thought-mirror-sessions');
+    const existing = JSON.parse(localStorage.getItem(key) || '[]');
     existing.unshift(state.thoughtMirrorData);
-    localStorage.setItem('mindheal-thought-mirror-sessions', JSON.stringify(existing.slice(0, 20)));
+    localStorage.setItem(key, JSON.stringify(existing.slice(0, 20)));
   } catch(e) {}
 
   const beliefDrop = (state.thoughtMirrorData.beliefBefore || 50) - (state.thoughtMirrorData.beliefAfter || 30);
@@ -1181,9 +1187,10 @@ window.saveUnsentLetter = function(e) {
   if (!state.unsentLetters) state.unsentLetters = [];
   state.unsentLetters.unshift(letter);
 
-  // Persist to localStorage (never transmitted)
+  // Persist to account-scoped localStorage (never transmitted)
   try {
-    localStorage.setItem('mindheal-unsent-letters', JSON.stringify(state.unsentLetters));
+    const key = getLabStorageKey('mindheal-unsent-letters');
+    localStorage.setItem(key, JSON.stringify(state.unsentLetters));
   } catch(e) {}
 
   state.reflectiveToolOpen = null;
@@ -1196,7 +1203,8 @@ window.deleteUnsentLetter = function(index) {
   if (!state || !state.unsentLetters) return;
   state.unsentLetters.splice(index, 1);
   try {
-    localStorage.setItem('mindheal-unsent-letters', JSON.stringify(state.unsentLetters));
+    const key = getLabStorageKey('mindheal-unsent-letters');
+    localStorage.setItem(key, JSON.stringify(state.unsentLetters));
   } catch(e) {}
   toast('Letter deleted permanently.');
   if (typeof window.triggerAppRender === "function") window.triggerAppRender();
@@ -1205,7 +1213,8 @@ window.deleteUnsentLetter = function(index) {
 // Load saved letters from localStorage into state on first load
 (function loadSavedLetters() {
   try {
-    const saved = JSON.parse(localStorage.getItem('mindheal-unsent-letters') || '[]');
+    const key = getLabStorageKey('mindheal-unsent-letters');
+    const saved = JSON.parse(localStorage.getItem(key) || '[]');
     if (saved.length > 0 && window.currentAppState && !window.currentAppState.unsentLetters) {
       window.currentAppState.unsentLetters = saved;
     }
