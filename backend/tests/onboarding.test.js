@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert";
-import { login, completeProfile, link, approveGuardian } from "../src/controllers/auth.controller.js";
+import { login, completeProfile, link, approveGuardian, register, registerCounsellor } from "../src/controllers/auth.controller.js";
 import { repositories } from "../src/repositories/index.js";
 import { signOnboardingToken, hashPassword } from "../src/utils/security.js";
 
@@ -480,6 +480,52 @@ test("Secure Onboarding Integration Suite", async (t) => {
     });
 
     assert.strictEqual(result.status, 400);
+  });
+
+  await t.test("16. MH-03: Rejects role tampering and protected privilege overrides during onboarding and registration", async () => {
+    // 16a. Public registration with admin role is rejected
+    const regAdminRes = await register({
+      body: {
+        fullName: "Attacker User",
+        email: "attacker_reg@example.com",
+        password: "Password123!",
+        role: "admin"
+      }
+    });
+    assert.strictEqual(regAdminRes.status, 400);
+    assert.match(regAdminRes.body.error.message, /permits role 'user' only/);
+
+    // 16b. Counsellor registration with admin role is rejected
+    const cnsAdminRes = await registerCounsellor({
+      body: {
+        fullName: "Attacker Counsellor",
+        email: "attacker_cns@example.com",
+        mobile: "+919999999901",
+        password: "Password123!",
+        licenseNumber: "LIC-001",
+        specializations: ["CBT"],
+        role: "admin"
+      }
+    });
+    assert.strictEqual(cnsAdminRes.status, 400);
+    assert.match(cnsAdminRes.body.error.message, /permits role 'counsellor' only/);
+
+    // 16c. Onboarding with privilege overrides (role, isAdmin, status) is rejected
+    const token = signOnboardingToken({ firebaseUid: "fb_1", email: "fb1@example.com", name: "User 1", role: "user", flow: "signup" });
+    const profileTamperRes = await completeProfile({
+      body: {
+        onboardingToken: token,
+        fullName: "Tampered User",
+        dateOfBirth: "1995-01-01",
+        termsConsent: true,
+        role: "admin",
+        isAdmin: true
+      },
+      req: { headers: {} },
+      res: createMockRes()
+    });
+    assert.strictEqual(profileTamperRes.status, 400);
+    assert.match(profileTamperRes.body.error.message, /forbidden during profile onboarding/);
   });
 
   // Reset original repositories

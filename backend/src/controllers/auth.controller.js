@@ -100,8 +100,16 @@ export async function completeProfile({ body, req, res }) {
     return unauthorized("Onboarding session expired or missing.");
   }
 
+  const forbiddenPrivileges = ["role", "isAdmin", "is_admin", "isActive", "is_active", "status", "verificationStatus", "verification_status", "isGuardianConsentVerified", "is_guardian_consent_verified", "totpSecret", "totp_secret"];
+  const presentForbidden = forbiddenPrivileges.filter((key) => body[key] !== undefined);
+  if (presentForbidden.length > 0) {
+    return badRequest(`Modification of privilege or security fields is forbidden during profile onboarding: ${presentForbidden.join(", ")}`);
+  }
+
+  const { fullName, dateOfBirth, guardianEmail, termsConsent } = body || {};
+
   try {
-    const result = await authService.completeGoogleOnboarding(token, body);
+    const result = await authService.completeGoogleOnboarding(token, { fullName, dateOfBirth, guardianEmail, termsConsent });
     if (result.status === "AUTHENTICATED") {
       res.setHeader("Set-Cookie", "onboarding_token=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0");
     }
@@ -176,6 +184,15 @@ export async function verifyOtp({ body }) {
 }
 
 export async function registerCounsellor({ body }) {
+  if (body.role && body.role !== "counsellor") {
+    return badRequest("Counsellor registration permits role 'counsellor' only.");
+  }
+  const forbiddenPrivileges = ["isActive", "is_active", "status", "verificationStatus", "verification_status", "isGuardianConsentVerified", "is_guardian_consent_verified", "totpSecret", "totp_secret"];
+  const presentForbidden = forbiddenPrivileges.filter((key) => body[key] !== undefined);
+  if (presentForbidden.length > 0) {
+    return badRequest(`Modification of privilege or security fields is forbidden during counsellor registration: ${presentForbidden.join(", ")}`);
+  }
+
   const missing = requireFields(body, ["fullName", "password", "mobile", "licenseNumber", "specializations"]);
   if (missing) return badRequest("Missing required counsellor registration fields.", missing);
 

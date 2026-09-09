@@ -143,7 +143,8 @@ export async function loginWithFirebase(idToken, role, flow = "signin") {
       return { status: "SIGNUP_REQUIRED", email };
     }
 
-    const onboardingToken = signOnboardingToken({ firebaseUid: uid, email, name, role, flow });
+    const safeSignupRole = role === "counsellor" ? "counsellor" : "user";
+    const onboardingToken = signOnboardingToken({ firebaseUid: uid, email, name, role: safeSignupRole, flow });
     return { status: "PROFILE_REQUIRED", email, name, onboardingToken };
   }
 }
@@ -205,6 +206,7 @@ export async function completeGoogleOnboarding(onboardingToken, profileData) {
   }
 
   const { firebaseUid, email, role, flow } = payload;
+  const safeRole = role === "counsellor" ? "counsellor" : "user";
   const { fullName, dateOfBirth, guardianEmail, termsConsent } = profileData;
 
   if (!fullName || !dateOfBirth) {
@@ -229,7 +231,7 @@ export async function completeGoogleOnboarding(onboardingToken, profileData) {
   }
 
   const normalizedEmail = normalizeEmail(email);
-  let user = await repositories.users.findByEmailAndRole(normalizedEmail, role);
+  let user = await repositories.users.findByEmailAndRole(normalizedEmail, safeRole);
 
   if (user) {
     const patch = {
@@ -246,7 +248,7 @@ export async function completeGoogleOnboarding(onboardingToken, profileData) {
     user = await repositories.users.update(user.id, patch);
   } else {
     user = await createUser({
-      role,
+      role: safeRole,
       fullName,
       email: normalizedEmail,
       firebaseUid,
@@ -879,11 +881,20 @@ export async function resetPassword(email, otp, newPassword) {
 }
 
 export async function createCounsellorApplication(payload) {
+  const { userId, fullName, email, mobile, licenseNumber, specializations, languagesSpoken, experienceYears, bio } = payload || {};
   const application = {
     id: createId("app"),
+    userId,
+    fullName,
+    email,
+    mobile: mobile || null,
+    licenseNumber: licenseNumber || null,
+    specializations: Array.isArray(specializations) ? specializations : (typeof specializations === "string" ? [specializations] : []),
+    languagesSpoken: Array.isArray(languagesSpoken) ? languagesSpoken : (typeof languagesSpoken === "string" ? [languagesSpoken] : []),
+    experienceYears: Number(experienceYears || 0),
+    bio: bio || "",
     status: "pending",
-    createdAt: new Date().toISOString(),
-    ...payload
+    createdAt: new Date().toISOString()
   };
   await repositories.counsellorApplications.create(application);
   return application;
