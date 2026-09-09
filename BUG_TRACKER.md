@@ -27,6 +27,45 @@
 
 ## Bug Tracking Matrix
 
+### Phase 0: Startup & Infrastructure Prerequisites (MH-01 & MH-02)
+
+#### MH-01: Duplicate import in `ai.controller.js` prevents route graph load
+- **Priority:** P0 (Critical)
+- **Status:** `Staging verified`
+- **Affected Files:** `backend/src/controllers/ai.controller.js`
+- **Reproduction Steps:**
+  1. Run `node --check backend/src/controllers/ai.controller.js`.
+  2. Attempt to load backend router via `import('./backend/src/routes/index.js')`.
+- **Expected Result:** Module compiles cleanly; no duplicate identifier declarations.
+- **Actual Result (Before Fix):** Crash with `SyntaxError: Identifier 'repositories' has already been declared`.
+- **Fix Commit:** `6f15104` (confirmed maintained in `fix/audit-remediation-sep-2026`)
+- **Verification Evidence:**
+  - `npm run check` in `backend` passed across all `.js` and `.mjs` files without error.
+  - `node --check backend/src/controllers/ai.controller.js` and `backend/src/routes/index.js` exit with code 0.
+  - Live application starts cleanly against PostgreSQL.
+
+#### MH-02: PostgreSQL repository contract compliance & namespace exposure
+- **Priority:** P0 (Critical)
+- **Status:** `Staging verified`
+- **Affected Files:** `backend/src/repositories/postgres/repositories.js`, `backend/src/repositories/index.js`
+- **Reproduction Steps:**
+  1. Set `REPOSITORY_DRIVER=postgres`.
+  2. Load repository root: `node --input-type=module -e 'await import("./backend/src/repositories/index.js")'`.
+  3. Run repository contract comparison test suite.
+- **Expected Result:** PostgreSQL repository exposes every namespace, entity repository, and interface method present in memory repository.
+- **Actual Result (Before Fix):** Missing namespaces and methods, crashing on startup when `REPOSITORY_DRIVER=postgres`.
+- **Fix Commit:** `6f15104` (confirmed maintained in `fix/audit-remediation-sep-2026`)
+- **Verification Evidence:**
+  - Executed `NODE_ENV=test node --test backend/tests/repository-contract.test.js`: Passed (2/2 tests pass).
+  - Executed end-to-end disposable PostgreSQL lifecycle test (`mindheal_disposable_test`):
+    - Applied all 11 database migrations cleanly (`001_init.sql` to `011_promotional_notifications.sql`).
+    - Successfully booted backend on port 4009 with `REPOSITORY_DRIVER=postgres`.
+    - Created user and initiated payment order.
+    - Stopped backend, restarted backend against the same database.
+    - Verified user login, profile fetch, and database record survival across complete restart.
+
+---
+
 ### Phase 1: Critical Privilege Escalation & Auth Bypass (P0)
 
 #### MH-03: Public signup creates administrator role
