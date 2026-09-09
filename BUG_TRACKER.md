@@ -305,7 +305,7 @@
   - Google Sign-In returns `ACCOUNT_RESTRICTED`.
 - **Actual Result (Before Fix):**
   - Disabled users could log in with password, use existing access tokens for any authenticated endpoint, and connect to Socket.IO without restriction.
-- **Fix Commit:** `pending commit`
+- **Fix Commit:** `fe3af92`
 - **Verification Evidence:**
   - Comprehensive multi-vector test suite `scratch/reproduce_mh12_deep.mjs`: all 6 checks PASSED on live PostgreSQL with active Socket.IO disconnection.
   - Test suites: `backend/tests/auth.controller.test.js`, `backend/tests/auth.service.test.js`, `backend/tests/onboarding.test.js`, `backend/tests/repository-contract.test.js` (40/40 passed).
