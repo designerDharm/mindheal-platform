@@ -52,4 +52,46 @@ test("wallet service payment gateway", async (t) => {
       else process.env.RAZORPAY_WEBHOOK_SECRET = previousSecret;
     }
   });
+
+  await t.test("settlePaidPaymentOrder is idempotent and creates exactly one credit under concurrent execution", async () => {
+    const { repositories } = await import("../src/repositories/index.js");
+    const { settlePaidPaymentOrder, getBalance } = await import("../src/services/wallet.service.js");
+    const userId = "usr_concurrent_test_" + Date.now();
+    const orderId = "ord_concurrent_test_" + Date.now();
+    const paymentId = "pay_concurrent_test_" + Date.now();
+
+    const order = {
+      id: orderId,
+      gateway: "razorpay",
+      gatewayOrderId: "order_gw_" + Date.now(),
+      userId,
+      amountPaise: 50000,
+      status: "created",
+      createdAt: new Date().toISOString()
+    };
+
+    await repositories.paymentOrders.create(order);
+
+    // Fire 5 concurrent settlements for the exact same order
+    const results = await Promise.all([
+      settlePaidPaymentOrder(order, paymentId),
+      settlePaidPaymentOrder(order, paymentId),
+      settlePaidPaymentOrder(order, paymentId),
+      settlePaidPaymentOrder(order, paymentId),
+      settlePaidPaymentOrder(order, paymentId)
+    ]);
+
+    // All must complete successfully
+    assert.strictEqual(results.length, 5);
+
+    // Balance must be exactly 50000 paise
+    const balance = await getBalance(userId);
+    assert.strictEqual(balance, 50000);
+
+    // Exactly one call had alreadyPaid: false; all others had alreadyPaid: true
+    const paidNew = results.filter(r => r.alreadyPaid === false);
+    const paidExisting = results.filter(r => r.alreadyPaid === true);
+    assert.strictEqual(paidNew.length, 1);
+    assert.strictEqual(paidExisting.length, 4);
+  });
 });

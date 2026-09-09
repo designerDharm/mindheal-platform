@@ -89,7 +89,7 @@ test("wallet controller", async (t) => {
     };
     repositories.paymentOrders = {
       find: async (id) => {
-        assert.strictEqual(id, "order_gateway_test");
+        assert.ok(id === "order_gateway_test" || id === "ord_test");
         return {
           id: "ord_test",
           userId: "usr_payments",

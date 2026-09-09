@@ -140,74 +140,65 @@ export async function paymentWebhook({ body, req }) {
   const gatewayPaymentId = payment?.id;
   const amountPaise = Number(payment?.amount || 0);
 
-  return await withPaymentTransaction(async () => {
-    const order = gatewayOrderId ? await repositories.paymentOrders.find(gatewayOrderId) : null;
-    let settlement = null;
+  const order = gatewayOrderId ? await repositories.paymentOrders.find(gatewayOrderId) : null;
+  let settlement = null;
 
-    if (body.event === "payment.captured" && order) {
-      if (amountPaise !== order.amountPaise) {
-        await repositories.auditLogs.create({
-          id: createId("aud"),
-          action: "payment_webhook_rejected",
-          entityType: "payment",
-          entityId: order.id,
-          newValue: { reason: "amount_mismatch", gatewayOrderId, amountPaise, expectedAmountPaise: order.amountPaise },
-          createdAt: new Date().toISOString()
-        });
-        return badRequest("Payment amount mismatch.");
-      }
-      if (payment?.currency && payment.currency.toUpperCase() !== "INR") {
-        await repositories.auditLogs.create({
-          id: createId("aud"),
-          action: "payment_webhook_rejected",
-          entityType: "payment",
-          entityId: order.id,
-          newValue: { reason: "currency_mismatch", gatewayOrderId, currency: payment.currency },
-          createdAt: new Date().toISOString()
-        });
-        return badRequest("Payment currency mismatch.");
-      }
-      if (typeof repositories.paymentOrders.findByPaymentId === "function") {
-        const existing = await repositories.paymentOrders.findByPaymentId(gatewayPaymentId);
-        if (existing && existing.id !== order.id) {
-          await repositories.auditLogs.create({
-            id: createId("aud"),
-            action: "payment_webhook_rejected",
-            entityType: "payment",
-            entityId: order.id,
-            newValue: { reason: "payment_id_already_used", gatewayOrderId, gatewayPaymentId },
-            createdAt: new Date().toISOString()
-          });
-          return badRequest("Payment identifier has already been used for another order.");
-        }
-      }
-      settlement = await settlePaidPaymentOrder(order, gatewayPaymentId, "wallet_topup_webhook");
+  if (body.event === "payment.captured" && order) {
+    if (amountPaise !== order.amountPaise) {
+      await repositories.auditLogs.create({
+        id: createId("aud"),
+        action: "payment_webhook_rejected",
+        entityType: "payment",
+        entityId: order.id,
+        newValue: { reason: "amount_mismatch", gatewayOrderId, amountPaise, expectedAmountPaise: order.amountPaise },
+        createdAt: new Date().toISOString()
+      });
+      return badRequest("Payment amount mismatch.");
     }
-
-    await repositories.auditLogs.create({
-      id: createId("aud"),
-      action: "payment_webhook_received",
-      entityType: "payment",
-      entityId: order?.id || gatewayOrderId || null,
-      newValue: {
-        event: body.event,
-        gatewayOrderId,
-        gatewayPaymentId,
-        settled: Boolean(settlement),
-        alreadyPaid: settlement?.alreadyPaid || false
-      },
-      createdAt: new Date().toISOString()
-    });
-
-    return ok({ received: true, settled: Boolean(settlement), order: settlement?.order || order || null, ledgerEntry: settlement?.ledgerEntry || null });
-  });
-}
-
-async function withPaymentTransaction(callback) {
-  if (repositories.transactions?.withTransaction) {
-    return await repositories.transactions.withTransaction(callback);
+    if (payment?.currency && payment.currency.toUpperCase() !== "INR") {
+      await repositories.auditLogs.create({
+        id: createId("aud"),
+        action: "payment_webhook_rejected",
+        entityType: "payment",
+        entityId: order.id,
+        newValue: { reason: "currency_mismatch", gatewayOrderId, currency: payment.currency },
+        createdAt: new Date().toISOString()
+      });
+      return badRequest("Payment currency mismatch.");
+    }
+    if (typeof repositories.paymentOrders.findByPaymentId === "function") {
+      const existing = await repositories.paymentOrders.findByPaymentId(gatewayPaymentId);
+      if (existing && existing.id !== order.id) {
+        await repositories.auditLogs.create({
+          id: createId("aud"),
+          action: "payment_webhook_rejected",
+          entityType: "payment",
+          entityId: order.id,
+          newValue: { reason: "payment_id_already_used", gatewayOrderId, gatewayPaymentId },
+          createdAt: new Date().toISOString()
+        });
+        return badRequest("Payment identifier has already been used for another order.");
+      }
+    }
+    settlement = await settlePaidPaymentOrder(order, gatewayPaymentId, "wallet_topup_webhook");
   }
-  return await callback();
+
+  await repositories.auditLogs.create({
+    id: createId("aud"),
+    action: "payment_webhook_received",
+    entityType: "payment",
+    entityId: order?.id || gatewayOrderId || null,
+    newValue: {
+      event: body.event,
+      gatewayOrderId,
+      gatewayPaymentId,
+      settled: Boolean(settlement),
+      alreadyPaid: settlement?.alreadyPaid || false
+    },
+    createdAt: new Date().toISOString()
+  });
+
+  return ok({ received: true, settled: Boolean(settlement), order: settlement?.order || order || null, ledgerEntry: settlement?.ledgerEntry || null });
 }
 
 export async function payExpressSession({ body, user }) {

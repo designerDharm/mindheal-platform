@@ -1044,6 +1044,10 @@ export const postgresRepositories = {
       const res = await query("SELECT * FROM payment_orders WHERE id = $1 OR gateway_order_id = $1 LIMIT 1", [idOrGatewayOrderId]);
       return mapPaymentOrder(res.rows[0]);
     },
+    async findForUpdate(idOrGatewayOrderId) {
+      const res = await query("SELECT * FROM payment_orders WHERE id = $1 OR gateway_order_id = $1 LIMIT 1 FOR UPDATE", [idOrGatewayOrderId]);
+      return mapPaymentOrder(res.rows[0]);
+    },
     async findByPaymentId(gatewayPaymentId) {
       if (!gatewayPaymentId) return null;
       const res = await query("SELECT * FROM payment_orders WHERE gateway_payment_id = $1 LIMIT 1", [gatewayPaymentId]);

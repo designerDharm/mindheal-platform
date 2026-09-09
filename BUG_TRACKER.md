@@ -352,13 +352,23 @@
 
 #### MH-19: Concurrent payment settlement duplicates wallet credits
 - **Priority:** P1 (High)
-- **Status:** `Open`
-- **Affected Files:** `backend/src/services/wallet.service.js`
-- **Reproduction Steps:** Send two simultaneous webhook/verify requests for the same order.
-- **Expected Result:** Exactly one credit entry created (idempotent).
-- **Actual Result (Before Fix):** Race condition allowed double credit.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Status:** `Staging verified`
+- **Affected Files:** `backend/src/services/wallet.service.js`, `backend/src/controllers/wallet.controller.js`, `backend/src/repositories/postgres/repositories.js`, `backend/src/repositories/memory/index.js`, `backend/migrations/014_ledger_entries_payment_order_unique.sql`, `backend/tests/wallet.service.test.js`, `backend/tests/wallet.controller.test.js`
+- **Reproduction Steps:**
+  1. Send 10 simultaneous webhook and browser verification requests for the same order concurrently.
+  2. Send repeated duplicate webhook events for an already settled order.
+- **Expected Result:**
+  - Database row-level locking (`findForUpdate`), unique index constraint on `ledger_entries (reference_type, reference_id) WHERE reference_type = 'payment_order'`, and in-flight settlement coordination ensure idempotent settlement.
+  - Exactly one wallet credit entry created; user balance incremented exactly once.
+  - Concurrent and subsequent requests safely return `{ alreadyPaid: true }`.
+- **Actual Result (Before Fix):**
+  - Race condition without row locking or database uniqueness constraints allowed concurrent requests and repeated webhooks to duplicate wallet credits.
+- **Fix Commit:** `fix(payments): coordinate idempotent payment settlement and unique constraints (MH-19)`
+- **Verification Evidence:**
+  - Migration `014_ledger_entries_payment_order_unique.sql` created partial unique index on PostgreSQL `mindheal`.
+  - PostgreSQL live concurrency test (`scratch/test_mh19_postgres.mjs`): 10 simultaneous requests executed against live PostgreSQL created exactly 1 ledger entry row and incremented balance by exactly 150 INR (15,000 paise).
+  - In-memory deep concurrency test (`scratch/reproduce_mh19_deep.mjs`): 10 simultaneous requests created exactly 1 credit entry and repeated webhook deliveries remained strictly idempotent.
+  - Automated test suites: `backend/tests/wallet.service.test.js` (5/5 passed), `backend/tests/wallet.controller.test.js` (8/8 passed), `backend/tests/repository-contract.test.js` (2/2 passed).
 
 #### MH-20: Weekly payout worker calls missing repository method
 - **Priority:** P1 (High)

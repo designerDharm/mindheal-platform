@@ -156,6 +156,15 @@ export function verifyWebhookSignature(bodyRaw, signature) {
 
 import { postJournalTransaction } from "./double_entry.service.js";
 
+async function executeTransaction(callback) {
+  if (repositories.transactions?.withTransaction) {
+    return await repositories.transactions.withTransaction(callback);
+  }
+  return await callback();
+}
+
+const inFlightSettlements = new Map();
+
 export async function settlePaidPaymentOrder(order, gatewayPaymentId, reason = "wallet_topup") {
   if (!order) {
     const error = new Error("Payment order not found.");
@@ -163,51 +172,87 @@ export async function settlePaidPaymentOrder(order, gatewayPaymentId, reason = "
     throw error;
   }
 
-  if (order.status === "paid") {
-    return { order, ledgerEntry: null, alreadyPaid: true };
+  // Coordinate simultaneous in-flight requests in the same process
+  if (inFlightSettlements.has(order.id)) {
+    await inFlightSettlements.get(order.id);
+    const refreshed = await repositories.paymentOrders.find(order.id);
+    return { order: refreshed || order, ledgerEntry: null, alreadyPaid: true };
   }
 
-  if (gatewayPaymentId && typeof repositories.paymentOrders.findByPaymentId === "function") {
-    const existing = await repositories.paymentOrders.findByPaymentId(gatewayPaymentId);
-    if (existing && existing.id !== order.id) {
-      const error = new Error("Payment identifier has already been used for another order.");
-      error.code = "PAYMENT_ID_ALREADY_USED";
-      throw error;
-    }
-  }
+  const settlementAction = (async () => {
+    return await executeTransaction(async () => {
+      // Re-fetch under row lock if supported (e.g. PostgreSQL FOR UPDATE)
+      const lockedOrder = typeof repositories.paymentOrders.findForUpdate === "function"
+        ? await repositories.paymentOrders.findForUpdate(order.id)
+        : await repositories.paymentOrders.find(order.id);
 
-  const amountInr = order.amountPaise / 100;
-  const ledgerEntry = await credit(order.userId, amountInr, reason, {
-    referenceType: "payment_order",
-    referenceId: order.id,
-    gatewayPaymentId
-  });
+      const targetOrder = lockedOrder || order;
 
-  // Post balanced Double-Entry Journal (Debit GATEWAY_RECEIVABLE, Credit USER_AVAILABLE_BALANCE)
-  let journal = null;
-  try {
-    journal = await postJournalTransaction({
-      journalType: "WALLET_TOPUP",
-      businessReferenceType: "payment_order",
-      businessReferenceId: order.id,
-      idempotencyKey: `topup_${order.id}`,
-      description: `Wallet top-up via Razorpay payment ${gatewayPaymentId}`,
-      entries: [
-        { accountKey: "GATEWAY_RECEIVABLE", entrySide: "debit", amountPaise: order.amountPaise },
-        { accountKey: `USER_AVAILABLE_${order.userId}`, entrySide: "credit", amountPaise: order.amountPaise }
-      ]
+      if (targetOrder.status === "paid") {
+        return { order: targetOrder, ledgerEntry: null, alreadyPaid: true };
+      }
+
+      if (gatewayPaymentId && typeof repositories.paymentOrders.findByPaymentId === "function") {
+        const existing = await repositories.paymentOrders.findByPaymentId(gatewayPaymentId);
+        if (existing && existing.id !== targetOrder.id) {
+          const error = new Error("Payment identifier has already been used for another order.");
+          error.code = "PAYMENT_ID_ALREADY_USED";
+          throw error;
+        }
+      }
+
+      const amountInr = targetOrder.amountPaise / 100;
+      let ledgerEntry = null;
+      try {
+        ledgerEntry = await credit(targetOrder.userId, amountInr, reason, {
+          referenceType: "payment_order",
+          referenceId: targetOrder.id,
+          idempotencyKey: `topup_order_${targetOrder.id}`,
+          gatewayPaymentId
+        });
+      } catch (cErr) {
+        // Unique constraint violation indicates another concurrent request already credited this order
+        if (cErr.code === "23505" || cErr.message?.includes("Unique constraint")) {
+          const refreshed = await repositories.paymentOrders.find(targetOrder.id);
+          return { order: refreshed || targetOrder, ledgerEntry: null, alreadyPaid: true };
+        }
+        throw cErr;
+      }
+
+      // Post balanced Double-Entry Journal (Debit GATEWAY_RECEIVABLE, Credit USER_AVAILABLE_BALANCE)
+      let journal = null;
+      try {
+        journal = await postJournalTransaction({
+          journalType: "WALLET_TOPUP",
+          businessReferenceType: "payment_order",
+          businessReferenceId: targetOrder.id,
+          idempotencyKey: `topup_${targetOrder.id}`,
+          description: `Wallet top-up via Razorpay payment ${gatewayPaymentId}`,
+          entries: [
+            { accountKey: "GATEWAY_RECEIVABLE", entrySide: "debit", amountPaise: targetOrder.amountPaise },
+            { accountKey: `USER_AVAILABLE_${targetOrder.userId}`, entrySide: "credit", amountPaise: targetOrder.amountPaise }
+          ]
+        });
+      } catch (jErr) {
+        console.error("[DoubleEntry] Failed to post topup journal:", jErr);
+      }
+
+      const updatedOrder = await repositories.paymentOrders.update(targetOrder.id, {
+        status: "paid",
+        gatewayPaymentId,
+        paidAt: new Date().toISOString()
+      });
+
+      return { order: updatedOrder, ledgerEntry, journal, alreadyPaid: false };
     });
-  } catch (jErr) {
-    console.error("[DoubleEntry] Failed to post topup journal:", jErr);
+  })();
+
+  inFlightSettlements.set(order.id, settlementAction);
+  try {
+    return await settlementAction;
+  } finally {
+    inFlightSettlements.delete(order.id);
   }
-
-  const updatedOrder = await repositories.paymentOrders.update(order.id, {
-    status: "paid",
-    gatewayPaymentId,
-    paidAt: new Date().toISOString()
-  });
-
-  return { order: updatedOrder, ledgerEntry, journal, alreadyPaid: false };
 }
 
 function safeHexEqual(expected, actual) {

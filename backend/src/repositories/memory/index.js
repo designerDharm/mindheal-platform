@@ -237,6 +237,23 @@ export const memoryRepositories = {
       return store.ledgerEntries.filter((entry) => entry.walletId === walletId);
     },
     createLedgerEntry(entry) {
+      store.ledgerEntries ||= [];
+      if (entry.idempotencyKey) {
+        const existing = store.ledgerEntries.find((e) => e.idempotencyKey === entry.idempotencyKey);
+        if (existing) {
+          const err = new Error("Unique constraint violation on idempotency_key");
+          err.code = "23505";
+          throw err;
+        }
+      }
+      if (entry.referenceType === "payment_order" && entry.referenceId) {
+        const existing = store.ledgerEntries.find((e) => e.referenceType === "payment_order" && e.referenceId === entry.referenceId);
+        if (existing) {
+          const err = new Error("Unique constraint violation on payment_order reference");
+          err.code = "23505";
+          throw err;
+        }
+      }
       store.ledgerEntries.push(entry);
       return entry;
     },
@@ -253,6 +270,9 @@ export const memoryRepositories = {
     },
     find(idOrGatewayOrderId) {
       return (store.paymentOrders || []).find((order) => order.id === idOrGatewayOrderId || order.gatewayOrderId === idOrGatewayOrderId) || null;
+    },
+    findForUpdate(idOrGatewayOrderId) {
+      return this.find(idOrGatewayOrderId);
     },
     findByPaymentId(gatewayPaymentId) {
       if (!gatewayPaymentId) return null;
