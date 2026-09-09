@@ -11,6 +11,10 @@ if (env === "production" && isOtpTestMode) {
   throw new Error("SECURITY_FATAL: OTP_TEST_MODE=true is strictly forbidden in production environment.");
 }
 
+if (env === "production" && process.env.FIREBASE_AUTH_MOCK_ENABLED === "true") {
+  throw new Error("SECURITY_FATAL: FIREBASE_AUTH_MOCK_ENABLED=true is strictly forbidden in production environment.");
+}
+
 export const appConfig = {
   env,
   port: Number(process.env.PORT || 4000),

@@ -41,22 +41,23 @@ export const bucket = admin.apps.length ? admin.storage().bucket() : null;
 
 export const firebaseAuthVerifier = {
   async verifyIdToken(idToken) {
-    if (process.env.NODE_ENV === 'test' || appConfig.allowFirebaseAuthMock || process.env.REPOSITORY_DRIVER === 'memory') {
-      if (idToken && idToken.startsWith("mock-token-")) {
-        const parts = idToken.split("-");
-        const email = parts[2] || "mock-user@example.com";
-        const uid = parts[3] || "mock-uid";
-        const name = parts[4] || "Mock User";
-        return {
-          email,
-          uid,
-          name,
-          email_verified: true,
-          firebase: {
-            sign_in_provider: "google.com"
-          }
-        };
-      }
+    const isProduction = process.env.NODE_ENV === 'production' || appConfig.env === 'production';
+    const isMockAllowed = !isProduction && (process.env.NODE_ENV === 'test' || appConfig.allowFirebaseAuthMock);
+
+    if (isMockAllowed && idToken && idToken.startsWith("mock-token-")) {
+      const parts = idToken.split("-");
+      const email = parts[2] || "mock-user@example.com";
+      const uid = parts[3] || "mock-uid";
+      const name = parts[4] || "Mock User";
+      return {
+        email,
+        uid,
+        name,
+        email_verified: true,
+        firebase: {
+          sign_in_provider: "google.com"
+        }
+      };
     }
     if (!admin.apps.length) {
       throw new Error("Firebase authentication is not configured.");
