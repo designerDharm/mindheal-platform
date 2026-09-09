@@ -232,7 +232,7 @@ test("MH-09: Date of Birth and Adult Restrictions Suite", async (t) => {
       password: "Password123!"
     });
     // Manually force dateOfBirth to null to test legacy/unpopulated record
-    await repositories.users.update(u1.id, { dateOfBirth: null, date_of_birth: null });
+    await repositories.users.update(u1.id, { dateOfBirth: null });
     const token1 = signAccessToken(u1);
     const res1 = await dispatch(token1);
     assert.strictEqual(res1.statusCode, 403);
@@ -246,7 +246,7 @@ test("MH-09: Date of Birth and Adult Restrictions Suite", async (t) => {
       password: "Password123!",
       dateOfBirth: getDateOffset(25, 0)
     });
-    await repositories.users.update(u2.id, { dateOfBirth: "2045-01-01", date_of_birth: "2045-01-01" });
+    await repositories.users.update(u2.id, { dateOfBirth: "2045-01-01" });
     const token2 = signAccessToken(u2);
     const res2 = await dispatch(token2);
     assert.strictEqual(res2.statusCode, 403);
@@ -263,7 +263,6 @@ test("MH-09: Date of Birth and Adult Restrictions Suite", async (t) => {
     });
     await repositories.users.update(u3.id, {
       dateOfBirth: getDateOffset(18, 1),
-      date_of_birth: getDateOffset(18, 1),
       onboardingStatus: "COMPLETED", // bypass onboarding check to test requireAdult specifically
       isGuardianConsentVerified: true,
       guardianConsentStatus: "APPROVED"

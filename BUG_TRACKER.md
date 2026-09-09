@@ -574,13 +574,22 @@
 
 #### MH-31: Session persistence ignores "Stay logged in" checkbox
 - **Priority:** P2 (Medium)
-- **Status:** `Open`
-- **Affected Files:** `src/services/mock-api.js`
-- **Reproduction Steps:** Login with "Stay logged in" unchecked; inspect `localStorage`.
-- **Expected Result:** Auth tokens stored in `sessionStorage` (expires on tab close).
-- **Actual Result (Before Fix):** Always written to `localStorage`.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Status:** `Staging verified`
+- **Affected Files:** `src/services/mock-api.js`, `src/main.js`, `src/utils/i18n.js`, `tests/session-persistence.test.js`
+- **Reproduction Steps:**
+  1. Login with "Stay logged in" unchecked; inspect storage -> tokens isolated in `sessionStorage`, `localStorage` empty.
+  2. Simulate browser/tab close -> `sessionStorage` destroyed, session cleanly terminated.
+  3. Login with "Stay logged in" checked -> tokens stored in `localStorage`, `sessionStorage` empty.
+  4. Simulate browser/tab close & reopen -> persistent tokens survive restarts.
+  5. Switch between modes/logins -> opposite storage completely purged to prevent token leaks.
+  6. Trigger token expiry/401 -> seamless token refresh preserves the user's chosen storage persistence mode.
+- **Expected Result:** Session-only logins store auth tokens strictly in `sessionStorage` (cleared on browser/tab close); persistent logins store tokens in `localStorage` across restarts; token refresh and logout handle both storages cleanly.
+- **Actual Result (Before Fix):** All logins unconditionally saved tokens to `localStorage`, ignoring the "Stay logged in" checkbox state and persisting indefinitely.
+- **Fix Commit:** `eb8fa05`
+- **Verification Evidence:**
+  - Automated unit test suite `tests/session-persistence.test.js`: 9/9 tests passing (100%).
+  - Full frontend test suite `npm test`: 25/25 tests passing (100%).
+  - Syntax check `npm run check`: 0 errors.
 
 ---
 

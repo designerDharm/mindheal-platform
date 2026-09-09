@@ -889,7 +889,9 @@ export async function handleLanguageChange(lang) {
   localStorage.setItem("mindheal-language", lang);
   
   // SSoT check: Call profile update if logged in
-  const token = localStorage.getItem("mindheal-access-token");
+  const token = (api && typeof api.getAccessToken === "function") 
+    ? api.getAccessToken() 
+    : (sessionStorage.getItem("mindheal-access-token") || localStorage.getItem("mindheal-access-token"));
   if (token) {
     try {
       await api.updateProfile({ language: lang });

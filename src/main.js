@@ -4561,8 +4561,10 @@ function attachPageHandlers() {
       const mode = form.dataset.mode;
       const rawEmail = (payload.email || "").trim();
       const rawMobile = (payload.mobile || "").trim();
+      const stayLogged = !!form.querySelector("#stay-logged")?.checked;
       const cleanPayload = {
         ...payload,
+        stayLogged,
         email: rawEmail ? rawEmail : undefined,
         mobile: rawMobile ? rawMobile : undefined,
         totp: payload.totp ? String(payload.totp).trim() : undefined
@@ -4787,12 +4789,13 @@ function attachPageHandlers() {
 
       toast("Activating account...");
       try {
+        const stayLogged = Boolean(state.onboardingStayLogged);
         const res = await api.completeProfile(state.onboardingToken, {
           fullName: payload.fullName,
           dateOfBirth: dobVal,
           guardianEmail: payload.guardianEmail || null,
           termsConsent: !!payload.termsConsent
-        });
+        }, stayLogged);
 
         if (res.status === "AUTHENTICATED") {
           toast("Profile activated! Welcome to MindHeal.");
@@ -4801,6 +4804,7 @@ function attachPageHandlers() {
           state.onboardingName = null;
           state.onboardingDob = null;
           state.onboardingError = "";
+          state.onboardingStayLogged = false;
           const targetPanel = state.onboardingPanel || "/panel/user";
           state.onboardingPanel = null;
           navigate(targetPanel);
@@ -4825,9 +4829,10 @@ function attachPageHandlers() {
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const payload = getFormData(form);
+      const stayLogged = Boolean(state.linkModal?.stayLogged);
       toast("Linking accounts...");
       try {
-        const res = await api.linkGoogle(state.linkModal.email, payload.password, state.linkModal.idToken, state.linkModal.role);
+        const res = await api.linkGoogle(state.linkModal.email, payload.password, state.linkModal.idToken, state.linkModal.role, stayLogged);
         state.linkModal = null;
         state.linkError = "";
         
@@ -4841,6 +4846,7 @@ function attachPageHandlers() {
           state.onboardingName = res.name;
           state.onboardingRole = state.linkModal?.role || "user";
           state.onboardingPanel = state.linkModal?.panel || "/panel/user";
+          state.onboardingStayLogged = stayLogged;
           toast("Onboarding required: please complete your profile.", "info");
           navigate("/auth/complete-profile");
         } else if (res.status === "GUARDIAN_CONSENT_REQUIRED") {
@@ -4871,13 +4877,14 @@ function attachPageHandlers() {
       try {
         await api.logout();
       } catch {}
-      localStorage.removeItem("mindheal-access-token");
+      api.clearAuthSession?.();
       state.auth = null;
       state.onboardingToken = null;
       state.onboardingEmail = null;
       state.onboardingName = null;
       state.onboardingDob = null;
       state.onboardingError = "";
+      state.onboardingStayLogged = false;
       state.guardianPendingEmail = null;
       toast("Logged out successfully.");
       navigate("/");
@@ -4908,6 +4915,7 @@ function attachPageHandlers() {
       const form = btn.closest("form");
       const role = form.dataset.role || "user";
       const mode = form.dataset.mode || "signin";
+      const stayLogged = !!form?.querySelector("#stay-logged")?.checked;
       
       toast(`Connecting with ${provider}...`);
       
@@ -4927,7 +4935,7 @@ function attachPageHandlers() {
           const idToken = await result.user.getIdToken();
           
           toast("Verifying credentials...");
-          const res = await api.loginWithFirebase(role, idToken, mode);
+          const res = await api.loginWithFirebase(role, idToken, mode, stayLogged);
           
           if (res.status === "AUTHENTICATED") {
             toast(`Welcome! Logged in successfully via Google.`);
@@ -4939,6 +4947,7 @@ function attachPageHandlers() {
             state.onboardingName = res.name;
             state.onboardingRole = role;
             state.onboardingPanel = form.dataset.panel;
+            state.onboardingStayLogged = stayLogged;
             toast("Profile setup required to complete registration.", "info");
             navigate("/auth/complete-profile");
           } else if (res.status === "GUARDIAN_CONSENT_REQUIRED") {
@@ -4950,7 +4959,7 @@ function attachPageHandlers() {
             toast(state.authError, "error");
             render();
           } else if (res.status === "ACCOUNT_LINK_REQUIRED") {
-            state.linkModal = { email: res.email, idToken, role, panel: form.dataset.panel };
+            state.linkModal = { email: res.email, idToken, role, panel: form.dataset.panel, stayLogged };
             toast("This email matches a password account. Linking required.", "warning");
             render();
           } else if (res.status === "ACCOUNT_RESTRICTED") {

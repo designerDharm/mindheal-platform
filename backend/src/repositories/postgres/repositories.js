@@ -22,6 +22,17 @@ function compactPatch(patch, fields) {
   return { updates, values, index };
 }
 
+function formatDateOnly(val) {
+  if (!val) return null;
+  if (val instanceof Date) {
+    const y = val.getFullYear();
+    const m = String(val.getMonth() + 1).padStart(2, "0");
+    const d = String(val.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+  return String(val).split("T")[0];
+}
+
 function mapUser(row) {
   if (!row) return null;
   return {
@@ -35,8 +46,8 @@ function mapUser(row) {
     languageCode: row.language_code,
     avatarUrl: row.avatar_url,
     passwordHash: row.password_hash,
-    dateOfBirth: row.date_of_birth ? new Date(row.date_of_birth).toISOString().split('T')[0] : null,
-    date_of_birth: row.date_of_birth ? new Date(row.date_of_birth).toISOString().split('T')[0] : null,
+    dateOfBirth: formatDateOnly(row.date_of_birth),
+    date_of_birth: formatDateOnly(row.date_of_birth),
     isGuardianConsentVerified: row.is_guardian_consent_verified || false,
     guardianEmail: row.guardian_email || null,
     isActive: row.is_active,

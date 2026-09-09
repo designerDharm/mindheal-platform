@@ -1,8 +1,70 @@
 import { appConfig, dashboardSeed } from "../data/mindheal-data.js";
 
+export function getAccessToken() {
+  try {
+    return sessionStorage.getItem("mindheal-access-token") || localStorage.getItem("mindheal-access-token") || null;
+  } catch {
+    return null;
+  }
+}
+
+export function getRefreshToken() {
+  try {
+    return sessionStorage.getItem("mindheal-refresh-token") || localStorage.getItem("mindheal-refresh-token") || null;
+  } catch {
+    return null;
+  }
+}
+
+export function isSessionPersistent() {
+  try {
+    if (sessionStorage.getItem("mindheal-access-token")) return false;
+    if (localStorage.getItem("mindheal-access-token")) return true;
+    return localStorage.getItem("mindheal-auth-storage") === "local";
+  } catch {
+    return false;
+  }
+}
+
+export function saveAuthSession(sessionData, persistent = false) {
+  try {
+    const accessToken = sessionData?.accessToken || sessionData?.session?.accessToken;
+    const refreshToken = sessionData?.refreshToken || sessionData?.session?.refreshToken;
+
+    const targetStorage = persistent ? localStorage : sessionStorage;
+    const otherStorage = persistent ? sessionStorage : localStorage;
+
+    otherStorage.removeItem("mindheal-access-token");
+    otherStorage.removeItem("mindheal-refresh-token");
+
+    if (accessToken) targetStorage.setItem("mindheal-access-token", accessToken);
+    if (refreshToken) targetStorage.setItem("mindheal-refresh-token", refreshToken);
+
+    if (persistent) {
+      localStorage.setItem("mindheal-auth-storage", "local");
+    } else {
+      localStorage.removeItem("mindheal-auth-storage");
+    }
+  } catch (err) {
+    console.error("[Auth] Failed to save auth session:", err);
+  }
+}
+
+export function clearAuthSession() {
+  try {
+    sessionStorage.removeItem("mindheal-access-token");
+    sessionStorage.removeItem("mindheal-refresh-token");
+    localStorage.removeItem("mindheal-access-token");
+    localStorage.removeItem("mindheal-refresh-token");
+    localStorage.removeItem("mindheal-auth-storage");
+  } catch (err) {
+    console.error("[Auth] Failed to clear auth session:", err);
+  }
+}
+
 function authHeaders() {
   try {
-    const token = localStorage.getItem("mindheal-access-token");
+    const token = getAccessToken();
     return token ? { authorization: `Bearer ${token}` } : {};
   } catch {
     return {};
@@ -20,6 +82,46 @@ function getApiBaseUrl() {
   }
 }
 
+let activeRefreshPromise = null;
+
+export async function refreshAuthSession() {
+  if (activeRefreshPromise) return activeRefreshPromise;
+
+  activeRefreshPromise = (async () => {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) {
+      clearAuthSession();
+      return null;
+    }
+
+    try {
+      const apiBaseUrl = getApiBaseUrl();
+      const response = await fetch(`${apiBaseUrl}/auth/refresh`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ refreshToken })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (response.ok && payload.success && payload.data) {
+        const persistent = isSessionPersistent();
+        saveAuthSession(payload.data, persistent);
+        return payload.data;
+      } else {
+        clearAuthSession();
+        return null;
+      }
+    } catch {
+      clearAuthSession();
+      return null;
+    } finally {
+      activeRefreshPromise = null;
+    }
+  })();
+
+  return activeRefreshPromise;
+}
+
 async function request(path, options = {}) {
   try {
     const apiBaseUrl = getApiBaseUrl();
@@ -29,10 +131,18 @@ async function request(path, options = {}) {
       headers: { "content-type": "application/json", ...authHeaders(), ...(options.headers || {}) },
       body: options.body ? JSON.stringify(options.body) : undefined
     });
+
+    if (response.status === 401 && !path.startsWith("/auth/login") && !path.startsWith("/auth/refresh") && !path.startsWith("/auth/logout") && !options._retry) {
+      const refreshed = await refreshAuthSession();
+      if (refreshed) {
+        return request(path, { ...options, _retry: true });
+      }
+    }
+
     const payload = await response.json().catch(() => ({}));
     if (!response.ok || payload.success === false) {
       const errMsg = typeof payload.error === "string" ? payload.error : (payload.error?.message || payload.message || "Request failed");
-      return { ok: false, error: { message: errMsg } };
+      return { ok: false, error: { message: errMsg, code: payload.error?.code } };
     }
     return { ok: true, data: payload.data, meta: payload.meta };
   } catch (error) {
@@ -91,7 +201,7 @@ export const api = {
 
     let auth = myProfile.ok ? myProfile.data : null;
     if (!auth) {
-      localStorage.removeItem("mindheal-access-token");
+      clearAuthSession();
     }
 
     return {
@@ -137,6 +247,7 @@ export const api = {
   },
 
   async signUp(role, payload) {
+    const persistent = Boolean(payload?.stayLogged);
     const remote = await request(role === "counsellor" ? "/auth/counsellor/register" : "/auth/register", {
       method: "POST",
       body: role === "counsellor" ? {
@@ -165,12 +276,9 @@ export const api = {
       if (remote.data.status === "GUARDIAN_CONSENT_REQUIRED") {
         return remote.data;
       }
-      if (remote.data.session) {
-        localStorage.setItem("mindheal-access-token", remote.data.session.accessToken);
-        return remote.data.session.user;
-      }
-      if (remote.data.accessToken) {
-        localStorage.setItem("mindheal-access-token", remote.data.accessToken);
+      if (remote.data.session || remote.data.accessToken) {
+        saveAuthSession(remote.data.session || remote.data, persistent);
+        return remote.data.session?.user || remote.data.user || remote.data;
       }
       return remote.data.user || remote.data;
     }
@@ -178,6 +286,7 @@ export const api = {
   },
 
   async login(role, payload) {
+    const persistent = Boolean(payload?.stayLogged);
     const remote = await request("/auth/login", {
       method: "POST",
       body: {
@@ -193,58 +302,55 @@ export const api = {
       if (remote.data.status === "GUARDIAN_CONSENT_REQUIRED") {
         return remote.data;
       }
-      if (remote.data.session) {
-        localStorage.setItem("mindheal-access-token", remote.data.session.accessToken);
-        return remote.data.session.user;
-      }
-      if (remote.data.accessToken) {
-        localStorage.setItem("mindheal-access-token", remote.data.accessToken);
+      if (remote.data.session || remote.data.accessToken) {
+        saveAuthSession(remote.data.session || remote.data, persistent);
+        return remote.data.session?.user || remote.data.user || remote.data;
       }
       return remote.data.user || remote.data;
     }
     throw new Error(remote.error?.message || "Login failed");
   },
 
-  async loginWithFirebase(role, idToken, flow = "signin") {
+  async loginWithFirebase(role, idToken, flow = "signin", persistent = false) {
     const remote = await request("/auth/login", {
       method: "POST",
       body: { idToken, role, flow }
     });
 
     if (remote.ok) {
-      if (remote.data.session) {
-        localStorage.setItem("mindheal-access-token", remote.data.session.accessToken);
-        return { status: remote.data.status, user: remote.data.session.user };
+      if (remote.data.session || remote.data.accessToken) {
+        saveAuthSession(remote.data.session || remote.data, persistent);
+        return { status: remote.data.status, user: remote.data.session?.user || remote.data.user };
       }
       return remote.data;
     }
     throw new Error(remote.error?.message || "Firebase login failed");
   },
 
-  async completeProfile(onboardingToken, profileData) {
+  async completeProfile(onboardingToken, profileData, persistent = false) {
     const remote = await request("/auth/complete-profile", {
       method: "POST",
       body: { onboardingToken, ...profileData }
     });
 
     if (remote.ok) {
-      if (remote.data.session) {
-        localStorage.setItem("mindheal-access-token", remote.data.session.accessToken);
+      if (remote.data.session || remote.data.accessToken) {
+        saveAuthSession(remote.data.session || remote.data, persistent);
       }
       return remote.data;
     }
     throw new Error(remote.error?.message || "Profile completion failed");
   },
 
-  async linkGoogle(email, password, idToken, role) {
+  async linkGoogle(email, password, idToken, role, persistent = false) {
     const remote = await request("/auth/link", {
       method: "POST",
       body: { email, password, idToken, role }
     });
 
     if (remote.ok) {
-      if (remote.data.session) {
-        localStorage.setItem("mindheal-access-token", remote.data.session.accessToken);
+      if (remote.data.session || remote.data.accessToken) {
+        saveAuthSession(remote.data.session || remote.data, persistent);
       }
       return remote.data;
     }
@@ -283,8 +389,17 @@ export const api = {
     throw new Error(remote.error?.message || "Invalid or expired OTP code.");
   },
 
-  logout() {
-    localStorage.removeItem("mindheal-access-token");
+  async logout() {
+    const refreshToken = getRefreshToken();
+    if (refreshToken) {
+      try {
+        await request("/auth/logout", {
+          method: "POST",
+          body: { refreshToken }
+        });
+      } catch {}
+    }
+    clearAuthSession();
     return Promise.resolve(true);
   },
 
@@ -524,7 +639,7 @@ export const api = {
 
   initSocket(onNotification, onMessage) {
     if (!window.io) return null;
-    const token = localStorage.getItem("mindheal-access-token");
+    const token = getAccessToken();
     if (!token) return null;
 
     const apiBaseUrl = getApiBaseUrl().replace("/api/v1", "");
@@ -620,6 +735,13 @@ export const api = {
       method: "DELETE"
     });
     return { success: remote.ok, data: remote.data, error: remote.error };
-  }
+  },
+
+  getAccessToken,
+  getRefreshToken,
+  isSessionPersistent,
+  saveAuthSession,
+  clearAuthSession,
+  refreshAuthSession
 };
 
