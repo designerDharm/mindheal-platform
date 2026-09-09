@@ -678,10 +678,17 @@ export const memoryRepositories = {
       if (s) Object.assign(s, patch, { updatedAt: new Date().toISOString() });
       return s;
     },
-    async listForUser(user) {
+    async listForUser(userOrId) {
       store.peerSessions ||= [];
-      if (user.role === "admin") return store.peerSessions;
-      return store.peerSessions.filter(s => s.requesterUserId === user.id || s.listenerProfileId === user.id);
+      const userObj = typeof userOrId === "object" ? userOrId : { id: userOrId };
+      if (userObj.role === "admin") return store.peerSessions;
+      const profile = (store.peerListenerProfiles || []).find(p => p.userId === userObj.id);
+      const profileId = profile?.id;
+      return store.peerSessions.filter(s => 
+        s.requesterUserId === userObj.id || 
+        (profileId && s.listenerProfileId === profileId) || 
+        s.listenerProfileId === userObj.id
+      );
     }
   },
 

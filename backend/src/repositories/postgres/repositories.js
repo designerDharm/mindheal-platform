@@ -1619,14 +1619,15 @@ export const postgresRepositories = {
       const res = await query(`UPDATE peer_sessions SET ${updates.join(", ")}, updated_at = NOW() WHERE id = $${index} RETURNING *`, values);
       return mapPeerSession(res.rows[0]);
     },
-    async listForUser(user) {
-      if (user.role === "admin") {
+    async listForUser(userOrId) {
+      const userObj = typeof userOrId === "object" ? userOrId : { id: userOrId };
+      if (userObj.role === "admin") {
         const res = await query("SELECT * FROM peer_sessions ORDER BY created_at DESC");
         return res.rows.map(mapPeerSession);
       }
       const res = await query(
-        "SELECT * FROM peer_sessions WHERE requester_user_id = $1 OR listener_profile_id IN (SELECT id FROM peer_listener_profiles WHERE user_id = $1) ORDER BY created_at DESC",
-        [user.id]
+        "SELECT * FROM peer_sessions WHERE requester_user_id = $1 OR listener_profile_id IN (SELECT id FROM peer_listener_profiles WHERE user_id = $1) OR listener_profile_id = $1 ORDER BY created_at DESC",
+        [userObj.id]
       );
       return res.rows.map(mapPeerSession);
     }

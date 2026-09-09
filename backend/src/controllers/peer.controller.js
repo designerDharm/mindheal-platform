@@ -530,6 +530,79 @@ export async function authorizePeerQuoteParticipant(quote, user) {
   return { authorized: false, status: 403, error: "You are not authorized to access this peer session quote." };
 }
 
+export async function authorizePeerSessionParticipant(session, user) {
+  if (!user) {
+    return { authorized: false, status: 401, error: "Authentication required." };
+  }
+
+  // Resolve listener user ID and profile
+  let listenerUserId = session.listenerUserId || null;
+  let listenerProfile = null;
+
+  if (session.listenerProfileId) {
+    if (typeof repositories.peerListenerProfiles?.findById === "function") {
+      listenerProfile = await repositories.peerListenerProfiles.findById(session.listenerProfileId);
+      if (listenerProfile && listenerProfile.userId) {
+        listenerUserId = listenerProfile.userId;
+      }
+    }
+    if (!listenerUserId && session.listenerProfileId) {
+      listenerUserId = session.listenerProfileId;
+    }
+  }
+
+  if (user.role === "admin") {
+    return {
+      authorized: true,
+      role: "admin",
+      requesterUserId: session.requesterUserId,
+      listenerUserId: listenerUserId || session.listenerProfileId,
+      listenerProfileId: session.listenerProfileId
+    };
+  }
+
+  // Check requester
+  if (session.requesterUserId === user.id) {
+    return {
+      authorized: true,
+      role: "requester",
+      requesterUserId: session.requesterUserId,
+      listenerUserId: listenerUserId || session.listenerProfileId,
+      listenerProfileId: session.listenerProfileId
+    };
+  }
+
+  // Check listener: either user.id matches resolved listenerUserId, or user.id matches session.listenerProfileId directly,
+  // or user's listener profile id matches session.listenerProfileId
+  let isListener = false;
+  if (listenerUserId && listenerUserId === user.id) {
+    isListener = true;
+  }
+  if (!isListener && session.listenerProfileId === user.id) {
+    isListener = true;
+    listenerUserId = user.id;
+  }
+  if (!isListener && typeof repositories.peerListenerProfiles?.findByUserId === "function") {
+    const userLp = await repositories.peerListenerProfiles.findByUserId(user.id);
+    if (userLp && userLp.id === session.listenerProfileId) {
+      isListener = true;
+      listenerUserId = user.id;
+    }
+  }
+
+  if (isListener) {
+    return {
+      authorized: true,
+      role: "listener",
+      requesterUserId: session.requesterUserId,
+      listenerUserId: user.id,
+      listenerProfileId: session.listenerProfileId
+    };
+  }
+
+  return { authorized: false, status: 403, error: "You are not authorized for this peer session." };
+}
+
 export async function getSessionRequest({ params, user }) {
   const request = await repositories.peerSessionRequests.findById(params.id);
   if (!request) return notFound("Session request not found.");
@@ -901,8 +974,9 @@ export async function grantSessionConsent({ params, body, user }) {
   const session = await repositories.peerSessions.findById(params.id);
   if (!session) return notFound("Peer Session not found.");
 
-  if (session.requesterUserId !== user.id && session.listenerProfileId !== user.id) {
-    return forbidden("You are not part of this session.");
+  const auth = await authorizePeerSessionParticipant(session, user);
+  if (!auth.authorized) {
+    return forbidden(auth.error);
   }
 
   const consent = await repositories.peerSessionConsents.createOrUpdate({
@@ -915,16 +989,18 @@ export async function grantSessionConsent({ params, body, user }) {
 
   try {
     const io = getIO();
-    const targetUserId = session.requesterUserId === user.id 
-      ? (await repositories.peerListenerProfiles.findById(session.listenerProfileId)).userId 
+    const targetUserId = user.id === session.requesterUserId 
+      ? auth.listenerUserId 
       : session.requesterUserId;
     
-    io.to(targetUserId).emit("peer_consent_updated", {
-      sessionId: session.id,
-      userId: user.id,
-      capability: body.capability,
-      status: body.status
-    });
+    if (targetUserId) {
+      io.to(targetUserId).emit("peer_consent_updated", {
+        sessionId: session.id,
+        userId: user.id,
+        capability: body.capability,
+        status: body.status
+      });
+    }
   } catch (err) {
     console.error("[Socket] Failed to emit peer_consent_updated event:", err.message);
   }
@@ -936,8 +1012,9 @@ export async function getSessionConsents({ params, user }) {
   const session = await repositories.peerSessions.findById(params.id);
   if (!session) return notFound("Peer Session not found.");
 
-  if (session.requesterUserId !== user.id && session.listenerProfileId !== user.id) {
-    return forbidden("You are not authorized to view consents for this session.");
+  const auth = await authorizePeerSessionParticipant(session, user);
+  if (!auth.authorized) {
+    return forbidden(auth.error);
   }
 
   const consents = await repositories.peerSessionConsents.findBySessionId(session.id);
@@ -948,19 +1025,19 @@ export async function generatePeerRtcToken({ params, user }) {
   const session = await repositories.peerSessions.findById(params.id);
   if (!session) return notFound("Peer Session not found.");
 
-  if (session.requesterUserId !== user.id && session.listenerProfileId !== user.id) {
-    return forbidden("You are not authorized for this session.");
+  const auth = await authorizePeerSessionParticipant(session, user);
+  if (!auth.authorized) {
+    return forbidden(auth.error);
   }
 
-  const timeElapsedSeconds = (Date.now() - new Date(session.startedAt).getTime()) / 1000;
+  const sessionStart = session.startedAt || session.sessionStartedAt || session.createdAt;
+  const timeElapsedSeconds = sessionStart ? (Date.now() - new Date(sessionStart).getTime()) / 1000 : 0;
   if (timeElapsedSeconds < 300) {
     return forbidden(`Voice/Video features are locked during the first 5 minutes of the session. ${Math.round(300 - timeElapsedSeconds)} seconds remaining.`);
   }
 
   const consents = await repositories.peerSessionConsents.findBySessionId(session.id);
-  
-  const listenerProfile = await repositories.peerListenerProfiles.findById(session.listenerProfileId);
-  const listenerUserId = listenerProfile.userId;
+  const listenerUserId = auth.listenerUserId;
 
   const requesterConsent = consents.find(c => c.userId === session.requesterUserId && c.capability === "voice" && c.consentStatus === "granted");
   const listenerConsent = consents.find(c => c.userId === listenerUserId && c.capability === "voice" && c.consentStatus === "granted");
@@ -981,12 +1058,12 @@ export async function endPeerSession({ params, user }) {
     return badRequest(`Session cannot be ended from status '${session.sessionStatus}'.`);
   }
 
-  const listenerProfile = await repositories.peerListenerProfiles.findById(session.listenerProfileId);
-  const listenerUserId = listenerProfile.userId;
-
-  if (session.requesterUserId !== user.id && listenerUserId !== user.id && user.role !== "admin") {
-    return forbidden("You are not authorized to end this session.");
+  const auth = await authorizePeerSessionParticipant(session, user);
+  if (!auth.authorized) {
+    return forbidden(auth.error);
   }
+
+  const listenerUserId = auth.listenerUserId;
 
   return await executeTransaction(async () => {
     const endedAt = new Date().toISOString();
@@ -1080,13 +1157,13 @@ export async function submitPeerFeedback({ params, body, user }) {
   const session = await repositories.peerSessions.findById(params.id);
   if (!session) return notFound("Peer Session not found.");
 
-  if (session.requesterUserId !== user.id && session.listenerProfileId !== user.id) {
-    return forbidden("You are not authorized for this session.");
+  const auth = await authorizePeerSessionParticipant(session, user);
+  if (!auth.authorized) {
+    return forbidden(auth.error);
   }
 
-  const listenerProfile = await repositories.peerListenerProfiles.findById(session.listenerProfileId);
-  const targetUserId = session.requesterUserId === user.id 
-    ? listenerProfile.userId
+  const targetUserId = user.id === session.requesterUserId 
+    ? auth.listenerUserId
     : session.requesterUserId;
 
   const feedback = await repositories.peerFeedback.create({
@@ -1107,6 +1184,23 @@ export async function submitPeerFeedback({ params, body, user }) {
   });
 
   return created(feedback);
+}
+
+export async function getPeerSession({ params, user }) {
+  const session = await repositories.peerSessions.findById(params.id);
+  if (!session) return notFound("Peer Session not found.");
+
+  const auth = await authorizePeerSessionParticipant(session, user);
+  if (!auth.authorized) {
+    return forbidden(auth.error);
+  }
+
+  return ok(session);
+}
+
+export async function listPeerSessions({ user }) {
+  const sessions = await repositories.peerSessions.listForUser(user);
+  return ok(sessions);
 }
 
 export async function autoCleanExpiredPeerRequests() {

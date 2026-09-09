@@ -136,6 +136,8 @@ export const routes = [
   route("POST", `${p}/peer-session-requests/:id/decline`, peerController.declineSessionRequest, ["user", "counsellor", "admin"]),
   route("POST", `${p}/peer-session-requests/:id/payment-order`, peerController.initiateRequestPaymentOrder, ["user", "counsellor", "admin"]),
   route("POST", `${p}/peer-session-requests/:id/payment-verify`, peerController.verifyRequestPayment, ["user", "counsellor", "admin"]),
+  route("GET", `${p}/peer-sessions`, peerController.listPeerSessions, ["user", "counsellor", "admin"]),
+  route("GET", `${p}/peer-sessions/:id`, peerController.getPeerSession, ["user", "counsellor", "admin"]),
   route("POST", `${p}/peer-sessions/:id/consent`, peerController.grantSessionConsent, ["user", "counsellor", "admin"]),
   route("GET", `${p}/peer-sessions/:id/consents`, peerController.getSessionConsents, ["user", "counsellor", "admin"]),
   route("GET", `${p}/peer-sessions/:id/rtc-token`, peerController.generatePeerRtcToken, ["user", "counsellor", "admin"]),

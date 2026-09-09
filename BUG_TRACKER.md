@@ -511,13 +511,27 @@
 
 #### MH-39: Listener identity confused with listener profile ID
 - **Priority:** P1 (High)
-- **Status:** `Open`
-- **Affected Files:** `backend/src/controllers/peer.controller.js`, `backend/src/repositories/memory/index.js`
-- **Reproduction Steps:** Listener calls `grantSessionConsent` or lists peer sessions.
-- **Expected Result:** HTTP 200 OK after resolving profile to user.
-- **Actual Result (Before Fix):** HTTP 403 Forbidden because `profile.id` was compared with `user.id`.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Status:** `Staging verified`
+- **Affected Files:** `backend/src/controllers/peer.controller.js`, `backend/src/repositories/memory/index.js`, `backend/src/repositories/postgres/repositories.js`, `backend/src/routes/index.js`, `backend/tests/peer_listener_identity.test.js`
+- **Reproduction Steps:** Listener calls `grantSessionConsent`, lists peer sessions, generates RTC token, or submits peer feedback.
+- **Expected Result:** HTTP 200 OK / 201 Created after resolving listener profile to its owning user.
+- **Actual Result (Before Fix):** HTTP 403 Forbidden because `session.listenerProfileId` was compared with `user.id`.
+- **Fix Commit:** Staged
+- **Verification Evidence:**
+  - Implemented unified `authorizePeerSessionParticipant(session, user)` in `peer.controller.js` that accurately resolves `session.listenerProfileId` to the underlying listener user account (`profile.userId`) across all drivers.
+  - Refactored `grantSessionConsent`, `getSessionConsents`, `generatePeerRtcToken`, `endPeerSession`, and `submitPeerFeedback` to reuse `authorizePeerSessionParticipant`.
+  - Registered `GET /api/v1/peer-sessions` and `GET /api/v1/peer-sessions/:id`.
+  - Updated `repositories.peerSessions.listForUser` in `memory/index.js` and `postgres/repositories.js` to resolve `listenerProfileId` via `peerListenerProfiles.findByUserId`.
+  - Automated test suite `backend/tests/peer_listener_identity.test.js` (7/7 tests passing):
+    - `✔ 1. Unit: authorizePeerSessionParticipant resolves listener profile to owning user`
+    - `✔ 2. Session listing resolves listener profile and includes session for User A and User B`
+    - `✔ 3. GET /api/v1/peer-sessions/:id permits participants, rejects outsider with 403`
+    - `✔ 4. Consent granting and viewing permits both User A and User B, rejects User C`
+    - `✔ 5. Mutual consent enforcement for RTC token generation`
+    - `✔ 6. Feedback submission permits User A and User B with correct target user IDs, rejects User C`
+  - Peer Talk regression suite `backend/tests/peer-talk.test.js`: 11/11 tests passing.
+  - Peer Request authorization suite `backend/tests/peer_request_authorization.test.js`: 9/9 tests passing.
+  - Frontend test suite: 39/39 tests passing.
 
 ---
 
