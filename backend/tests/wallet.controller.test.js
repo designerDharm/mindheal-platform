@@ -178,4 +178,193 @@ test("wallet controller", async (t) => {
       repositories.paymentOrders = originalPaymentOrders;
     }
   });
+
+  await t.test("verifyTopup rejects proof when order belongs to another user (403)", async () => {
+    const originalPaymentOrders = repositories.paymentOrders;
+    repositories.paymentOrders = {
+      find: async (id) => {
+        if (id === "ord_200") {
+          return {
+            id: "ord_200",
+            gatewayOrderId: "order_gateway_200",
+            userId: "usr_legit_owner",
+            amountPaise: 10000,
+            status: "created"
+          };
+        }
+        return null;
+      }
+    };
+
+    try {
+      const { verifyTopup } = await import("../src/controllers/wallet.controller.js");
+      const response = await verifyTopup({
+        user: { id: "usr_attacker" },
+        body: {
+          orderId: "ord_200",
+          razorpay_order_id: "order_gateway_200",
+          razorpay_payment_id: "pay_200",
+          razorpay_signature: "sig_200"
+        }
+      });
+
+      assert.strictEqual(response.status, 403);
+      assert.strictEqual(response.body.error.code, "FORBIDDEN");
+    } finally {
+      repositories.paymentOrders = originalPaymentOrders;
+    }
+  });
+
+  await t.test("verifyTopup rejects reused payment identifier", async () => {
+    const originalPaymentOrders = repositories.paymentOrders;
+    repositories.paymentOrders = {
+      find: async (id) => {
+        if (id === "ord_300") {
+          return {
+            id: "ord_300",
+            gatewayOrderId: "order_gateway_300",
+            userId: "usr_3",
+            amountPaise: 10000,
+            status: "created"
+          };
+        }
+        return null;
+      },
+      findByPaymentId: async (paymentId) => {
+        if (paymentId === "pay_already_used") {
+          return { id: "ord_earlier", gatewayPaymentId: "pay_already_used", status: "paid" };
+        }
+        return null;
+      }
+    };
+
+    try {
+      const { verifyTopup } = await import("../src/controllers/wallet.controller.js");
+      const response = await verifyTopup({
+        user: { id: "usr_3" },
+        body: {
+          orderId: "ord_300",
+          razorpay_order_id: "order_gateway_300",
+          razorpay_payment_id: "pay_already_used",
+          razorpay_signature: "sig_300"
+        }
+      });
+
+      assert.strictEqual(response.status, 400);
+      assert.strictEqual(response.body.error.message, "Payment identifier has already been used for another order.");
+    } finally {
+      repositories.paymentOrders = originalPaymentOrders;
+    }
+  });
+
+  await t.test("verifyTopup validates gateway payment state, order_id, amount, and currency", async () => {
+    const { setPaymentFetcherForTesting } = await import("../src/services/wallet.service.js");
+    const { verifyTopup } = await import("../src/controllers/wallet.controller.js");
+    const originalPaymentOrders = repositories.paymentOrders;
+    const testSecret = "test_key_secret_for_gateway_validation";
+    process.env.RAZORPAY_KEY_SECRET = testSecret;
+
+    const testOrder = {
+      id: "ord_gateway_chk",
+      gatewayOrderId: "order_gateway_expected_123",
+      userId: "usr_valid",
+      amountPaise: 25000,
+      status: "created"
+    };
+
+    repositories.paymentOrders = {
+      find: async () => testOrder,
+      findByPaymentId: async () => null
+    };
+
+    const validSig = crypto.createHmac("sha256", testSecret)
+      .update(`${testOrder.gatewayOrderId}|pay_test_state`)
+      .digest("hex");
+
+    try {
+      // 1. Gateway status not captured
+      setPaymentFetcherForTesting(async () => ({
+        order_id: testOrder.gatewayOrderId,
+        amount: 25000,
+        currency: "INR",
+        status: "failed"
+      }));
+
+      const resNotCaptured = await verifyTopup({
+        user: { id: "usr_valid" },
+        body: {
+          orderId: testOrder.id,
+          razorpay_order_id: testOrder.gatewayOrderId,
+          razorpay_payment_id: "pay_test_state",
+          razorpay_signature: validSig
+        }
+      });
+      assert.strictEqual(resNotCaptured.status, 400);
+      assert.match(resNotCaptured.body.error.message, /not captured/);
+
+      // 2. Gateway amount mismatch
+      setPaymentFetcherForTesting(async () => ({
+        order_id: testOrder.gatewayOrderId,
+        amount: 10000,
+        currency: "INR",
+        status: "captured"
+      }));
+
+      const resAmountMismatch = await verifyTopup({
+        user: { id: "usr_valid" },
+        body: {
+          orderId: testOrder.id,
+          razorpay_order_id: testOrder.gatewayOrderId,
+          razorpay_payment_id: "pay_test_state",
+          razorpay_signature: validSig
+        }
+      });
+      assert.strictEqual(resAmountMismatch.status, 400);
+      assert.match(resAmountMismatch.body.error.message, /amount does not match/);
+
+      // 3. Gateway currency mismatch
+      setPaymentFetcherForTesting(async () => ({
+        order_id: testOrder.gatewayOrderId,
+        amount: 25000,
+        currency: "USD",
+        status: "captured"
+      }));
+
+      const resCurrencyMismatch = await verifyTopup({
+        user: { id: "usr_valid" },
+        body: {
+          orderId: testOrder.id,
+          razorpay_order_id: testOrder.gatewayOrderId,
+          razorpay_payment_id: "pay_test_state",
+          razorpay_signature: validSig
+        }
+      });
+      assert.strictEqual(resCurrencyMismatch.status, 400);
+      assert.match(resCurrencyMismatch.body.error.message, /currency mismatch/);
+
+      // 4. Gateway order_id mismatch
+      setPaymentFetcherForTesting(async () => ({
+        order_id: "order_gateway_different",
+        amount: 25000,
+        currency: "INR",
+        status: "captured"
+      }));
+
+      const resOrderMismatch = await verifyTopup({
+        user: { id: "usr_valid" },
+        body: {
+          orderId: testOrder.id,
+          razorpay_order_id: testOrder.gatewayOrderId,
+          razorpay_payment_id: "pay_test_state",
+          razorpay_signature: validSig
+        }
+      });
+      assert.strictEqual(resOrderMismatch.status, 400);
+      assert.match(resOrderMismatch.body.error.message, /order ID does not match/);
+    } finally {
+      setPaymentFetcherForTesting(null);
+      repositories.paymentOrders = originalPaymentOrders;
+    }
+  });
 });
+

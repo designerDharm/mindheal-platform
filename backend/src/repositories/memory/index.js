@@ -254,6 +254,10 @@ export const memoryRepositories = {
     find(idOrGatewayOrderId) {
       return (store.paymentOrders || []).find((order) => order.id === idOrGatewayOrderId || order.gatewayOrderId === idOrGatewayOrderId) || null;
     },
+    findByPaymentId(gatewayPaymentId) {
+      if (!gatewayPaymentId) return null;
+      return (store.paymentOrders || []).find((order) => order.gatewayPaymentId === gatewayPaymentId) || null;
+    },
     update(id, patch) {
       const order = this.find(id);
       if (order) Object.assign(order, patch, { updatedAt: new Date().toISOString() });

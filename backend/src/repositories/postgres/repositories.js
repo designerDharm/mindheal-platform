@@ -1040,6 +1040,11 @@ export const postgresRepositories = {
       const res = await query("SELECT * FROM payment_orders WHERE id = $1 OR gateway_order_id = $1 LIMIT 1", [idOrGatewayOrderId]);
       return mapPaymentOrder(res.rows[0]);
     },
+    async findByPaymentId(gatewayPaymentId) {
+      if (!gatewayPaymentId) return null;
+      const res = await query("SELECT * FROM payment_orders WHERE gateway_payment_id = $1 LIMIT 1", [gatewayPaymentId]);
+      return mapPaymentOrder(res.rows[0]);
+    },
     async update(id, patch) {
       const { updates, values, index } = compactPatch(patch, {
         status: "status",

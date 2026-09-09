@@ -1,6 +1,6 @@
 import { repositories } from "../repositories/index.js";
-import { getBalance, ledger, createRazorpayOrder, verifyRazorpaySignature, verifyWebhookSignature, settlePaidPaymentOrder, debit } from "../services/wallet.service.js";
-import { created, ok, badRequest } from "../utils/http.js";
+import { getBalance, ledger, createRazorpayOrder, verifyRazorpaySignature, verifyWebhookSignature, settlePaidPaymentOrder, fetchRazorpayPayment, debit } from "../services/wallet.service.js";
+import { created, ok, badRequest, forbidden } from "../utils/http.js";
 import { createId } from "../utils/security.js";
 import { toPaise } from "../utils/validation.js";
 
@@ -45,20 +45,61 @@ export async function verifyTopup({ body, user }) {
   }
 
   const order = await repositories.paymentOrders.find(identifier);
-  if (!order || order.userId !== user.id) return badRequest("Payment order not found.");
-  if (order.status === "paid") return ok({ verified: true, order, ledgerEntry: null });
+  if (!order) return badRequest("Payment order not found.");
+  if (order.userId !== user.id) {
+    return forbidden("Payment order does not belong to the authenticated user.");
+  }
 
-  if (order.gatewayOrderId && razorpay_order_id && order.gatewayOrderId !== razorpay_order_id) {
+  if (order.status === "paid") {
+    if (order.gatewayPaymentId && order.gatewayPaymentId !== razorpay_payment_id) {
+      return badRequest("Payment order has already been settled with a different payment identifier.");
+    }
+    return ok({ verified: true, order, ledgerEntry: null, alreadyPaid: true });
+  }
+
+  if (order.status !== "created") {
+    return badRequest(`Payment order cannot be settled in status '${order.status}'.`);
+  }
+
+  if (!order.gatewayOrderId) {
+    return badRequest("Payment order is missing gateway order reference.");
+  }
+
+  if (razorpay_order_id && razorpay_order_id !== order.gatewayOrderId) {
     return badRequest("Payment proof does not match this order's gateway order identifier.");
   }
 
-  const expectedGatewayOrderId = order.gatewayOrderId || razorpay_order_id;
-  if (!expectedGatewayOrderId) {
-    return badRequest("Missing gateway order reference.");
+  if (typeof repositories.paymentOrders.findByPaymentId === "function") {
+    const existingOrderWithPayment = await repositories.paymentOrders.findByPaymentId(razorpay_payment_id);
+    if (existingOrderWithPayment && existingOrderWithPayment.id !== order.id) {
+      return badRequest("Payment identifier has already been used for another order.");
+    }
   }
 
-  if (!verifyRazorpaySignature(expectedGatewayOrderId, razorpay_payment_id, razorpay_signature)) {
+  if (!verifyRazorpaySignature(order.gatewayOrderId, razorpay_payment_id, razorpay_signature)) {
     return badRequest("Invalid payment signature.");
+  }
+
+  let gatewayPayment = null;
+  try {
+    gatewayPayment = await fetchRazorpayPayment(razorpay_payment_id);
+  } catch (err) {
+    return badRequest(`Failed to verify payment with gateway: ${err.message}`);
+  }
+
+  if (gatewayPayment) {
+    if (gatewayPayment.order_id && gatewayPayment.order_id !== order.gatewayOrderId) {
+      return badRequest("Gateway payment order ID does not match order.");
+    }
+    if (gatewayPayment.amount && Number(gatewayPayment.amount) !== Number(order.amountPaise)) {
+      return badRequest("Gateway payment amount does not match order amount.");
+    }
+    if (gatewayPayment.currency && gatewayPayment.currency.toUpperCase() !== "INR") {
+      return badRequest("Gateway payment currency mismatch.");
+    }
+    if (gatewayPayment.status && gatewayPayment.status !== "captured") {
+      return badRequest(`Gateway payment is not captured (status: ${gatewayPayment.status}).`);
+    }
   }
 
   const settlement = await settlePaidPaymentOrder(order, razorpay_payment_id);
@@ -114,6 +155,31 @@ export async function paymentWebhook({ body, req }) {
           createdAt: new Date().toISOString()
         });
         return badRequest("Payment amount mismatch.");
+      }
+      if (payment?.currency && payment.currency.toUpperCase() !== "INR") {
+        await repositories.auditLogs.create({
+          id: createId("aud"),
+          action: "payment_webhook_rejected",
+          entityType: "payment",
+          entityId: order.id,
+          newValue: { reason: "currency_mismatch", gatewayOrderId, currency: payment.currency },
+          createdAt: new Date().toISOString()
+        });
+        return badRequest("Payment currency mismatch.");
+      }
+      if (typeof repositories.paymentOrders.findByPaymentId === "function") {
+        const existing = await repositories.paymentOrders.findByPaymentId(gatewayPaymentId);
+        if (existing && existing.id !== order.id) {
+          await repositories.auditLogs.create({
+            id: createId("aud"),
+            action: "payment_webhook_rejected",
+            entityType: "payment",
+            entityId: order.id,
+            newValue: { reason: "payment_id_already_used", gatewayOrderId, gatewayPaymentId },
+            createdAt: new Date().toISOString()
+          });
+          return badRequest("Payment identifier has already been used for another order.");
+        }
       }
       settlement = await settlePaidPaymentOrder(order, gatewayPaymentId, "wallet_topup_webhook");
     }

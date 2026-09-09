@@ -117,12 +117,32 @@ export async function createRazorpayOrder(amountPaise, receiptId) {
 }
 
 export function verifyRazorpaySignature(orderId, paymentId, signature) {
-  if (!razorpay) return appConfig.env !== "production";
   if (!orderId || !paymentId || !signature) return false;
   const secret = process.env.RAZORPAY_KEY_SECRET || "";
+  if (!razorpay && !secret) return appConfig.env !== "production";
+  if (!secret) return false;
   const body = `${orderId}|${paymentId}`;
   const expectedSignature = crypto.createHmac("sha256", secret).update(body).digest("hex");
   return safeHexEqual(expectedSignature, signature);
+}
+
+let customPaymentFetcher = null;
+
+export function setPaymentFetcherForTesting(fetcher) {
+  customPaymentFetcher = fetcher;
+}
+
+export async function fetchRazorpayPayment(paymentId) {
+  if (customPaymentFetcher) {
+    return await customPaymentFetcher(paymentId);
+  }
+  if (!razorpay) {
+    if (appConfig.env === "production") {
+      throw new Error("Razorpay is not configured.");
+    }
+    return null;
+  }
+  return await razorpay.payments.fetch(paymentId);
 }
 
 export function verifyWebhookSignature(bodyRaw, signature) {
@@ -145,6 +165,15 @@ export async function settlePaidPaymentOrder(order, gatewayPaymentId, reason = "
 
   if (order.status === "paid") {
     return { order, ledgerEntry: null, alreadyPaid: true };
+  }
+
+  if (gatewayPaymentId && typeof repositories.paymentOrders.findByPaymentId === "function") {
+    const existing = await repositories.paymentOrders.findByPaymentId(gatewayPaymentId);
+    if (existing && existing.id !== order.id) {
+      const error = new Error("Payment identifier has already been used for another order.");
+      error.code = "PAYMENT_ID_ALREADY_USED";
+      throw error;
+    }
   }
 
   const amountInr = order.amountPaise / 100;

@@ -111,21 +111,30 @@
 
 ### Phase 2: Financial & Payment Boundary Hardening (P0)
 
-#### MH-04: Wallet top-up verification lacks gateway order binding
+#### MH-04: Wallet top-up verification lacks gateway order binding & replay protection
 - **Priority:** P0 (Critical)
 - **Status:** `Staging verified`
-- **Affected Files:** `backend/src/controllers/wallet.controller.js`, `backend/tests/wallet.controller.test.js`
+- **Affected Files:** `backend/src/controllers/wallet.controller.js`, `backend/src/services/wallet.service.js`, `backend/src/repositories/postgres/repositories.js`, `backend/src/repositories/memory/index.js`, `backend/migrations/012_payment_orders_unique_payment_id.sql`, `backend/tests/wallet.controller.test.js`
 - **Reproduction Steps:**
-  1. Create unpaid wallet top-up order A for ₹1,000 (`ord_target_1000`).
-  2. Obtain valid Razorpay payment proof for order B for ₹1 (`order_different_gateway_id`).
-  3. Send `POST /api/v1/wallet/topup/verify` with `orderId: ord_target_1000` and order B's proof.
-- **Expected Result:** Rejection with HTTP 400 (`Payment proof does not match this order's gateway order identifier.`) and order A remains unpaid.
-- **Actual Result (Before Fix):** Signature verified for order B, order A was settled and credited ₹1,000.
-- **Fix Commit:** `e82efc3`
+  1. Attempt to settle Order A using proof belonging to Order B (different gateway order ID).
+  2. Attempt to verify another user's order without ownership.
+  3. Attempt to reuse a previously captured `razorpay_payment_id` on a new order.
+  4. Attempt verification with invalid/tampered HMAC signature.
+  5. Attempt verification when gateway payment state is not `captured` or amount/currency mismatches.
+- **Expected Result:**
+  - Gateway order mismatch rejected (HTTP 400).
+  - Cross-user verification rejected (HTTP 403).
+  - Reused payment identifier rejected (HTTP 400) both at application layer and DB unique index.
+  - Gateway payment state, order ID, amountPaise, and currency strictly validated.
+  - Legitimate payment settles cleanly (HTTP 200) and credits exact balance.
+- **Actual Result (Before Fix):**
+  - Allowed unverified gateway order IDs, accepted reused payment IDs, did not verify gateway payment status, and permitted cross-user/cross-order credit substitution.
+- **Fix Commits:** `e82efc3`, and comprehensive defense-in-depth hardening
 - **Verification Evidence:**
-  - Dedicated reproducer `scratch/reproduce_mh04.mjs` executed: returned HTTP 400 error, target order remained `status: created`.
-  - Regression check: `backend/tests/wallet.controller.test.js` and `backend/tests/wallet.service.test.js` (8/8 pass).
-  - Live staging test verified on PostgreSQL.
+  - Deep multi-vector verification script `scratch/reproduce_mh04_deep.mjs`: all 8 security attacks and legitimate payment checks PASSED.
+  - PostgreSQL database migration `012_payment_orders_unique_payment_id.sql` applied cleanly.
+  - Repository contract test suite: 2/2 passed.
+  - Automated regression test suite `backend/tests/wallet.controller.test.js` and `backend/tests/wallet.service.test.js`: 12/12 subtests passing.
 
 #### MH-41: Peer session payment accepts unrelated valid proof
 - **Priority:** P0 (Critical)
