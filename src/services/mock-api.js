@@ -1,4 +1,5 @@
 import { appConfig, dashboardSeed } from "../data/mindheal-data.js";
+import { openRazorpayCheckout } from "../utils/checkout.js";
 
 export function getAccessToken() {
   try {
@@ -724,23 +725,53 @@ export const api = {
 
   async topUpWallet(payload) {
     const amountInr = Number(payload.amountInr || payload.amount || 0);
-    const order = await request("/wallet/topup/initiate", {
+    if (amountInr <= 0 || !Number.isFinite(amountInr)) {
+      throw new Error("Please enter a valid top-up amount.");
+    }
+
+    const orderRes = await request("/wallet/topup/initiate", {
       method: "POST",
       body: { amountInr }
     });
-    if (!order.ok) throw new Error(order.error?.message || "Top up initiation failed");
+    if (!orderRes.ok) {
+      throw new Error(orderRes.error?.message || "Top up initiation failed");
+    }
 
+    const order = orderRes.data;
+    const currentUser = getCachedAuthUser();
+
+    // Dynamically retrieve Razorpay key if not attached to order
+    let keyId = order.keyId;
+    if (!keyId) {
+      const pubConfig = await request("/config/public");
+      if (pubConfig.ok && pubConfig.data?.razorpayKeyId) {
+        keyId = pubConfig.data.razorpayKeyId;
+      }
+    }
+
+    // Open real Razorpay checkout modal and await gateway callback
+    const gatewayResult = await openRazorpayCheckout({
+      keyId,
+      order,
+      user: currentUser,
+      title: "MindHeal Wellness",
+      description: `Wallet Top-up (₹${amountInr})`
+    });
+
+    // Send strictly gateway-returned parameters for verification
     const verification = await request("/wallet/topup/verify", {
       method: "POST",
       body: {
-        orderId: order.data.id,
-        razorpay_order_id: order.data.gatewayOrderId,
-        razorpay_payment_id: `pay_mock_${Date.now()}`,
-        razorpay_signature: "mock_signature",
-        amountInr
+        orderId: order.id,
+        razorpay_order_id: gatewayResult.razorpay_order_id,
+        razorpay_payment_id: gatewayResult.razorpay_payment_id,
+        razorpay_signature: gatewayResult.razorpay_signature
       }
     });
-    if (verification.ok) return { order: order.data, verification: verification.data };
+
+    if (verification.ok) {
+      return { order, verification: verification.data };
+    }
     throw new Error(verification.error?.message || "Top up verification failed");
   },
 

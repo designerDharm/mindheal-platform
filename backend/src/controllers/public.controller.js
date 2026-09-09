@@ -6,6 +6,7 @@ export async function publicConfig() {
   const mapsConfig = await repositories.apiConfigurations.find("google-maps");
   return ok({
     mapsApiKey: mapsConfig && mapsConfig.isActive ? decryptSecret(mapsConfig.apiKeyEncrypted) : null,
+    razorpayKeyId: process.env.RAZORPAY_KEY_ID || (process.env.NODE_ENV !== "production" ? "rzp_test_mindheal_sandbox" : null),
     firebase: {
       apiKey: process.env.FIREBASE_API_KEY || null,
       authDomain: process.env.FIREBASE_AUTH_DOMAIN || null,

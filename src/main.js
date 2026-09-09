@@ -5486,10 +5486,14 @@ function attachPageHandlers() {
       event.preventDefault();
       try {
         await api.topUpWallet(getFormData(form));
-        toast("Wallet top-up completed in mock payment mode.");
+        toast("Wallet top-up successful! Your balance has been updated.", "success");
         await render();
       } catch (error) {
-        toast(error.message || "Wallet top-up failed.", "error");
+        if (error.code === "PAYMENT_CANCELLED" || /cancell?ed/i.test(error.message)) {
+          toast("Wallet top-up was cancelled.", "info");
+        } else {
+          toast(error.message || "Wallet top-up failed.", "error");
+        }
       }
     });
   });

@@ -739,11 +739,13 @@ export async function initiateRequestPaymentOrder({ params, user }) {
     }
   }
 
+  const keyId = process.env.RAZORPAY_KEY_ID || (appConfig.env !== "production" ? "rzp_test_mindheal_sandbox" : null);
+
   // If this quote already has an active unpaid payment order, return it
   if (quote.paymentOrderId) {
     const existingOrder = await repositories.paymentOrders.find(quote.paymentOrderId);
     if (existingOrder && existingOrder.status === "created") {
-      return created({ order: existingOrder });
+      return created({ order: { ...existingOrder, keyId } });
     }
   }
 
@@ -771,7 +773,7 @@ export async function initiateRequestPaymentOrder({ params, user }) {
   if (typeof repositories.peerSessionQuotes.updatePaymentOrder === "function") {
     await repositories.peerSessionQuotes.updatePaymentOrder(quote.id, createdOrder.id, razorpayOrder.id);
   }
-  return created({ order: createdOrder });
+  return created({ order: { ...createdOrder, keyId } });
 }
 
 export async function verifyRequestPayment({ params, body, user }) {

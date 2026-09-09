@@ -1,6 +1,7 @@
 import { html, escapeHtml, toast, formatInr } from "../utils/dom.js";
 import { t } from "../utils/i18n.js";
 import { api } from "../services/mock-api.js?v=5";
+import { openRazorpayCheckout } from "../utils/checkout.js";
 
 // Load local state or defaults
 let localState = {
@@ -139,32 +140,49 @@ function startRequestPolling(requestId) {
 
 async function initiateRequestPayment(requestId) {
   const orderRes = await api.request(`/peer-session-requests/${requestId}/payment-order`, { method: "POST" });
-  if (orderRes.ok) {
-    const order = orderRes.data.order;
-    toast("Generating payment gateway checkout...");
-    
-    // Simulate Razorpay verification callback
-    const verifyRes = await api.request(`/peer-session-requests/${requestId}/payment-verify`, {
-      method: "POST",
-      body: {
-        orderId: order.id,
-        razorpay_order_id: order.gatewayOrderId,
-        razorpay_payment_id: `pay_peer_mock_${Date.now()}`,
-        razorpay_signature: "mock_signature"
-      }
-    });
+  if (!orderRes.ok) {
+    toast(orderRes.error?.message || "Failed to create payment order.", "error");
+    return;
+  }
 
-    if (verifyRes.ok) {
-      toast("Payment completed successfully! Room is ready.", "success");
-      localState.activeSession = verifyRes.data.session;
-      localState.activeRequest = null;
-      localState.activeTab = "session-room";
-      startSessionRoom();
+  const order = orderRes.data.order;
+  toast("Opening payment gateway checkout...");
+  
+  let gatewayResult;
+  try {
+    gatewayResult = await openRazorpayCheckout({
+      keyId: order.keyId,
+      order,
+      title: "Peer Session Payment",
+      description: `Payment for Peer Session ${requestId}`
+    });
+  } catch (checkoutErr) {
+    if (checkoutErr.code === "PAYMENT_CANCELLED" || /cancell?ed/i.test(checkoutErr.message)) {
+      toast("Payment checkout was cancelled.", "info");
     } else {
-      toast(verifyRes.error?.message || "Payment verification failed.");
+      toast(checkoutErr.message || "Payment checkout failed.", "error");
     }
+    return;
+  }
+
+  const verifyRes = await api.request(`/peer-session-requests/${requestId}/payment-verify`, {
+    method: "POST",
+    body: {
+      orderId: order.id,
+      razorpay_order_id: gatewayResult.razorpay_order_id,
+      razorpay_payment_id: gatewayResult.razorpay_payment_id,
+      razorpay_signature: gatewayResult.razorpay_signature
+    }
+  });
+
+  if (verifyRes.ok) {
+    toast("Payment completed successfully! Room is ready.", "success");
+    localState.activeSession = verifyRes.data.session;
+    localState.activeRequest = null;
+    localState.activeTab = "session-room";
+    startSessionRoom();
   } else {
-    toast(orderRes.error?.message || "Failed to create payment order.");
+    toast(verifyRes.error?.message || "Payment verification failed.", "error");
   }
 }
 

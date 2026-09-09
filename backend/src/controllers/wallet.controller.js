@@ -1,3 +1,4 @@
+import { appConfig } from "../config/app.js";
 import { repositories } from "../repositories/index.js";
 import { getBalance, ledger, createRazorpayOrder, verifyRazorpaySignature, verifyWebhookSignature, settlePaidPaymentOrder, fetchRazorpayPayment, debit } from "../services/wallet.service.js";
 import { created, ok, badRequest, forbidden } from "../utils/http.js";
@@ -31,7 +32,12 @@ export async function initiateTopup({ body, user }) {
     status: "created",
     createdAt: new Date().toISOString()
   };
-  return created(await repositories.paymentOrders.create(order));
+  const createdOrder = await repositories.paymentOrders.create(order);
+  const keyId = process.env.RAZORPAY_KEY_ID || (appConfig.env !== "production" ? "rzp_test_mindheal_sandbox" : null);
+  return created({
+    ...createdOrder,
+    keyId
+  });
 }
 
 export async function verifyTopup({ body, user }) {

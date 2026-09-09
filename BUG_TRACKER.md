@@ -539,13 +539,23 @@
 
 #### MH-14: Wallet top-up submits fake mock payment confirmation
 - **Priority:** P2 (Medium)
-- **Status:** `Open`
-- **Affected Files:** `src/services/mock-api.js`
+- **Status:** `Staging verified`
+- **Affected Files:** `src/services/mock-api.js`, `src/utils/checkout.js`, `src/features/peer-talk.js`, `src/main.js`, `backend/src/controllers/wallet.controller.js`, `backend/src/controllers/public.controller.js`, `tests/wallet-checkout.test.js`
 - **Reproduction Steps:** Click wallet top-up in client UI.
-- **Expected Result:** Opens authentic Razorpay modal; verifies only on gateway callback.
-- **Actual Result (Before Fix):** Automatically dispatched synthetic `pay_mock_*` payload.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Expected Result:** Opens authentic Razorpay modal; verifies only on gateway callback; transmits only authentic gateway fields (`razorpay_payment_id`, `razorpay_order_id`, `razorpay_signature`); gracefully handles cancellation (`modal.ondismiss`) and failure events without modifying wallet balance.
+- **Actual Result (Before Fix):** Automatically dispatched synthetic `pay_mock_*` payload with fake `"mock_signature"` without invoking checkout.
+- **Fix Commit:** Pending commit on `fix/audit-remediation-sep-2026`
+- **Verification Evidence:**
+  - Created `src/utils/checkout.js` with `loadRazorpaySdk()` and `openRazorpayCheckout()`.
+  - Dynamically injects and waits for official Razorpay Checkout SDK (`checkout.razorpay.com/v1/checkout.js`).
+  - Transmits strictly gateway-returned fields (`razorpay_payment_id`, `razorpay_order_id`, `razorpay_signature`) to `/wallet/topup/verify`.
+  - Modal dismissal / user cancellation triggers `PAYMENT_CANCELLED` and halts without calling `/verify` or altering balance.
+  - Gateway error events (`payment.failed`) trigger `PAYMENT_FAILED` without calling `/verify`.
+  - Replaced simulated fake mock payments across `src/services/mock-api.js`, `src/features/peer-talk.js`, and `src/main.js`.
+  - Added dynamic `keyId` exposure in `backend/src/controllers/wallet.controller.js` (`initiateTopup`) and `publicConfig`, adhering to Zero Hardcoding Policy.
+  - Automated test suite `tests/wallet-checkout.test.js` verified 9/9 tests passing (0 failures).
+  - Full frontend test suite `npm test` passing cleanly (49/49 tests).
+  - Backend regression tests `tests/wallet.controller.test.js`, `tests/wallet.service.test.js`, and `tests/peer-talk.test.js` passing cleanly (24/24 tests).
 
 #### MH-18: Logout leaves sensitive chat and diary caches in plaintext
 - **Priority:** P2 (Medium)
