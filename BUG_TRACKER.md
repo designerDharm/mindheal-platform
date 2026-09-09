@@ -274,7 +274,7 @@
   - Non-admin users log in without TOTP requirement.
 - **Actual Result (Before Fix):**
   - Frontend stripped or omitted TOTP payload; backend issued administrator session tokens solely on password verification without requiring or validating 2FA.
-- **Fix Commit:** Staging verified (commit pending)
+- **Fix Commit:** `a00ca26`
 - **Verification Evidence:**
   - RFC 6238 standard TOTP implementation in `backend/src/utils/security.js` with SHA-1 HMAC, 30s step, dynamic truncation, and constant-time comparison.
   - Frontend `src/services/mock-api.js` and `src/main.js` preserve and forward `totp` in login payload.
