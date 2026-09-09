@@ -35,12 +35,29 @@ export async function initiateTopup({ body, user }) {
 }
 
 export async function verifyTopup({ body, user }) {
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = body;
-  const order = await repositories.paymentOrders.find(orderId || razorpay_order_id);
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = body || {};
+  if (!razorpay_payment_id || !razorpay_signature) {
+    return badRequest("Missing payment verification details.");
+  }
+  const identifier = orderId || razorpay_order_id;
+  if (!identifier) {
+    return badRequest("Missing payment order identifier.");
+  }
+
+  const order = await repositories.paymentOrders.find(identifier);
   if (!order || order.userId !== user.id) return badRequest("Payment order not found.");
   if (order.status === "paid") return ok({ verified: true, order, ledgerEntry: null });
-  
-  if (!verifyRazorpaySignature(razorpay_order_id, razorpay_payment_id, razorpay_signature)) {
+
+  if (order.gatewayOrderId && razorpay_order_id && order.gatewayOrderId !== razorpay_order_id) {
+    return badRequest("Payment proof does not match this order's gateway order identifier.");
+  }
+
+  const expectedGatewayOrderId = order.gatewayOrderId || razorpay_order_id;
+  if (!expectedGatewayOrderId) {
+    return badRequest("Missing gateway order reference.");
+  }
+
+  if (!verifyRazorpaySignature(expectedGatewayOrderId, razorpay_payment_id, razorpay_signature)) {
     return badRequest("Invalid payment signature.");
   }
 

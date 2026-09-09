@@ -142,4 +142,40 @@ test("wallet controller", async (t) => {
       repositories.transactions = originalTransactions;
     }
   });
+
+  await t.test("verifyTopup rejects payment proof when razorpay_order_id does not match order gatewayOrderId", async () => {
+    const originalPaymentOrders = repositories.paymentOrders;
+    repositories.paymentOrders = {
+      find: async (id) => {
+        if (id === "ord_100") {
+          return {
+            id: "ord_100",
+            gatewayOrderId: "order_target_expected",
+            userId: "usr_1",
+            amountPaise: 10000,
+            status: "created"
+          };
+        }
+        return null;
+      }
+    };
+
+    try {
+      const { verifyTopup } = await import("../src/controllers/wallet.controller.js");
+      const response = await verifyTopup({
+        user: { id: "usr_1" },
+        body: {
+          orderId: "ord_100",
+          razorpay_order_id: "order_mismatched_attacker",
+          razorpay_payment_id: "pay_1",
+          razorpay_signature: "sig_1"
+        }
+      });
+
+      assert.strictEqual(response.status, 400);
+      assert.strictEqual(response.body.error.message, "Payment proof does not match this order's gateway order identifier.");
+    } finally {
+      repositories.paymentOrders = originalPaymentOrders;
+    }
+  });
 });
