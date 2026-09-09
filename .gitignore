@@ -7,3 +7,6 @@ dist/
 build/
 coverage/
 *.log
+*.tar.gz
+*.sql.gz
+scratch/*.sql
