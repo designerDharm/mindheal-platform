@@ -26,19 +26,42 @@ export function isSessionPersistent() {
   }
 }
 
+export function getCachedAuthUser() {
+  try {
+    const raw = sessionStorage.getItem("mindheal-auth-user") || localStorage.getItem("mindheal-auth-user");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveCachedAuthUser(user, persistent = null) {
+  try {
+    if (!user) return;
+    const isPersist = persistent !== null ? persistent : isSessionPersistent();
+    const targetStorage = isPersist ? localStorage : sessionStorage;
+    targetStorage.setItem("mindheal-auth-user", JSON.stringify(user));
+  } catch (err) {
+    console.error("[Auth] Failed to cache auth user:", err);
+  }
+}
+
 export function saveAuthSession(sessionData, persistent = false) {
   try {
     const accessToken = sessionData?.accessToken || sessionData?.session?.accessToken;
     const refreshToken = sessionData?.refreshToken || sessionData?.session?.refreshToken;
+    const user = sessionData?.user || sessionData?.session?.user;
 
     const targetStorage = persistent ? localStorage : sessionStorage;
     const otherStorage = persistent ? sessionStorage : localStorage;
 
     otherStorage.removeItem("mindheal-access-token");
     otherStorage.removeItem("mindheal-refresh-token");
+    otherStorage.removeItem("mindheal-auth-user");
 
     if (accessToken) targetStorage.setItem("mindheal-access-token", accessToken);
     if (refreshToken) targetStorage.setItem("mindheal-refresh-token", refreshToken);
+    if (user) targetStorage.setItem("mindheal-auth-user", JSON.stringify(user));
 
     if (persistent) {
       localStorage.setItem("mindheal-auth-storage", "local");
@@ -106,9 +129,11 @@ export function clearAuthSession() {
   try {
     sessionStorage.removeItem("mindheal-access-token");
     sessionStorage.removeItem("mindheal-refresh-token");
+    sessionStorage.removeItem("mindheal-auth-user");
     localStorage.removeItem("mindheal-access-token");
     localStorage.removeItem("mindheal-refresh-token");
     localStorage.removeItem("mindheal-auth-storage");
+    localStorage.removeItem("mindheal-auth-user");
   } catch (err) {
     console.error("[Auth] Failed to clear auth session:", err);
   }
@@ -143,29 +168,45 @@ export async function refreshAuthSession() {
   activeRefreshPromise = (async () => {
     const refreshToken = getRefreshToken();
     if (!refreshToken) {
-      clearAuthSession();
       return null;
     }
 
     try {
       const apiBaseUrl = getApiBaseUrl();
+      let signal;
+      let timeoutId = null;
+      if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") {
+        signal = AbortSignal.timeout(8000);
+      } else if (typeof AbortController !== "undefined") {
+        const controller = new AbortController();
+        timeoutId = setTimeout(() => controller.abort(new Error("Refresh timeout")), 8000);
+        signal = controller.signal;
+      }
+
       const response = await fetch(`${apiBaseUrl}/auth/refresh`, {
         method: "POST",
         credentials: "include",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ refreshToken })
+        body: JSON.stringify({ refreshToken }),
+        signal
+      }).finally(() => {
+        if (timeoutId) clearTimeout(timeoutId);
       });
+
       const payload = await response.json().catch(() => ({}));
       if (response.ok && payload.success && payload.data) {
         const persistent = isSessionPersistent();
         saveAuthSession(payload.data, persistent);
         return payload.data;
       } else {
-        clearAuthSession();
+        // Only clear session if server explicitly rejected credentials with 401/403 or explicit expired/invalid token
+        if (response.status === 401 || response.status === 403 || payload.error?.code === "TOKEN_EXPIRED" || payload.error?.code === "INVALID_TOKEN") {
+          clearAuthSession();
+        }
         return null;
       }
     } catch {
-      clearAuthSession();
+      // Network failure, timeout, or 503 connection drop: PRESERVE session
       return null;
     } finally {
       activeRefreshPromise = null;
@@ -175,14 +216,31 @@ export async function refreshAuthSession() {
   return activeRefreshPromise;
 }
 
-async function request(path, options = {}) {
+export async function request(path, options = {}) {
   try {
     const apiBaseUrl = getApiBaseUrl();
+    const timeoutMs = options.timeoutMs || 8000;
+    let signal = options.signal;
+    let timeoutId = null;
+
+    if (!signal) {
+      if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") {
+        signal = AbortSignal.timeout(timeoutMs);
+      } else if (typeof AbortController !== "undefined") {
+        const controller = new AbortController();
+        timeoutId = setTimeout(() => controller.abort(new Error("Request deadline exceeded")), timeoutMs);
+        signal = controller.signal;
+      }
+    }
+
     const response = await fetch(`${apiBaseUrl}${path}`, {
       method: options.method || "GET",
       credentials: "include",
       headers: { "content-type": "application/json", ...authHeaders(), ...(options.headers || {}) },
-      body: options.body ? JSON.stringify(options.body) : undefined
+      body: options.body ? JSON.stringify(options.body) : undefined,
+      signal
+    }).finally(() => {
+      if (timeoutId) clearTimeout(timeoutId);
     });
 
     if (response.status === 401 && !path.startsWith("/auth/login") && !path.startsWith("/auth/refresh") && !path.startsWith("/auth/logout") && !options._retry) {
@@ -195,11 +253,26 @@ async function request(path, options = {}) {
     const payload = await response.json().catch(() => ({}));
     if (!response.ok || payload.success === false) {
       const errMsg = typeof payload.error === "string" ? payload.error : (payload.error?.message || payload.message || "Request failed");
-      return { ok: false, error: { message: errMsg, code: payload.error?.code } };
+      return {
+        ok: false,
+        status: response.status,
+        isServerError: response.status >= 500,
+        isNetworkError: false,
+        isTimeout: false,
+        error: { message: errMsg, code: payload.error?.code, status: response.status }
+      };
     }
-    return { ok: true, data: payload.data, meta: payload.meta };
+    return { ok: true, status: response.status, data: payload.data, meta: payload.meta };
   } catch (error) {
-    return { ok: false, error: { message: error.message || "Network request failed" } };
+    const isTimeout = error.name === "TimeoutError" || error.name === "AbortError" || error.message?.includes("deadline") || error.message?.includes("timeout");
+    return {
+      ok: false,
+      status: 0,
+      isServerError: false,
+      isNetworkError: true,
+      isTimeout,
+      error: { message: isTimeout ? "Request deadline exceeded" : (error.message || "Network request failed"), code: isTimeout ? "DEADLINE_EXCEEDED" : "NETWORK_ERROR", status: 0 }
+    };
   }
 }
 
@@ -224,56 +297,145 @@ async function uploadFile(file) {
 }
 
 export const api = {
-  async getState() {
-    // Parallel network requests to gather all live data
-    const [users, counsellorData, reports, wallet, walletTransactions, analytics, remoteCounsellors, myProfile, moodHistory, serviceCatalog, apiConfigurations, availabilitySlots, mySessions, contactLeads, crisisEvents, peerTalkDashboard, peerListeners] = await Promise.all([
-      request("/admin/users").catch(() => ({ ok: false })),
-      request("/admin/counsellors").catch(() => ({ ok: false })),
-      request("/analysis/reports").catch(() => ({ ok: false })),
-      request("/wallet/balance").catch(() => ({ ok: false })),
-      request("/wallet/transactions").catch(() => ({ ok: false })),
-      request("/admin/analytics/summary").catch(() => ({ ok: false })),
-      request("/counsellors").catch(() => ({ ok: false })),
-      request("/user/me").catch(() => ({ ok: false })),
-      request("/user/mood/history").catch(() => ({ ok: false })),
-      request("/admin/services").catch(() => ({ ok: false })),
-      request("/admin/api-config").catch(() => ({ ok: false })),
-      request("/counsellors/me/slots").catch(() => ({ ok: false })),
-      request("/sessions/my").catch(() => ({ ok: false })),
-      request("/admin/contacts").catch(() => ({ ok: false })),
-      request("/admin/crisis-events").catch(() => ({ ok: false })),
-      request("/peer-talk/dashboard").catch(() => ({ ok: false })),
-      request("/peer-listeners").catch(() => ({ ok: false }))
-    ]);
+  async getAuthProfile() {
+    const token = getAccessToken();
+    if (!token) return null;
+    const res = await request("/user/me").catch(() => ({ ok: false, isNetworkError: true, status: 0 }));
+    if (res.ok && res.data) {
+      saveCachedAuthUser(res.data);
+      return res.data;
+    }
+    if (res.status === 401) {
+      clearAuthSession();
+      return null;
+    }
+    // Network error or 503 outage: preserve session and return cached user
+    return getCachedAuthUser();
+  },
 
-    const walletBalance = wallet.ok ? Math.round((wallet.data.balancePaise || 0) / 100) : 0;
-    const backendReports = reports.ok ? reports.data : [];
-    const backendMoodHistory = moodHistory.ok ? moodHistory.data : [];
+  async getState(options = {}) {
+    const path = options.path || (typeof window !== "undefined" && window.location ? (window.location.hash.replace(/^#/, "") || "/") : "/");
+    const token = getAccessToken();
+    const cachedUser = getCachedAuthUser();
+
+    let auth = null;
+    let backendStatus = "online";
+    let isOutage = false;
+
+    if (token) {
+      const myProfile = await request("/user/me").catch(() => ({ ok: false, isNetworkError: true, status: 0 }));
+      if (myProfile.ok && myProfile.data) {
+        auth = myProfile.data;
+        saveCachedAuthUser(auth);
+        backendStatus = "online";
+      } else if (myProfile.status === 401) {
+        clearAuthSession();
+        auth = null;
+      } else if (myProfile.status >= 500 || myProfile.isNetworkError || myProfile.isTimeout) {
+        isOutage = true;
+        backendStatus = "outage";
+        auth = cachedUser || { id: "cached-session", role: options.role || "user", offline: true };
+      } else {
+        auth = cachedUser;
+      }
+    } else {
+      auth = null;
+    }
+
+    const currentRole = options.role || auth?.role || "guest";
+    const isAdminPanel = path.startsWith("/panel/admin") && currentRole === "admin";
+    const isCounsellorPanel = path.startsWith("/panel/counsellor") && currentRole === "counsellor";
+    const isUserPanel = path.startsWith("/panel/user") && currentRole === "user";
+    const isCounsellorDir = path.includes("counsellor") || path === "/" || path === "";
+    const isPeerTalk = path.includes("peer-talk");
+
+    // Dynamic, role- & route-aware request map
+    const fetchPromises = {};
+
+    // Only fetch admin endpoints when on admin panel with admin role
+    if (isAdminPanel && !isOutage) {
+      fetchPromises.users = request("/admin/users").catch(() => ({ ok: false }));
+      fetchPromises.counsellorData = request("/admin/counsellors").catch(() => ({ ok: false }));
+      fetchPromises.analytics = request("/admin/analytics/summary").catch(() => ({ ok: false }));
+      fetchPromises.serviceCatalog = request("/admin/services").catch(() => ({ ok: false }));
+      fetchPromises.apiConfigurations = request("/admin/api-config").catch(() => ({ ok: false }));
+      fetchPromises.contactLeads = request("/admin/contacts").catch(() => ({ ok: false }));
+      fetchPromises.crisisEvents = request("/admin/crisis-events").catch(() => ({ ok: false }));
+      fetchPromises.walletTransactions = request("/wallet/transactions").catch(() => ({ ok: false }));
+    }
+
+    // Only fetch counsellor panel endpoints when on counsellor panel with counsellor role
+    if (isCounsellorPanel && !isOutage) {
+      fetchPromises.availabilitySlots = request("/counsellors/me/slots").catch(() => ({ ok: false }));
+      fetchPromises.mySessions = request("/sessions/my").catch(() => ({ ok: false }));
+    }
+
+    // Only fetch user panel endpoints when on user panel with user role
+    if (isUserPanel && !isOutage) {
+      fetchPromises.reports = request("/analysis/reports").catch(() => ({ ok: false }));
+      fetchPromises.wallet = request("/wallet/balance").catch(() => ({ ok: false }));
+      fetchPromises.walletTransactions = request("/wallet/transactions").catch(() => ({ ok: false }));
+      fetchPromises.moodHistory = request("/user/mood/history").catch(() => ({ ok: false }));
+      fetchPromises.mySessions = request("/sessions/my").catch(() => ({ ok: false }));
+      fetchPromises.peerTalkDashboard = request("/peer-talk/dashboard").catch(() => ({ ok: false }));
+    }
+
+    // Public pages: only fetch public resources if route requires them
+    if (isCounsellorDir && !isOutage) {
+      fetchPromises.remoteCounsellors = request("/counsellors").catch(() => ({ ok: false }));
+    }
+    if (isPeerTalk && !isOutage) {
+      fetchPromises.peerListeners = request("/peer-listeners").catch(() => ({ ok: false }));
+    }
+
+    // Resolve active promises concurrently
+    const keys = Object.keys(fetchPromises);
+    const results = await Promise.all(Object.values(fetchPromises));
+    const resolved = {};
+    keys.forEach((key, index) => {
+      resolved[key] = results[index];
+    });
+
+    const wallet = resolved.wallet || { ok: false };
+    const walletTransactions = resolved.walletTransactions || { ok: false };
+    const reports = resolved.reports || { ok: false };
+    const moodHistory = resolved.moodHistory || { ok: false };
+    const users = resolved.users || { ok: false };
+    const remoteCounsellors = resolved.remoteCounsellors || { ok: false };
+    const counsellorData = resolved.counsellorData || { ok: false };
+    const analytics = resolved.analytics || { ok: false };
+    const serviceCatalog = resolved.serviceCatalog || { ok: false };
+    const apiConfigurations = resolved.apiConfigurations || { ok: false };
+    const availabilitySlots = resolved.availabilitySlots || { ok: false };
+    const mySessions = resolved.mySessions || { ok: false };
+    const contactLeads = resolved.contactLeads || { ok: false };
+    const crisisEvents = resolved.crisisEvents || { ok: false };
+    const peerTalkDashboard = resolved.peerTalkDashboard || { ok: false };
+    const peerListeners = resolved.peerListeners || { ok: false };
+
+    const walletBalance = wallet.ok ? Math.round((wallet.data?.balancePaise || 0) / 100) : 0;
+    const backendReports = reports.ok && Array.isArray(reports.data) ? reports.data : [];
+    const backendMoodHistory = moodHistory.ok && Array.isArray(moodHistory.data) ? moodHistory.data : [];
     const sortedHistory = [...backendMoodHistory].sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
     const latestMood = sortedHistory.at(-1);
 
-    let auth = myProfile.ok ? myProfile.data : null;
-    if (!auth) {
-      clearAuthSession();
-    }
-
     return {
       auth: auth,
-      backendStatus: myProfile.ok ? "online" : "offline",
-      users: users.ok ? users.data : [],
-      counsellors: remoteCounsellors.ok ? remoteCounsellors.data : [],
-      counsellorApplications: counsellorData.ok ? counsellorData.data.applications : [],
-      servicesCatalog: serviceCatalog.ok ? serviceCatalog.data : [],
-      apiConfigurations: apiConfigurations.ok ? apiConfigurations.data : [],
-      availabilitySlots: availabilitySlots.ok ? availabilitySlots.data : [],
-      sessions: mySessions.ok ? mySessions.data : [],
-      contactLeads: contactLeads.ok ? contactLeads.data : [],
-      crisisEvents: crisisEvents.ok ? crisisEvents.data : [],
-      walletTransactions: walletTransactions.ok ? walletTransactions.data : [],
+      backendStatus: backendStatus,
+      users: users.ok && Array.isArray(users.data) ? users.data : [],
+      counsellors: remoteCounsellors.ok && Array.isArray(remoteCounsellors.data) ? remoteCounsellors.data : [],
+      counsellorApplications: counsellorData.ok && Array.isArray(counsellorData.data?.applications) ? counsellorData.data.applications : [],
+      servicesCatalog: serviceCatalog.ok && Array.isArray(serviceCatalog.data) ? serviceCatalog.data : [],
+      apiConfigurations: apiConfigurations.ok && Array.isArray(apiConfigurations.data) ? apiConfigurations.data : [],
+      availabilitySlots: availabilitySlots.ok && Array.isArray(availabilitySlots.data) ? availabilitySlots.data : [],
+      sessions: mySessions.ok && Array.isArray(mySessions.data) ? mySessions.data : [],
+      contactLeads: contactLeads.ok && Array.isArray(contactLeads.data) ? contactLeads.data : [],
+      crisisEvents: crisisEvents.ok && Array.isArray(crisisEvents.data) ? crisisEvents.data : [],
+      walletTransactions: walletTransactions.ok && Array.isArray(walletTransactions.data) ? walletTransactions.data : [],
       analysisSubmissions: backendReports,
       moodHistory: backendMoodHistory,
       peerTalkState: peerTalkDashboard.ok ? peerTalkDashboard.data : null,
-      peerListeners: peerListeners.ok ? peerListeners.data : [],
+      peerListeners: peerListeners.ok && Array.isArray(peerListeners.data) ? peerListeners.data : [],
       dashboard: {
         user: {
           ...dashboardSeed.user,
@@ -284,16 +446,16 @@ export const api = {
         },
         counsellor: dashboardSeed.counsellor,
         admin: {
-          users: users.ok && Array.isArray(users.data) ? users.data.length : (analytics.ok ? analytics.data.users : 0),
-          counsellors: remoteCounsellors.ok && Array.isArray(remoteCounsellors.data) ? remoteCounsellors.data.length : (analytics.ok ? analytics.data.counsellors : 0),
+          users: users.ok && Array.isArray(users.data) ? users.data.length : (analytics.ok ? analytics.data?.users || 0 : 0),
+          counsellors: remoteCounsellors.ok && Array.isArray(remoteCounsellors.data) ? remoteCounsellors.data.length : (analytics.ok ? analytics.data?.counsellors || 0 : 0),
           revenueMonth: walletTransactions.ok && Array.isArray(walletTransactions.data)
             ? walletTransactions.data.reduce((sum, tx) => sum + (tx.amountInr || (tx.amountPaise ? tx.amountPaise / 100 : 0)), 0)
-            : (analytics.ok ? analytics.data.revenueMonth || 0 : 0),
-          aiMessages: analytics.ok ? analytics.data.aiMessages || 0 : 0,
+            : (analytics.ok ? analytics.data?.revenueMonth || 0 : 0),
+          aiMessages: analytics.ok ? analytics.data?.aiMessages || 0 : 0,
           pendingVerifications: counsellorData.ok && counsellorData.data?.applications
             ? counsellorData.data.applications.filter(a => a.status === 'pending').length
-            : (analytics.ok ? analytics.data.pendingApplications || 0 : 0),
-          transactions: walletTransactions.ok ? walletTransactions.data : []
+            : (analytics.ok ? analytics.data?.pendingApplications || 0 : 0),
+          transactions: walletTransactions.ok && Array.isArray(walletTransactions.data) ? walletTransactions.data : []
         }
       }
     };
@@ -796,6 +958,10 @@ export const api = {
   saveAuthSession,
   clearAuthSession,
   refreshAuthSession,
-  clearPrivateUserData
+  clearPrivateUserData,
+  getCachedAuthUser,
+  saveCachedAuthUser,
+  request
 };
+
 

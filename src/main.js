@@ -516,7 +516,7 @@ async function resolvePage(path) {
     return homePage();
   }
 
-  const data = await api.getState().catch(() => null);
+  const data = await api.getState({ path }).catch(() => null);
   const loggedIn = !!(data && data.auth);
   const newUserId = data?.auth?.id || null;
 
@@ -2795,7 +2795,7 @@ function notFoundPage() {
 }
 
 async function userPanel() {
-  const data = await api.getState();
+  const data = await api.getState({ path: "/panel/user", role: "user" });
   const dashboard = data.dashboard.user;
   window.currentAppState = state;
   window.triggerAppRender = render;
@@ -3691,7 +3691,7 @@ function userSessionListItem(session) {
 }
 
 async function counsellorPanel() {
-  const data = await api.getState();
+  const data = await api.getState({ path: "/panel/counsellor", role: "counsellor" });
   const dashboard = data.dashboard.counsellor;
   return panelShell(
     "counsellor",
@@ -3814,7 +3814,7 @@ function counsellorPanelContent(section, dashboard, data) {
 }
 
 async function adminPanel() {
-  const data = await api.getState();
+  const data = await api.getState({ path: "/panel/admin", role: "admin" });
   const dashboard = data.dashboard.admin;
   return panelShell(
     "admin",
@@ -4348,7 +4348,20 @@ function panelShell(role, title, subtitle, navItems, content, backendStatus = "o
           <button class="btn secondary" type="button" data-action="logout" title="${t("Logout")}"><i class="ph ph-sign-out"></i><span>${t("Logout")}</span></button>
         </div>
       </aside>
-      <section class="panel-main">${content}</section>
+      <section class="panel-main">
+        ${(backendStatus === "outage" || backendStatus === "offline") ? html`
+          <div class="outage-banner warning" style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);border-radius:12px;margin-bottom:20px;color:#f59e0b;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <i class="ph-bold ph-warning-circle" style="font-size:20px;"></i>
+              <span><strong>${t("Connectivity issue:")}</strong> ${t("Unable to reach backend services. Your session is preserved.")}</span>
+            </div>
+            <button class="btn secondary sm" type="button" data-action="retry-fetch" style="padding:6px 14px;font-size:13px;border-radius:8px;border-color:rgba(245,158,11,0.4);color:#f59e0b;">
+              <i class="ph-bold ph-arrow-clockwise"></i> ${t("Retry")}
+            </button>
+          </div>
+        ` : ""}
+        ${content}
+      </section>
     </main>
   `;
 }
@@ -5026,6 +5039,14 @@ function attachPageHandlers() {
     });
   });
 
+  // Retry fetch on outage
+  document.querySelectorAll("[data-action='retry-fetch']").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      toast("Retrying connection...");
+      await render();
+    });
+  });
+
   // Logout / Cancel onboarding
   document.querySelectorAll("[data-action='ob-logout']").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -5038,7 +5059,7 @@ function attachPageHandlers() {
     btn.addEventListener("click", async () => {
       toast("Checking approval status...");
       try {
-        const data = await api.getState().catch(() => null);
+        const data = await api.getState({ path: "/auth/guardian-pending" }).catch(() => null);
         if (data && data.auth && data.auth.onboardingStatus === "COMPLETED") {
           toast("Approval verified! Loading dashboard.");
           navigate("/panel/user");
@@ -5226,8 +5247,8 @@ function attachPageHandlers() {
       state.dreamInput = payload.description || "";
       state.dreamError = "";
 
-      const liveState = await api.getState();
-      if (!liveState.auth) {
+      const auth = await api.getAuthProfile?.() || (await api.getState({ path: "/service-dream-analysis" })).auth;
+      if (!auth) {
         state.showDreamAuthModal = true;
         render();
         return;
@@ -5321,8 +5342,8 @@ function attachPageHandlers() {
       state.handwritingInput = payload.description || "";
       state.handwritingError = "";
 
-      const liveState = await api.getState();
-      if (!liveState.auth) {
+      const auth = await api.getAuthProfile?.() || (await api.getState({ path: "/service-handwriting-analysis" })).auth;
+      if (!auth) {
         state.dreamAuthMode = "signup";
         state.showDreamAuthModal = true;
         render();
@@ -5380,8 +5401,8 @@ function attachPageHandlers() {
       state.signatureInput = payload.description || "";
       state.signatureError = "";
 
-      const liveState = await api.getState();
-      if (!liveState.auth) {
+      const auth = await api.getAuthProfile?.() || (await api.getState({ path: "/service-signature-analysis" })).auth;
+      if (!auth) {
         state.dreamAuthMode = "signup";
         state.showDreamAuthModal = true;
         render();
@@ -6035,7 +6056,7 @@ function createServiceLandingPage(config) {
 }
 
 async function serviceDreamAnalysis() {
-  const data = await api.getState();
+  const data = await api.getState({ path: "/services" });
   const loggedIn = !!data.auth;
 
   return html`
@@ -6218,7 +6239,7 @@ async function serviceDreamAnalysis() {
 }
 
 async function serviceHandwritingAnalysis() {
-  const data = await api.getState();
+  const data = await api.getState({ path: "/services" });
   const loggedIn = !!data.auth;
 
   return html`
@@ -6349,7 +6370,7 @@ async function serviceHandwritingAnalysis() {
 }
 
 async function serviceSignatureAnalysis() {
-  const data = await api.getState();
+  const data = await api.getState({ path: "/services" });
   const loggedIn = !!data.auth;
 
   return html`

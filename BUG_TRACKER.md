@@ -512,13 +512,20 @@
 
 #### MH-22: `getState()` couples rendering to session deletion
 - **Priority:** P2 (Medium)
-- **Status:** `Open`
-- **Affected Files:** `src/services/mock-api.js`, `src/main.js`
-- **Reproduction Steps:** Trigger a transient network drop while browsing.
-- **Expected Result:** Session preserved; retry on next navigation.
-- **Actual Result (Before Fix):** Session token deleted on any 5xx/network error.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Status:** `Staging verified`
+- **Affected Files:** `src/services/mock-api.js`, `src/main.js`, `tests/global-fetch-outage.test.js`
+- **Reproduction Steps:** Trigger a transient network drop, timeout, or 503 while browsing; or inspect network tab on public pages.
+- **Expected Result:** Session preserved across network drops and 503s; public pages avoid firing admin endpoints; request deadlines prevent hanging calls; recoverable loading/outage banner allows user retry.
+- **Actual Result (Before Fix):** Monolithic `getState()` fired 17 endpoints indiscriminately (including all `/admin/*` endpoints on public pages) and deleted auth session tokens on any network error or 5xx response.
+- **Fix Commit:** `c864fec` (`fix(api): repair global fetching, add request deadlines, and preserve sessions during outages (MH-22)`)
+- **Verification Evidence:**
+  - Implemented request deadlines (8,000ms default) via `AbortSignal.timeout` in `request()` and `refreshAuthSession()`.
+  - Removed destructive `clearAuthSession()` calls from `getState()` and the catch blocks of `refreshAuthSession()`.
+  - Implemented cached user persistence (`saveCachedAuthUser`, `getCachedAuthUser`) to preserve logged-in user state during temporary outages.
+  - Refactored `api.getState(options)` to fetch only route- and role-scoped endpoints. Public routes no longer send `/admin/*`, counsellor-private, or user-private requests.
+  - Added recoverable outage notification banner and `[data-action="retry-fetch"]` handler in `panelShell` and `attachGlobalHandlers` in `src/main.js`.
+  - Automated test suite `tests/global-fetch-outage.test.js` verified 7/7 tests passing (public endpoint isolation, admin panel scoping, 503 outage session preservation, offline/network drop resiliency, genuine 401 expiration handling, request timeout aborts, and UI wiring).
+  - Clean run of full test suite `npm test` (39/39 passed) and `npm run check` (0 errors).
 
 #### MH-25: Public provider listings use seeded static content
 - **Priority:** P2 (Medium)
