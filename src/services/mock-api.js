@@ -174,7 +174,13 @@ export const api = {
   async login(role, payload) {
     const remote = await request("/auth/login", {
       method: "POST",
-      body: { email: payload.email || undefined, mobile: payload.mobile || undefined, password: payload.password, role }
+      body: {
+        email: payload.email || undefined,
+        mobile: payload.mobile || undefined,
+        password: payload.password,
+        role,
+        totp: payload.totp || undefined
+      }
     });
 
     if (remote.ok) {

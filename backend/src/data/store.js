@@ -50,6 +50,8 @@ export const store = {
       fullName: "System Admin",
       email: "admin@example.com",
       passwordHash: "",
+      totpSecret: "JBSWY3DPEHPK3PXP",
+      isTotpEnabled: true,
       isActive: true,
       createdAt: new Date().toISOString()
     },

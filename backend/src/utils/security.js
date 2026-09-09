@@ -142,3 +142,61 @@ export function signOnboardingToken(payload) {
 export function verifyOnboardingToken(token) {
   return verifyToken(token, appConfig.jwtAccessSecret, "onboarding");
 }
+
+export function base32Decode(base32) {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  const clean = String(base32 || "").toUpperCase().replace(/=+$/, "").replace(/[^A-Z2-7]/g, "");
+  let bits = 0;
+  let value = 0;
+  const bytes = [];
+  for (let i = 0; i < clean.length; i++) {
+    const idx = alphabet.indexOf(clean[i]);
+    if (idx === -1) continue;
+    value = (value << 5) | idx;
+    bits += 5;
+    if (bits >= 8) {
+      bytes.push((value >>> (bits - 8)) & 255);
+      bits -= 8;
+    }
+  }
+  return Buffer.from(bytes);
+}
+
+export function generateTotp(secret, timeMs = Date.now(), stepSeconds = 30, digits = 6) {
+  let key;
+  const secretStr = String(secret || "").trim();
+  if (/^[A-Z2-7]+=*$/i.test(secretStr)) {
+    key = base32Decode(secretStr);
+  } else {
+    key = Buffer.from(secretStr, "utf-8");
+  }
+  const counter = Math.floor(timeMs / 1000 / stepSeconds);
+  const counterBuf = Buffer.alloc(8);
+  counterBuf.writeBigUInt64BE(BigInt(counter), 0);
+  const hmacDigest = createHmac("sha1", key).update(counterBuf).digest();
+  const offset = hmacDigest[hmacDigest.length - 1] & 0x0f;
+  const code = ((hmacDigest[offset] & 0x7f) << 24) |
+               ((hmacDigest[offset + 1] & 0xff) << 16) |
+               ((hmacDigest[offset + 2] & 0xff) << 8) |
+               (hmacDigest[offset + 3] & 0xff);
+  return String(code % (10 ** digits)).padStart(digits, "0");
+}
+
+export function verifyTotp(token, secret, window = 1, timeMs = Date.now(), stepSeconds = 30) {
+  if (!token || !secret) return false;
+  const cleanedToken = String(token).trim();
+  if (!/^\d{6}$/.test(cleanedToken)) return false;
+
+  // In non-production test mode, allow test token if configured
+  if (appConfig.env !== "production" && appConfig.isOtpTestMode && cleanedToken === "123456") {
+    return true;
+  }
+
+  for (let delta = -window; delta <= window; delta++) {
+    const generated = generateTotp(secret, timeMs + delta * stepSeconds * 1000, stepSeconds, 6);
+    if (safeEqual(cleanedToken, generated)) {
+      return true;
+    }
+  }
+  return false;
+}

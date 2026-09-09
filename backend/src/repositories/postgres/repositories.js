@@ -44,6 +44,10 @@ function mapUser(row) {
     onboardingStatus: row.onboarding_status || 'COMPLETED',
     emailVerifiedAt: row.email_verified_at || null,
     guardianConsentStatus: row.guardian_consent_status || 'APPROVED',
+    totpSecret: row.totp_secret || null,
+    totp_secret: row.totp_secret || null,
+    isTotpEnabled: Boolean(row.is_totp_enabled),
+    is_totp_enabled: Boolean(row.is_totp_enabled),
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -720,8 +724,8 @@ export const postgresRepositories = {
     },
     async create(user) {
       const res = await query(
-        `INSERT INTO users (id, firebase_uid, role, full_name, email, mobile, password_hash, language_code, avatar_url, is_active, date_of_birth, guardian_email, is_guardian_consent_verified, profile_completed_at, onboarding_status, email_verified_at, guardian_consent_status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *`,
+        `INSERT INTO users (id, firebase_uid, role, full_name, email, mobile, password_hash, language_code, avatar_url, is_active, date_of_birth, guardian_email, is_guardian_consent_verified, profile_completed_at, onboarding_status, email_verified_at, guardian_consent_status, totp_secret, is_totp_enabled)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING *`,
         [
           user.id,
           user.firebase_uid || user.firebaseUid || null,
@@ -739,7 +743,9 @@ export const postgresRepositories = {
           user.profileCompletedAt || null,
           user.onboardingStatus || 'COMPLETED',
           user.emailVerifiedAt || null,
-          user.guardianConsentStatus || 'APPROVED'
+          user.guardianConsentStatus || 'APPROVED',
+          user.totpSecret || user.totp_secret || null,
+          Boolean(user.isTotpEnabled || user.is_totp_enabled)
         ]
       );
       return mapUser(res.rows[0]);
@@ -766,7 +772,11 @@ export const postgresRepositories = {
         emailVerifiedAt: "email_verified_at",
         email_verified_at: "email_verified_at",
         guardianConsentStatus: "guardian_consent_status",
-        guardian_consent_status: "guardian_consent_status"
+        guardian_consent_status: "guardian_consent_status",
+        totpSecret: "totp_secret",
+        totp_secret: "totp_secret",
+        isTotpEnabled: "is_totp_enabled",
+        is_totp_enabled: "is_totp_enabled"
       });
       if (!updates.length) return await this.findById(id);
       values.push(id);

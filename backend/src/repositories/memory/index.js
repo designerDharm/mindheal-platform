@@ -35,7 +35,11 @@ export const memoryRepositories = {
         emailVerifiedAt: user.emailVerifiedAt || user.email_verified_at || null,
         email_verified_at: user.emailVerifiedAt || user.email_verified_at || null,
         guardianConsentStatus: user.guardianConsentStatus || user.guardian_consent_status || 'APPROVED',
-        guardian_consent_status: user.guardianConsentStatus || user.guardian_consent_status || 'APPROVED'
+        guardian_consent_status: user.guardianConsentStatus || user.guardian_consent_status || 'APPROVED',
+        totpSecret: user.totpSecret || user.totp_secret || null,
+        totp_secret: user.totpSecret || user.totp_secret || null,
+        isTotpEnabled: Boolean(user.isTotpEnabled || user.is_totp_enabled),
+        is_totp_enabled: Boolean(user.isTotpEnabled || user.is_totp_enabled)
       };
       store.users.push(mapped);
       return mapped;
@@ -56,6 +60,10 @@ export const memoryRepositories = {
           email_verified_at: patch.emailVerifiedAt !== undefined ? patch.emailVerifiedAt : (patch.email_verified_at !== undefined ? patch.email_verified_at : user.emailVerifiedAt),
           guardianConsentStatus: patch.guardianConsentStatus !== undefined ? patch.guardianConsentStatus : (patch.guardian_consent_status !== undefined ? patch.guardian_consent_status : user.guardianConsentStatus),
           guardian_consent_status: patch.guardianConsentStatus !== undefined ? patch.guardian_consent_status : (patch.guardian_consent_status !== undefined ? patch.guardian_consent_status : user.guardianConsentStatus),
+          totpSecret: patch.totpSecret !== undefined ? patch.totpSecret : (patch.totp_secret !== undefined ? patch.totp_secret : user.totpSecret),
+          totp_secret: patch.totpSecret !== undefined ? patch.totpSecret : (patch.totp_secret !== undefined ? patch.totp_secret : user.totpSecret),
+          isTotpEnabled: patch.isTotpEnabled !== undefined ? Boolean(patch.isTotpEnabled) : (patch.is_totp_enabled !== undefined ? Boolean(patch.is_totp_enabled) : Boolean(user.isTotpEnabled)),
+          is_totp_enabled: patch.isTotpEnabled !== undefined ? Boolean(patch.isTotpEnabled) : (patch.is_totp_enabled !== undefined ? Boolean(patch.is_totp_enabled) : Boolean(user.isTotpEnabled)),
           updatedAt: new Date().toISOString()
         });
       }

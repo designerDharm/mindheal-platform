@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert";
 import { createHmac } from "node:crypto";
-import { consumeVerificationProof, createSession, issueOtp, loginWithFirebase, logoutUser, refreshSession, sanitizeUser, verifyOtp } from "../src/services/auth.service.js";
+import { consumeVerificationProof, createSession, issueOtp, loginUser, loginWithFirebase, logoutUser, refreshSession, sanitizeUser, verifyOtp } from "../src/services/auth.service.js";
 import { appConfig } from "../src/config/app.js";
 import { redisClient } from "../src/config/redis.js";
 import { repositories } from "../src/repositories/index.js";
-import { signAccessToken, signRefreshToken, verifyAccessToken, verifyRefreshToken } from "../src/utils/security.js";
+import { generateTotp, hashPassword, signAccessToken, signRefreshToken, verifyAccessToken, verifyRefreshToken } from "../src/utils/security.js";
 
 test("auth flow", async (t) => {
   await t.test("signAccessToken and verifyAccessToken should work together", () => {
@@ -175,6 +175,79 @@ test("auth flow", async (t) => {
     // 5. Non-existent proof fails
     const nonExistent = await consumeVerificationProof("proof_random_non_existent", email2);
     assert.strictEqual(nonExistent, null);
+  });
+
+  await t.test("MH-11: loginUser requires valid TOTP for admin and rejects missing or incorrect code", async () => {
+    const adminEmail = "admin_totp_test@mindheal.com";
+    const secret = "JBSWY3DPEHPK3PXP";
+    const password = "AdminPassword123!";
+    const passwordHash = hashPassword(password);
+
+    await repositories.users.create({
+      id: "usr_admin_totp_test",
+      name: "Admin Totp Test",
+      email: adminEmail,
+      passwordHash,
+      role: "admin",
+      totpSecret: secret,
+      isTotpEnabled: true,
+      isActive: true,
+      createdAt: new Date().toISOString()
+    });
+
+    // 1. Missing TOTP throws TOTP_REQUIRED
+    await assert.rejects(
+      () => loginUser({ email: adminEmail, password, role: "admin" }),
+      (err) => {
+        assert.strictEqual(err.code, "TOTP_REQUIRED");
+        assert.match(err.message, /Two-factor authentication code is required/);
+        return true;
+      }
+    );
+
+    // 2. Empty string TOTP throws TOTP_REQUIRED
+    await assert.rejects(
+      () => loginUser({ email: adminEmail, password, role: "admin", totp: "   " }),
+      (err) => {
+        assert.strictEqual(err.code, "TOTP_REQUIRED");
+        return true;
+      }
+    );
+
+    // 3. Incorrect TOTP throws INVALID_TOTP
+    await assert.rejects(
+      () => loginUser({ email: adminEmail, password, role: "admin", totp: "000000" }),
+      (err) => {
+        assert.strictEqual(err.code, "INVALID_TOTP");
+        assert.match(err.message, /Invalid two-factor authentication code/);
+        return true;
+      }
+    );
+
+    // 4. Valid RFC 6238 TOTP succeeds and issues session
+    const validCode = generateTotp(secret);
+    const session = await loginUser({ email: adminEmail, password, role: "admin", totp: validCode });
+    assert.ok(session.accessToken);
+    assert.ok(session.refreshToken);
+    assert.strictEqual(session.user.email, adminEmail);
+    assert.strictEqual(session.user.role, "admin");
+
+    // 5. Non-admin login does not require TOTP
+    const userEmail = "regular_user_nototp@example.com";
+    await repositories.users.create({
+      id: "usr_regular_nototp",
+      name: "Regular User",
+      email: userEmail,
+      passwordHash,
+      role: "user",
+      isActive: true,
+      createdAt: new Date().toISOString()
+    });
+
+    const userSession = await loginUser({ email: userEmail, password, role: "user" });
+    assert.ok(userSession.accessToken);
+    assert.strictEqual(userSession.user.email, userEmail);
+    assert.strictEqual(userSession.user.role, "user");
   });
 });
 

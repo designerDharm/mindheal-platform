@@ -92,10 +92,16 @@ export async function login({ body, res }) {
   }
   
   try {
-    const session = await authService.loginUser({ email: body.email, mobile: body.mobile, password: body.password, role: body.role || "user" });
+    const session = await authService.loginUser({
+      email: body.email,
+      mobile: body.mobile,
+      password: body.password,
+      role: body.role || "user",
+      totp: body.totp || body.totpCode || body.twoFactorCode
+    });
     return ok(session);
   } catch (err) {
-    return unauthorized("Invalid email, password, or role.");
+    return unauthorized(err.message || "Invalid email, password, or role.");
   }
 }
 

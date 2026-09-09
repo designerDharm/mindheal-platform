@@ -257,13 +257,32 @@
 
 #### MH-11: Administrator second factor (TOTP) is not enforced
 - **Priority:** P1 (High)
-- **Status:** `Open`
-- **Affected Files:** `src/services/mock-api.js`, `backend/src/controllers/auth.controller.js`, `backend/src/services/auth.service.js`
-- **Reproduction Steps:** Admin logs in with password only, omitting TOTP code.
-- **Expected Result:** HTTP 401 Unauthorized requiring valid TOTP token.
-- **Actual Result (Before Fix):** Admin logged in successfully with password alone.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Status:** `Staging verified`
+- **Affected Files:** `src/main.js`, `src/services/mock-api.js`, `backend/src/utils/security.js`, `backend/src/controllers/auth.controller.js`, `backend/src/services/auth.service.js`, `backend/src/repositories/postgres/repositories.js`, `backend/src/repositories/memory/index.js`, `backend/src/data/store.js`, `backend/migrations/015_admin_totp_default_secrets.sql`, `backend/scripts/smoke-test.mjs`, `backend/tests/auth.controller.test.js`, `backend/tests/auth.service.test.js`
+- **Reproduction Steps:**
+  1. Attempt admin login with correct password but missing TOTP (`totp: undefined`).
+  2. Attempt admin login with whitespace-only TOTP (`totp: "   "`).
+  3. Attempt admin login with incorrect TOTP code (`totp: "000000"`).
+  4. Attempt admin login with wrong password regardless of TOTP code.
+  5. Attempt admin login with correct password and valid RFC 6238 6-digit TOTP code.
+  6. Attempt standard user login without TOTP.
+- **Expected Result:**
+  - Missing or empty TOTP rejected with HTTP 401 (`TOTP_REQUIRED`: "Two-factor authentication code is required for administrator login.").
+  - Incorrect TOTP rejected with HTTP 401 (`INVALID_TOTP`: "Invalid two-factor authentication code.").
+  - Incorrect password rejected with HTTP 401.
+  - Valid password + RFC 6238 TOTP succeeds with HTTP 200 and issues session tokens.
+  - Non-admin users log in without TOTP requirement.
+- **Actual Result (Before Fix):**
+  - Frontend stripped or omitted TOTP payload; backend issued administrator session tokens solely on password verification without requiring or validating 2FA.
+- **Fix Commit:** Staging verified (commit pending)
+- **Verification Evidence:**
+  - RFC 6238 standard TOTP implementation in `backend/src/utils/security.js` with SHA-1 HMAC, 30s step, dynamic truncation, and constant-time comparison.
+  - Frontend `src/services/mock-api.js` and `src/main.js` preserve and forward `totp` in login payload.
+  - PostgreSQL migration `015_admin_totp_default_secrets.sql` executed cleanly; `totp_secret` and `is_totp_enabled` mapped in PostgreSQL and memory repositories.
+  - Dedicated multi-vector reproducer `scratch/reproduce_mh11_deep.mjs`: all 6 security and authentication test cases PASSED on live PostgreSQL.
+  - Test suites: `backend/tests/auth.controller.test.js` (4/4 passed), `backend/tests/auth.service.test.js` (15/15 passed).
+  - End-to-end backend smoke tests against live PostgreSQL (`backend/scripts/smoke-test.mjs`): 100% PASSED.
+
 
 #### MH-12: Disabled accounts retain login and request access
 - **Priority:** P1 (High)

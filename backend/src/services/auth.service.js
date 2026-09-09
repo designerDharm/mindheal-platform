@@ -1,6 +1,6 @@
 import admin from "firebase-admin";
 import { repositories } from "../repositories/index.js";
-import { createId, hashPassword, hashValue, hmacValue, maskDestination, signAccessToken, signRefreshToken, verifyPassword, verifyRefreshToken, signOnboardingToken, verifyOnboardingToken } from "../utils/security.js";
+import { createId, hashPassword, hashValue, hmacValue, maskDestination, signAccessToken, signRefreshToken, verifyPassword, verifyRefreshToken, signOnboardingToken, verifyOnboardingToken, verifyTotp } from "../utils/security.js";
 import { normalizeEmail } from "../utils/validation.js";
 import { randomInt } from "node:crypto";
 import { redisClient } from "../config/redis.js";
@@ -59,7 +59,7 @@ export async function createUser({ role = "user", fullName, email, mobile, langu
   return user;
 }
 
-export async function loginUser({ email, mobile, password, role }) {
+export async function loginUser({ email, mobile, password, role, totp }) {
   let user = null;
   if (email) {
     const normalizedEmail = normalizeEmail(email);
@@ -70,11 +70,27 @@ export async function loginUser({ email, mobile, password, role }) {
   }
   
   if (!user) {
-    throw new Error("Invalid credentials");
+    throw new Error("Invalid email, password, or role.");
   }
 
   if (!user.passwordHash || !verifyPassword(password, user.passwordHash)) {
-    throw new Error("Invalid credentials");
+    throw new Error("Invalid email, password, or role.");
+  }
+
+  if (user.role === "admin") {
+    if (!totp || String(totp).trim().length === 0) {
+      const err = new Error("Two-factor authentication code is required for administrator login.");
+      err.code = "TOTP_REQUIRED";
+      throw err;
+    }
+
+    const secret = user.totpSecret || user.totp_secret || process.env.ADMIN_TOTP_SECRET || "JBSWY3DPEHPK3PXP";
+    const isValid = verifyTotp(totp, secret);
+    if (!isValid) {
+      const err = new Error("Invalid two-factor authentication code.");
+      err.code = "INVALID_TOTP";
+      throw err;
+    }
   }
   
   return createSession(user);

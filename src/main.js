@@ -4539,7 +4539,8 @@ function attachPageHandlers() {
       const cleanPayload = {
         ...payload,
         email: rawEmail ? rawEmail : undefined,
-        mobile: rawMobile ? rawMobile : undefined
+        mobile: rawMobile ? rawMobile : undefined,
+        totp: payload.totp ? String(payload.totp).trim() : undefined
       };
 
       if (cleanPayload.mobile) {

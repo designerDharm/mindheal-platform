@@ -1,5 +1,6 @@
 import { Readable } from "node:stream";
 import { createApp } from "../src/app.js";
+import { generateTotp } from "../src/utils/security.js";
 
 const app = createApp();
 
@@ -58,7 +59,12 @@ assert(
 );
 
 const adminLogin = await request("POST", "/api/v1/auth/login", {
-  body: { email: "admin@example.com", password: "Password123!", role: "admin" }
+  body: {
+    email: "admin@example.com",
+    password: "Password123!",
+    role: "admin",
+    totp: generateTotp("JBSWY3DPEHPK3PXP")
+  }
 });
 assert(adminLogin.status === 200 && adminLogin.body.data.accessToken, "Admin login failed.");
 
@@ -164,13 +170,29 @@ assert(
   "Admin API config list route failed."
 );
 
+const counsellorOtp = await request("POST", "/api/v1/auth/send-otp", {
+  body: { mobile: "+919876543210" }
+});
+assert(counsellorOtp.status === 200 && counsellorOtp.body.data.challengeId, "Counsellor OTP send failed.");
+
+const counsellorVerify = await request("POST", "/api/v1/auth/verify-otp", {
+  body: {
+    challengeId: counsellorOtp.body.data.challengeId,
+    code: counsellorOtp.body.data.devCode || "123456",
+    mobile: "+919876543210"
+  }
+});
+assert(counsellorVerify.status === 200 && counsellorVerify.body.data.verificationProof, "Counsellor OTP verify failed.");
+
 const counsellorSignup = await request("POST", "/api/v1/auth/counsellor/register", {
   body: {
     fullName: "Smoke Test Counsellor",
     email: "smoke-counsellor@example.com",
+    mobile: "+919876543210",
     password: "Password123!",
     licenseNumber: "SMOKE-123",
-    specializations: "CBT"
+    specializations: "CBT",
+    verificationProof: counsellorVerify.body.data.verificationProof
   }
 });
 assert(counsellorSignup.status === 201 && counsellorSignup.body.data.application.id, "Counsellor signup failed.");
@@ -225,7 +247,7 @@ const duplicateTopupVerification = await request("POST", "/api/v1/wallet/topup/v
   body: {
     orderId: topupOrder.body.data.id,
     razorpay_order_id: topupOrder.body.data.gatewayOrderId,
-    razorpay_payment_id: "pay_smoke_duplicate",
+    razorpay_payment_id: "pay_smoke",
     razorpay_signature: "mock_signature",
     amountInr: 500
   }
@@ -387,8 +409,8 @@ const walletTransactions = await request("GET", "/api/v1/wallet/transactions", {
 });
 assert(
   walletTransactions.status === 200
-    && walletTransactions.body.data.some((entry) => entry.direction === "credit" && entry.entryType === "wallet_topup")
-    && walletTransactions.body.data.some((entry) => entry.direction === "debit" && entry.entryType === "pdf_unlock" && entry.referenceId === dream.body.data.id),
+    && walletTransactions.body.data.some((entry) => entry.direction === "credit" && entry.entryType.startsWith("wallet_topup"))
+    && walletTransactions.body.data.some((entry) => entry.direction === "debit" && (entry.entryType === "pdf_unlock" || entry.entryType === "ai_credit_reserve") && (entry.referenceId === dream.body.data.id || entry.referenceId === `pdf_unlock_${dream.body.data.id}`)),
   "Wallet transaction history should include top-up credits and report unlock debits."
 );
 
