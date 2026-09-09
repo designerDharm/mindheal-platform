@@ -4911,7 +4911,15 @@ function attachPageHandlers() {
       
       toast(`Connecting with ${provider}...`);
       
-      if (provider === "Google" && typeof firebase !== "undefined" && firebase.apps.length) {
+      if (provider === "Google") {
+        if (typeof firebase === "undefined" || !firebase.apps || !firebase.apps.length) {
+          const msg = "Google authentication service is currently unavailable. Please sign in with your email or mobile.";
+          state.authError = msg;
+          toast(msg, "error");
+          render();
+          return;
+        }
+
         try {
           const googleProvider = new firebase.auth.GoogleAuthProvider();
           googleProvider.setCustomParameters({ prompt: 'select_account' });
@@ -4952,6 +4960,10 @@ function attachPageHandlers() {
           }
           return;
         } catch (err) {
+          if (err.code === "auth/popup-closed-by-user" || err.code === "auth/cancelled-popup-request") {
+            toast("Google sign-in was cancelled.", "info");
+            return;
+          }
           const msg = err.message || "Google authentication failed.";
           state.authError = msg;
           toast(`Google sign-in failed: ${msg}`, "error");
@@ -4960,41 +4972,11 @@ function attachPageHandlers() {
         }
       }
 
-      try {
-        // Create or authenticate social user account via API
-        const randomId = Math.floor(100 + Math.random() * 900);
-        const socialPayload = {
-          name: `${provider} User`,
-          email: `${provider.toLowerCase()}_user_${randomId}@example.com`,
-          mobile: `98${Math.floor(10000000 + Math.random() * 90000000)}`,
-          password: `OAuth-${provider}-${randomId}!`,
-          dateOfBirth: "2000-01-01"
-        };
-        
-        let user = null;
-        try {
-          user = await api.signUp(role, socialPayload);
-        } catch {
-          // If already exists, perform instant social login
-          user = await api.login(role, { email: socialPayload.email, password: socialPayload.password });
-        }
-        
-        if (user && user.status === "GUARDIAN_CONSENT_REQUIRED") {
-          state.guardianPendingEmail = user.email;
-          toast("Guardian consent required. An email has been sent.", "warning");
-          navigate("/auth/guardian-pending");
-          return;
-        }
-
-        toast(`Welcome! Logged in successfully via ${provider}.`);
-        state.authError = "";
-        navigate(form.dataset.panel);
-      } catch (err) {
-        const msg = err.message || `${provider} authentication failed.`;
-        state.authError = msg;
-        toast(`Social authentication failed: ${msg}`, "error");
-        render();
-      }
+      // Any other or unconfigured provider (e.g., Facebook, Apple)
+      const msg = `${provider} authentication service is currently unavailable. Please sign in with your email or mobile.`;
+      state.authError = msg;
+      toast(msg, "error");
+      render();
     });
   });
 

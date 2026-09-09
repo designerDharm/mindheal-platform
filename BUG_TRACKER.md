@@ -345,13 +345,20 @@
 
 #### MH-13: Social sign-in fabricated account fallback
 - **Priority:** P1 (High)
-- **Status:** `Open`
-- **Affected Files:** `src/main.js`
+- **Status:** `Staging verified`
+- **Affected Files:** `src/main.js`, `tests/social-auth.test.js`
 - **Reproduction Steps:** Click unconfigured social login provider in UI.
-- **Expected Result:** Clear error notification that provider is unavailable.
-- **Actual Result (Before Fix):** Frontend fabricated `provider_user_*@example.com` and auto-logged in.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Expected Result:** Clear error notification that provider is unavailable. An unavailable Google/Facebook flow never falls back to ordinary signup with invented details.
+- **Actual Result (Before Fix):** Frontend fabricated `provider_user_*@example.com` with generated phone numbers and `OAuth-*` passwords, auto-calling `api.signUp` and logging in.
+- **Remediation:**
+  - Removed all invented credential generators (`randomId`, `provider_user_*@example.com`, random mobile numbers, `OAuth-${provider}-${randomId}!`) in `src/main.js`.
+  - Preserved genuine configured Google OAuth popup flow (`firebase.auth().signInWithPopup(googleProvider)`) and backend verification (`api.loginWithFirebase`).
+  - Added fail-closed checks when Google/Firebase is not initialized or unavailable: displays clear error message `"Google authentication service is currently unavailable. Please sign in with your email or mobile."`, toasts error, and sets `state.authError`.
+  - Added clean error handling for any unconfigured provider (Facebook, Apple): displays `"${provider} authentication service is currently unavailable. Please sign in with your email or mobile."` without attempting registration or login.
+- **Verification Evidence:**
+  - Automated test suite `tests/social-auth.test.js` (3/3 PASSED): verified complete removal of fabricated credential patterns, verified clear error messaging for unavailable Google/Firebase, and verified unconfigured providers never fall back to `api.signUp` or `api.login`.
+  - Root test suite: `npm test` (16/16 PASSED).
+  - Code check: `npm run check` (0 errors).
 
 ---
 
