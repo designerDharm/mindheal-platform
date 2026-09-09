@@ -49,7 +49,9 @@ export const routes = [
   route("GET", `${p}/user/me`, userController.getMe, ["user", "admin"]),
   route("PUT", `${p}/user/me`, userController.updateMe, ["user", "admin"]),
   route("POST", `${p}/user/mood/log`, userController.logMood, ["user"]),
+  route("POST", `${p}/user/mood-logs`, userController.logMood, ["user"]),
   route("GET", `${p}/user/mood/history`, userController.getMoodHistory, ["user", "admin"]),
+  route("GET", `${p}/user/mood-logs`, userController.getMoodHistory, ["user", "admin"]),
 
   route("GET", `${p}/counsellors`, counsellorController.listCounsellors),
   route("GET", `${p}/counsellors/map`, counsellorController.mapListings),

@@ -31,11 +31,28 @@ export async function updateMe({ body, user }) {
   return ok(sanitizeUser(record));
 }
 
-export async function logMood({ body, user }) {
-  const mood = { id: createId("mood"), userId: user.id, createdAt: new Date().toISOString(), ...body };
+export async function logMood({ body = {}, user }) {
+  const {
+    id: _ignoredId,
+    userId: _ignoredUserId,
+    user_id: _ignoredUser_id,
+    ownerId: _ignoredOwnerId,
+    owner_id: _ignoredOwner_id,
+    createdAt: _ignoredCreatedAt,
+    created_at: _ignoredCreated_at,
+    ...cleanBody
+  } = body || {};
+
+  const mood = {
+    ...cleanBody,
+    id: createId("mood"),
+    userId: user.id,
+    createdAt: new Date().toISOString()
+  };
   return created(await repositories.moodLogs.create(mood));
 }
 
-export async function getMoodHistory({ user }) {
-  return ok(await repositories.moodLogs.listByUser(user.id));
+export async function getMoodHistory({ query = {}, user }) {
+  const targetUserId = user.role === "admin" && query?.userId ? query.userId : user.id;
+  return ok(await repositories.moodLogs.listByUser(targetUserId));
 }

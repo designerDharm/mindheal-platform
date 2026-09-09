@@ -209,13 +209,21 @@
 
 #### MH-21: Mood logging accepts client-supplied owner
 - **Priority:** P1 (High)
-- **Status:** `Open`
-- **Affected Files:** `backend/src/controllers/user.controller.js`
+- **Status:** `Staging verified`
+- **Affected Files:** `backend/src/controllers/user.controller.js`, `backend/src/routes/index.js`
 - **Reproduction Steps:** Send `POST /api/v1/user/mood-logs` with body containing `userId: "other_user"`.
-- **Expected Result:** Log is created strictly for the authenticated `req.user.id`.
-- **Actual Result (Before Fix):** Server accepted client-provided `userId`.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Expected Result:** Log is created strictly for the authenticated `req.user.id`. Client-supplied ownership fields are ignored or rejected.
+- **Actual Result (Before Fix):** Server accepted client-provided `userId` due to trailing object spread (`...body`).
+- **Fix Commit:** `ef5f391` (`fix(security): enforce authenticated ownership for mood logs (MH-21)`)
+- **Verification Evidence:**
+  - Sanitized `logMood` in `backend/src/controllers/user.controller.js` to strip client-supplied ownership or identifier fields (`userId`, `user_id`, `ownerId`, `owner_id`, `id`, `createdAt`) and enforce ownership from authenticated `user.id`.
+  - Updated `getMoodHistory` in `backend/src/controllers/user.controller.js` to scope retrieval strictly to authenticated `user.id` unless the requesting role is administrator.
+  - Registered route aliases `POST /api/v1/user/mood-logs` and `GET /api/v1/user/mood-logs` in `backend/src/routes/index.js` alongside `/user/mood/log` and `/user/mood/history`.
+  - Created automated test suite `backend/tests/mood_ownership.test.js` (4/4 tests passing):
+    - `✔ 1. logMood ignores client-supplied userId and sets authenticated owner`
+    - `✔ 2. End-to-end dispatch: POST /api/v1/user/mood/log and /api/v1/user/mood-logs`
+    - `✔ 3. getMoodHistory scopes history to requesting user unless admin`
+  - Full suite verification: 168/168 backend tests passing, 39/39 frontend tests passing.
 
 #### MH-40: Peer request details lack participant authorization
 - **Priority:** P1 (High)
