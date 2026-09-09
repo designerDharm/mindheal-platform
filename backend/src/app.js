@@ -129,6 +129,21 @@ async function authenticate(req, route) {
 
   const user = await repositories.users.findById(payload.sub);
   if (!user) return { error: unauthorized("User session is no longer active.") };
+
+  if (user.isActive === false || user.status === "disabled" || user.status === "suspended") {
+    return { error: forbidden("User account is disabled.", { code: "ACCOUNT_DISABLED" }) };
+  }
+
+  if (redisClient.isOpen) {
+    try {
+      const isRevoked = await redisClient.get(`revoked_user:${payload.sub}`);
+      if (isRevoked) {
+        return { error: forbidden("User account is disabled.", { code: "ACCOUNT_DISABLED" }) };
+      }
+    } catch {
+      // Continue if Redis query fails
+    }
+  }
   
   if (user.onboardingStatus !== "COMPLETED" && !req.url.includes("/user/me") && !req.url.includes("/auth/logout") && !req.url.includes("/auth/refresh")) {
     return { error: forbidden("Your profile onboarding is incomplete. Please complete your profile to access this resource.") };

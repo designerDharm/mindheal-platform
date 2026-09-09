@@ -1,5 +1,5 @@
 import * as authService from "../services/auth.service.js";
-import { badRequest, created, ok, unauthorized } from "../utils/http.js";
+import { badRequest, created, forbidden, ok, unauthorized } from "../utils/http.js";
 import { requireFields } from "../utils/validation.js";
 
 export async function register({ body, headers = {}, ip }) {
@@ -101,6 +101,15 @@ export async function login({ body, res }) {
     });
     return ok(session);
   } catch (err) {
+    if (err.code === "TOTP_REQUIRED") {
+      return unauthorized(err.message, { code: "TOTP_REQUIRED" });
+    }
+    if (err.code === "INVALID_TOTP") {
+      return unauthorized(err.message, { code: "INVALID_TOTP" });
+    }
+    if (err.code === "ACCOUNT_DISABLED" || err.message === "User account is disabled.") {
+      return forbidden("User account is disabled.", { code: "ACCOUNT_DISABLED" });
+    }
     return unauthorized(err.message || "Invalid email, password, or role.");
   }
 }
@@ -273,6 +282,9 @@ export async function refresh({ body }) {
     const session = await authService.refreshSession(body.refreshToken);
     return ok(session);
   } catch (err) {
+    if (err.code === "ACCOUNT_DISABLED" || err.message === "User account is disabled") {
+      return forbidden("User account is disabled.", { code: "ACCOUNT_DISABLED" });
+    }
     return unauthorized(err.message);
   }
 }

@@ -286,13 +286,29 @@
 
 #### MH-12: Disabled accounts retain login and request access
 - **Priority:** P1 (High)
-- **Status:** `Open`
-- **Affected Files:** `backend/src/services/auth.service.js`, `backend/src/app.js`, `backend/src/socket.js`
-- **Reproduction Steps:** Deactivate user (`isActive: false`); attempt login and authenticated requests.
-- **Expected Result:** HTTP 401/403 Account suspended.
-- **Actual Result (Before Fix):** Disabled user can log in and issue requests.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Status:** `Staging verified`
+- **Affected Files:** `backend/src/services/auth.service.js`, `backend/src/controllers/auth.controller.js`, `backend/src/app.js`, `backend/src/socket.js`, `backend/src/controllers/admin.controller.js`, `backend/src/routes/index.js`, `backend/package.json`
+- **Reproduction Steps:**
+  1. Create a user with `isActive: false` or update existing user to disabled.
+  2. Attempt password login (`POST /api/v1/auth/login`).
+  3. Attempt authenticated API request (`GET /api/v1/user/me`) using existing valid access token.
+  4. Attempt token refresh (`POST /api/v1/auth/refresh`) using existing refresh token.
+  5. Attempt new Socket.IO connection handshake with disabled account token.
+  6. Disable active user while connected to Socket.IO via `PUT /api/v1/admin/users/:id/status`.
+  7. Attempt Google Sign-In with disabled account.
+- **Expected Result:**
+  - Password login fails with HTTP 403 (`User account is disabled.`).
+  - Authenticated API request fails with HTTP 403 (`User account is disabled.`).
+  - Token refresh fails with HTTP 403 (`User account is disabled.`).
+  - New Socket.IO connection fails with `Account disabled`.
+  - Active Socket.IO session receives `account_disabled` event and is immediately disconnected.
+  - Google Sign-In returns `ACCOUNT_RESTRICTED`.
+- **Actual Result (Before Fix):**
+  - Disabled users could log in with password, use existing access tokens for any authenticated endpoint, and connect to Socket.IO without restriction.
+- **Fix Commit:** `pending commit`
+- **Verification Evidence:**
+  - Comprehensive multi-vector test suite `scratch/reproduce_mh12_deep.mjs`: all 6 checks PASSED on live PostgreSQL with active Socket.IO disconnection.
+  - Test suites: `backend/tests/auth.controller.test.js`, `backend/tests/auth.service.test.js`, `backend/tests/onboarding.test.js`, `backend/tests/repository-contract.test.js` (40/40 passed).
 
 #### MH-42: Password-created minor marked onboarding complete before consent
 - **Priority:** P1 (High)

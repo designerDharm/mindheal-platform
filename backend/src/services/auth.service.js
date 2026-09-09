@@ -77,6 +77,12 @@ export async function loginUser({ email, mobile, password, role, totp }) {
     throw new Error("Invalid email, password, or role.");
   }
 
+  if (user.isActive === false || user.status === "disabled" || user.status === "suspended") {
+    const err = new Error("User account is disabled.");
+    err.code = "ACCOUNT_DISABLED";
+    throw err;
+  }
+
   if (user.role === "admin") {
     if (!totp || String(totp).trim().length === 0) {
       const err = new Error("Two-factor authentication code is required for administrator login.");
@@ -250,6 +256,10 @@ export async function completeGoogleOnboarding(onboardingToken, profileData) {
   let user = await repositories.users.findByEmailAndRole(normalizedEmail, safeRole);
 
   if (user) {
+    if (user.isActive === false || user.status === "disabled" || user.status === "suspended") {
+      return { status: "ACCOUNT_RESTRICTED" };
+    }
+
     const patch = {
       firebaseUid,
       fullName,
@@ -370,9 +380,24 @@ export async function refreshSession(refreshToken) {
 
   const user = await repositories.users.findById(payload.sub);
   if (!user) throw new Error("User no longer exists");
-  if (!user.isActive) throw new Error("User account is disabled");
+  if (user.isActive === false || user.status === "disabled" || user.status === "suspended") {
+    const err = new Error("User account is disabled");
+    err.code = "ACCOUNT_DISABLED";
+    throw err;
+  }
 
   return createSession(user);
+}
+
+export async function revokeUserSessions(userId) {
+  if (redisClient.isOpen && userId) {
+    try {
+      await redisClient.setEx(`revoked_user:${userId}`, appConfig.refreshTokenTtlSeconds, "disabled");
+    } catch (e) {
+      console.error("[Session] Failed to record revoked_user in Redis:", e.message);
+    }
+  }
+  return true;
 }
 
 export async function logoutUser(refreshToken) {

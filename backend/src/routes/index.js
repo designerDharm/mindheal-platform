@@ -85,6 +85,7 @@ export const routes = [
   route("POST", `${p}/payments/webhook`, walletController.paymentWebhook),
 
   route("GET", `${p}/admin/users`, adminController.users, ["admin"]),
+  route("PUT", `${p}/admin/users/:id/status`, adminController.updateUserStatus, ["admin"]),
   route("GET", `${p}/admin/counsellors`, adminController.counsellors, ["admin"]),
   route("PUT", `${p}/admin/counsellors/:id/verify`, adminController.verifyCounsellor, ["admin"]),
   route("GET", `${p}/admin/api-config`, adminController.apiConfig, ["admin"]),

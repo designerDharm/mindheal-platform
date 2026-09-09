@@ -351,8 +351,38 @@ export async function deletePromotionalBanner({ params, user }) {
 }
 
 import { executeWeeklyPayoutBatch } from "../services/payout.service.js";
+import { revokeUserSessions } from "../services/auth.service.js";
+import { disconnectUserSockets } from "../socket.js";
 
 export async function runPayoutBatch({ user }) {
   const result = await executeWeeklyPayoutBatch(user.id);
   return ok(result);
+}
+
+export async function updateUserStatus({ params, body, user }) {
+  const targetUserId = params.id;
+  const targetUser = await repositories.users.findById(targetUserId);
+  if (!targetUser) return badRequest("User not found");
+
+  const isActive = body.isActive !== undefined ? Boolean(body.isActive) : (body.status === "disabled" || body.status === "suspended" ? false : undefined);
+  const patch = {};
+  if (isActive !== undefined) patch.isActive = isActive;
+  if (body.status !== undefined) patch.status = body.status;
+
+  const updated = await repositories.users.update(targetUserId, patch);
+
+  if (isActive === false || body.status === "disabled" || body.status === "suspended") {
+    await revokeUserSessions(targetUserId);
+    disconnectUserSockets(targetUserId);
+  }
+
+  await repositories.auditLogs.create({
+    userId: user.id,
+    action: "UPDATE_USER_STATUS",
+    entityType: "User",
+    entityId: targetUserId,
+    newValue: patch
+  });
+
+  return ok(sanitizeUser(updated));
 }

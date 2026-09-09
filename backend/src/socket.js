@@ -25,10 +25,14 @@ export function initializeSockets(httpServer) {
       const user = await repositories.users.findById(payload.sub);
       if (!user) return next(new Error("User not found"));
       
+      if (user.isActive === false || user.status === "disabled" || user.status === "suspended") {
+        return next(new Error("Account disabled"));
+      }
+
       socket.user = user;
       next();
     } catch (err) {
-      next(new Error("Authentication error"));
+      next(new Error(err.message === "Account disabled" ? "Account disabled" : "Authentication error"));
     }
   });
 
@@ -37,6 +41,21 @@ export function initializeSockets(httpServer) {
     
     // User personal room
     socket.join(socket.user.id);
+
+    // Verify freshness on incoming socket events
+    socket.use(async ([event, ...args], next) => {
+      try {
+        const freshUser = await repositories.users.findById(socket.user.id);
+        if (!freshUser || freshUser.isActive === false || freshUser.status === "disabled" || freshUser.status === "suspended") {
+          socket.emit("account_disabled", { message: "Your account has been disabled." });
+          socket.disconnect(true);
+          return next(new Error("Account disabled"));
+        }
+        next();
+      } catch (err) {
+        next(err);
+      }
+    });
 
     // Track listener profile if any
     let listenerProfile = null;
@@ -151,3 +170,30 @@ export function getIO() {
   if (!ioInstance) throw new Error("Socket.io not initialized");
   return ioInstance;
 }
+
+export function disconnectUserSockets(userId) {
+  if (!ioInstance || !userId) return;
+  try {
+    ioInstance.in(userId).emit("account_disabled", { message: "Your account has been disabled." });
+    if (typeof ioInstance.in(userId).disconnectSockets === "function") {
+      ioInstance.in(userId).disconnectSockets(true);
+    }
+  } catch (err) {
+    console.error("[Socket] Failed to disconnect sockets via room:", err.message);
+  }
+
+  try {
+    const sockets = ioInstance.sockets?.sockets || ioInstance.of("/")?.sockets;
+    if (sockets) {
+      for (const [_, s] of sockets) {
+        if (s.user?.id === userId) {
+          s.emit("account_disabled", { message: "Your account has been disabled." });
+          s.disconnect(true);
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[Socket] Failed to disconnect sockets via traversal:", err.message);
+  }
+}
+
