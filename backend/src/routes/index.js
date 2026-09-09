@@ -72,6 +72,7 @@ export const routes = [
   route("POST", `${p}/analysis/handwriting`, aiController.createHandwritingReport, ["user"], true),
   route("POST", `${p}/analysis/signature`, aiController.createSignatureReport, ["user"], true),
   route("GET", `${p}/analysis/reports`, aiController.listReports, ["user", "admin"]),
+  route("GET", `${p}/analysis/reports/:id`, aiController.getReport, ["user", "admin"]),
   route("POST", `${p}/analysis/reports/:id/unlock`, aiController.unlockReport, ["user"]),
   route("POST", `${p}/screenings`, screeningController.createScreening, ["user"]),
   route("POST", `${p}/screenings/:id/complete`, screeningController.completeScreening, ["user"]),

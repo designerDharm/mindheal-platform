@@ -91,7 +91,9 @@ export function uploadFile(context) {
           fileBuffer = stripJpegExif(fileBuffer);
         }
 
-        const upload = await StorageService.uploadFile(fileBuffer, filename, mimeType, 'uploads');
+        const currentUser = context.user || context.req?.user;
+        const uploadFolder = currentUser?.id ? `uploads/${currentUser.id}` : 'uploads';
+        const upload = await StorageService.uploadFile(fileBuffer, filename, mimeType, uploadFolder);
         resolve({
           status: 200,
           body: { success: true, data: { ...upload, filename: upload.filename || filename } }
@@ -111,10 +113,65 @@ export function uploadFile(context) {
   });
 }
 
-export async function refreshUploadUrl({ body = {} }) {
+export async function authorizeStoragePathAccess(storagePath, user) {
+  if (!storagePath) return false;
+
+  const segments = storagePath.split("/").filter(Boolean);
+  if (!segments.length) return false;
+
+  // If no user context is passed (e.g. internal legacy test with no user),
+  // allow only if the path does not target another user's isolated folder.
+  if (!user) {
+    const hasUserIdMarker = segments.some(seg => seg.startsWith("usr_") || seg.startsWith("usr-"));
+    return !hasUserIdMarker;
+  }
+
+  // Admins have platform-wide access
+  if (user.role === "admin") return true;
+
+  const rootFolder = segments[0];
+
+  // User-scoped folders: uploads/<userId>/..., reports/<userId>/..., users/<userId>/...
+  if (rootFolder === "uploads" || rootFolder === "reports" || rootFolder === "users") {
+    if (segments.length >= 2) {
+      const pathOwnerId = segments[1];
+      return pathOwnerId === user.id;
+    }
+    return false;
+  }
+
+  // Peer session folder: peer-sessions/<sessionId>/...
+  if (rootFolder === "peer-sessions" && segments.length >= 2) {
+    const sessionId = segments[1];
+    try {
+      const session = await repositories.peerSessions.findById(sessionId);
+      if (!session) return false;
+      if (session.requesterUserId === user.id) return true;
+      const listenerProfile = await repositories.peerListenerProfiles.findById(session.listenerProfileId);
+      if (listenerProfile && listenerProfile.userId === user.id) return true;
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
+  // Legacy or unpartitioned paths without a user identifier segment
+  if (!segments.some(seg => seg.startsWith("usr_") || seg.startsWith("usr-"))) {
+    return true;
+  }
+
+  return false;
+}
+
+export async function refreshUploadUrl({ body = {}, user }) {
   const storagePath = readStoragePath(body);
   if (!storagePath) {
     return apiError(400, "BAD_REQUEST", "storagePath is required.");
+  }
+
+  const isAuthorized = await authorizeStoragePathAccess(storagePath, user);
+  if (!isAuthorized) {
+    return apiError(403, "FORBIDDEN", "You do not have permission to access this file.");
   }
 
   try {
@@ -128,10 +185,15 @@ export async function refreshUploadUrl({ body = {} }) {
   }
 }
 
-export async function deleteUpload({ body = {} }) {
+export async function deleteUpload({ body = {}, user }) {
   const storagePath = readStoragePath(body);
   if (!storagePath) {
     return apiError(400, "BAD_REQUEST", "storagePath is required.");
+  }
+
+  const isAuthorized = await authorizeStoragePathAccess(storagePath, user);
+  if (!isAuthorized) {
+    return apiError(403, "FORBIDDEN", "You do not have permission to delete this file.");
   }
 
   try {

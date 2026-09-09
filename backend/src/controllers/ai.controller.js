@@ -43,9 +43,21 @@ export async function listReports({ user }) {
   return ok(await repositories.reports.listForUser(user));
 }
 
+export async function getReport({ params, user }) {
+  const report = await repositories.reports.findById(params.id);
+  if (!report) return badRequest("Report not found.");
+  if (report.userId !== user?.id && user?.role !== "admin") {
+    return forbidden("You do not have permission to access this report.");
+  }
+  return ok(report);
+}
+
 export async function unlockReport({ params, user }) {
   const report = await repositories.reports.findById(params.id);
   if (!report) return badRequest("Report not found.");
+  if (report.userId !== user?.id && user?.role !== "admin") {
+    return forbidden("You do not have permission to access or unlock this report.");
+  }
   if (report.isPdfUnlocked) return ok(report);
 
   let reservation = { reservationId: null, isFree: true };

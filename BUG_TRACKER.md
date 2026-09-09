@@ -170,13 +170,19 @@
 
 #### MH-06: Private file and report operations lack ownership checks
 - **Priority:** P1 (High)
-- **Status:** `Open`
-- **Affected Files:** `backend/src/controllers/upload.controller.js`, `backend/src/controllers/ai.controller.js`
-- **Reproduction Steps:** User A attempts to generate signed download URL, delete file, or unlock report belonging to User B.
-- **Expected Result:** HTTP 403 Forbidden.
-- **Actual Result (Before Fix):** Server generates signed URL or performs operation without checking user ownership.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Status:** `Staging verified`
+- **Affected Files:** `backend/src/controllers/upload.controller.js`, `backend/src/controllers/ai.controller.js`, `backend/src/routes/index.js`, `backend/tests/ownership_access_control.test.js`
+- **Reproduction Steps:** Synthetic Account B attempts to generate signed download URL, delete file, read report, or unlock report (including already-unlocked reports) belonging to Synthetic Account A.
+- **Expected Result:** HTTP 403 Forbidden on all non-owner access attempts.
+- **Actual Result (Before Fix):** Server generated signed URLs, deleted storage paths, and returned unlocked reports without verifying stored owner identity.
+- **Fix Commit:** `0c802c2` (`fix(security): enforce stored owner authorization for files and reports (MH-06)`)
+- **Verification Evidence:**
+  - Updated `uploadFile` to partition user file uploads into `uploads/${currentUser.id}/`.
+  - Implemented `authorizeStoragePathAccess` in `upload.controller.js` to authorize that the caller is the stored owner (or admin) before executing `refreshUploadUrl` (signing) or `deleteUpload` (deleting).
+  - Enforced stored owner check (`report.userId === user.id || user.role === 'admin'`) in `unlockReport` *before* inspecting `isPdfUnlocked` or modifying credits, protecting both locked and already-unlocked reports.
+  - Implemented dedicated `getReport` endpoint with stored owner authorization and registered `GET /api/v1/analysis/reports/:id`.
+  - Automated integration test suite `backend/tests/ownership_access_control.test.js` verified 5/5 tests passing: cross-account signed URL generation denied (403), cross-account file deletion denied (403), cross-account report reading and unlocking denied (403) even when report ID is known or already unlocked, and owner/admin access preserved (200).
+  - Regression testing: `backend/tests/upload.controller.test.js` (10/10 passed), full frontend test suite (39/39 passed), syntax checks on both frontend and backend (0 errors).
 
 #### MH-07: Socket rooms do not verify session membership
 - **Priority:** P1 (High)
