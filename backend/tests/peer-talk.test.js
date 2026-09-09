@@ -4,6 +4,7 @@ import { createApp } from "../src/app.js";
 import { repositories } from "../src/repositories/index.js";
 import { createId } from "../src/utils/security.js";
 import { getBalance } from "../src/services/wallet.service.js";
+import * as peerController from "../src/controllers/peer.controller.js";
 
 // Ensure repository driver is memory for this test run
 process.env.REPOSITORY_DRIVER = "memory";
@@ -236,5 +237,47 @@ test("Peer Talk Marketplace End-to-End Flow", async (t) => {
     const listenerBalance = await getBalance(userB.id);
     assert.strictEqual(listenerBalance, listenerEarningPaise);
     assert.strictEqual(updated.sessionStatus, "completed");
+  });
+
+  await t.test("9. verifyRequestPayment rejects proof for unknown order or mismatched amount", async () => {
+    const listenerProfile = await repositories.peerListenerProfiles.findByUserId(userB.id);
+
+    // Create new request and quote to test verification failure
+    const req = await repositories.peerSessionRequests.create({
+      id: createId("psr"),
+      requesterUserId: userA.id,
+      listenerProfileId: listenerProfile.id,
+      requestedDurationMinutes: 15,
+      requestedMode: "text",
+      requestStatus: "accepted",
+      requestExpiresAt: new Date(Date.now() + 60000).toISOString()
+    });
+
+    await repositories.peerSessionQuotes.create({
+      id: createId("psq"),
+      peerSessionRequestId: req.id,
+      requesterUserId: userA.id,
+      listenerProfileId: listenerProfile.id,
+      durationMinutes: 15,
+      baseFeePaise: 50000,
+      grossAmountPaise: 50000,
+      commissionPaise: 5000,
+      totalAmountPaise: 50000,
+      status: "pending",
+      expiresAt: new Date(Date.now() + 60000).toISOString()
+    });
+
+    // Unknown order
+    const unknownRes = await peerController.verifyRequestPayment({
+      params: { id: req.id },
+      user: userA,
+      body: {
+        razorpay_order_id: "order_unknown_fake",
+        razorpay_payment_id: "pay_1",
+        razorpay_signature: "sig_1"
+      }
+    });
+    assert.strictEqual(unknownRes.status, 400);
+    assert.strictEqual(unknownRes.body.error.message, "Payment order not found.");
   });
 });

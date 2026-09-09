@@ -572,54 +572,76 @@ export async function verifyRequestPayment({ params, body, user }) {
   const quote = await repositories.peerSessionQuotes.findByRequestId(request.id);
   if (!quote) return notFound("Session quote not found.");
 
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = body;
-  
-  if (!verifyRazorpaySignature(razorpay_order_id, razorpay_payment_id, razorpay_signature)) {
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = body || {};
+  if (!razorpay_payment_id || !razorpay_signature) {
+    return badRequest("Missing payment verification details.");
+  }
+
+  const identifier = orderId || razorpay_order_id;
+  if (!identifier) {
+    return badRequest("Missing payment order identifier.");
+  }
+
+  const order = await repositories.paymentOrders.find(identifier);
+  if (!order) {
+    return badRequest("Payment order not found.");
+  }
+
+  if (order.userId !== user.id) {
+    return forbidden("You are not authorized to use this payment order.");
+  }
+
+  const expectedAmountPaise = Number(quote.totalAmountPaise || quote.grossAmountPaise || 0);
+  if (Number(order.amountPaise) !== expectedAmountPaise) {
+    return badRequest("Payment order amount does not match session quote amount.");
+  }
+
+  if (order.gatewayOrderId && razorpay_order_id && order.gatewayOrderId !== razorpay_order_id) {
+    return badRequest("Payment proof does not match this order's gateway order identifier.");
+  }
+
+  const expectedGatewayOrderId = order.gatewayOrderId || razorpay_order_id;
+  if (!expectedGatewayOrderId) {
+    return badRequest("Missing gateway order reference.");
+  }
+
+  if (!verifyRazorpaySignature(expectedGatewayOrderId, razorpay_payment_id, razorpay_signature)) {
     return badRequest("Invalid payment signature.");
   }
 
+  if (order.status !== "created") {
+    return badRequest("Payment order is already processed.");
+  }
+
   return await executeTransaction(async () => {
-    let order = await repositories.paymentOrders.find(razorpay_order_id);
-    if (!order) {
-      order = await repositories.paymentOrders.create({
-        id: createId("ord"),
-        gateway: "razorpay",
-        gatewayOrderId: razorpay_order_id,
-        userId: user.id,
-        amountPaise: quote.totalAmountPaise,
-        status: "created",
-        createdAt: new Date().toISOString()
-      });
-    }
+    await credit(user.id, expectedAmountPaise / 100, "peer_session_topup", {
+      referenceType: "payment_order",
+      referenceId: order.id,
+      gatewayPaymentId: razorpay_payment_id
+    });
 
-    if (order.status !== "paid") {
-      await credit(user.id, quote.totalAmountPaise / 100, "peer_session_topup", {
-        referenceType: "payment_order",
-        referenceId: order.id,
-        gatewayPaymentId: razorpay_payment_id
-      });
-
-      const topupJournal = await postJournalTransaction({
-        journalType: "WALLET_TOPUP",
-        businessReferenceType: "payment_order",
-        businessReferenceId: order.id,
-        idempotencyKey: `topup_${order.id}`,
-        description: `Wallet top-up via Razorpay payment ${razorpay_payment_id} for peer session request ${request.id}`,
-        entries: [
-          { accountKey: "GATEWAY_RECEIVABLE", entrySide: "debit", amountPaise: quote.totalAmountPaise },
-          { accountKey: `USER_AVAILABLE_${user.id}`, entrySide: "credit", amountPaise: quote.totalAmountPaise }
-        ]
-      });
+    const topupJournal = await postJournalTransaction({
+      journalType: "WALLET_TOPUP",
+      businessReferenceType: "payment_order",
+      businessReferenceId: order.id,
+      idempotencyKey: `topup_${order.id}`,
+      description: `Wallet top-up via Razorpay payment ${razorpay_payment_id} for peer session request ${request.id}`,
+      entries: [
+        { accountKey: "GATEWAY_RECEIVABLE", entrySide: "debit", amountPaise: expectedAmountPaise },
+        { accountKey: `USER_AVAILABLE_${user.id}`, entrySide: "credit", amountPaise: expectedAmountPaise }
+      ]
+    });
+    if (topupJournal && repositories.journalTransactions?.create) {
       await repositories.journalTransactions.create(topupJournal);
-
-      await repositories.paymentOrders.update(order.id, {
-        status: "paid",
-        gatewayPaymentId: razorpay_payment_id,
-        paidAt: new Date().toISOString()
-      });
     }
 
-    await debit(user.id, quote.totalAmountPaise / 100, "peer_session_payment", {
+    await repositories.paymentOrders.update(order.id, {
+      status: "paid",
+      gatewayPaymentId: razorpay_payment_id,
+      paidAt: new Date().toISOString()
+    });
+
+    await debit(user.id, expectedAmountPaise / 100, "peer_session_payment", {
       referenceType: "PeerSessionRequest",
       referenceId: request.id
     });
