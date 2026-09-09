@@ -95,14 +95,16 @@
 - **Status:** `Staging verified`
 - **Affected Files:** `backend/src/config/firebase.js`, `backend/src/config/app.js`
 - **Reproduction Steps:**
-  1. Set `NODE_ENV=production` and `REPOSITORY_DRIVER=memory`.
-  2. Send Bearer token `mock-token-...` to authenticated endpoint.
-- **Expected Result:** Server rejects mock tokens unconditionally in production (HTTP 401).
-- **Actual Result (Before Fix):** Mock token handler was enabled whenever `REPOSITORY_DRIVER === "memory"`, even if `NODE_ENV === "production"`.
+  1. Start fresh production process (`NODE_ENV=production`) under both `REPOSITORY_DRIVER=memory` and `REPOSITORY_DRIVER=postgres`.
+  2. Send Bearer/idToken `mock-token-...` to auth/login endpoint.
+- **Expected Result:** Server strictly rejects mock tokens in production with both repository drivers (HTTP 400/401).
+- **Actual Result (Before Fix):** Mock token handler was enabled whenever `REPOSITORY_DRIVER === "memory"`, even under `NODE_ENV === "production"`.
 - **Fix Commit:** `47d9d11`
 - **Verification Evidence:**
-  - Dedicated reproducer test with `NODE_ENV=production` & `REPOSITORY_DRIVER=memory`: mock token rejected with HTTP 401.
-  - Startup fatal guard test: Server throws `SECURITY_FATAL` if `FIREBASE_AUTH_MOCK_ENABLED=true` in production.
+  - Tested fresh production process with `REPOSITORY_DRIVER=memory`: mock token rejected with HTTP 400 (`Invalid Firebase Token`).
+  - Tested fresh production process with `REPOSITORY_DRIVER=postgres`: mock token rejected with HTTP 400 (`Invalid Firebase Token`).
+  - Startup fatal guard test: Verified server throws `SECURITY_FATAL` if `FIREBASE_AUTH_MOCK_ENABLED=true` in production.
+  - Test suite compatibility: Mock tokens verify cleanly in `NODE_ENV=test`.
   - Audit check `N10` verified.
 
 ---
