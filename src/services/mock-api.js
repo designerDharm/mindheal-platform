@@ -145,6 +145,7 @@ export const api = {
         mobile: payload.mobile,
         password: payload.password,
         verificationProof: payload.verificationProof,
+        dateOfBirth: payload.dateOfBirth || payload.dob || undefined,
         licenseNumber: payload.license || payload.licenseNumber,
         specializations: payload.speciality || "Counselling",
         languagesSpoken: payload.languages || "English"
@@ -154,6 +155,8 @@ export const api = {
         mobile: payload.mobile,
         password: payload.password,
         verificationProof: payload.verificationProof,
+        dateOfBirth: payload.dateOfBirth || payload.dob || undefined,
+        guardianEmail: payload.guardianEmail || undefined,
         languageCode: payload.language || "en"
       }
     });

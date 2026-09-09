@@ -2439,6 +2439,15 @@ function authPage(role, mode) {
                     <i class="ph ph-calendar field-icon"></i>
                   </div>
                 </div>
+                ${role === "user" ? html`
+                  <div class="field" id="signup-guardian-wrapper" style="display: none;">
+                    <label for="guardianEmail">Parent or Guardian's Email (Required for ages 15–17)</label>
+                    <div class="input-wrapper" style="position: relative; display: flex; align-items: center; width: 100%;">
+                      <input id="guardianEmail" name="guardianEmail" type="email" placeholder="guardian@example.com" style="padding-left: 48px; width: 100%;" />
+                      <i class="ph ph-shield-check field-icon"></i>
+                    </div>
+                  </div>
+                ` : ""}
               ` : ""}
               <div class="field">
                 <label for="email">Email address ${role === "admin" ? "(Required)" : "(Required for verification)"}</label>
@@ -4287,16 +4296,32 @@ function attachGlobalHandlers() {
 
 function calculateClientAge(dobString) {
   if (!dobString) return null;
-  const dob = new Date(dobString);
+  const str = String(dobString).trim();
+  const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return null;
+  const year = parseInt(match[1], 10);
+  const month = parseInt(match[2], 10);
+  const day = parseInt(match[3], 10);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+  const dob = new Date(Date.UTC(year, month - 1, day));
   if (isNaN(dob.getTime())) return null;
+  if (dob.getUTCFullYear() !== year || dob.getUTCMonth() !== month - 1 || dob.getUTCDate() !== day) {
+    return null;
+  }
+
   const today = new Date();
-  let age = today.getFullYear() - dob.getFullYear();
-  const m = today.getMonth() - dob.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+  if (dob > today) return null;
+
+  let age = today.getUTCFullYear() - dob.getUTCFullYear();
+  const monthDiff = today.getUTCMonth() - dob.getUTCMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getUTCDate() < dob.getUTCDate())) {
     age--;
   }
+  if (age < 0) return null;
   return age;
 }
+
 
 function completeProfilePage() {
   const email = state.onboardingEmail || "";
@@ -4565,6 +4590,26 @@ function attachPageHandlers() {
           return;
         }
 
+        if (payload.dateOfBirth) {
+          const age = calculateClientAge(payload.dateOfBirth);
+          if (age === null) {
+            toast("Please enter a valid date of birth in the past.", "error");
+            return;
+          }
+          if (role === "user" && age < 15) {
+            toast("Minimum user age requirement is 15 years.", "error");
+            return;
+          }
+          if (role === "user" && age >= 15 && age < 18 && !cleanPayload.guardianEmail) {
+            toast("Parent or guardian email is required for users aged 15-17.", "error");
+            return;
+          }
+          if (role === "counsellor" && age < 21) {
+            toast("Minimum counsellor age requirement is 21 years.", "error");
+            return;
+          }
+        }
+
         state.otpTarget = cleanPayload.email;
         
         try {
@@ -4666,6 +4711,30 @@ function attachPageHandlers() {
       state.signupPayload = null;
       render();
     });
+  });
+
+  // Auth signup dynamic DOB listener to toggle guardian input
+  document.querySelectorAll("[data-form='auth']").forEach((form) => {
+    const dobInput = form.querySelector("#dob");
+    if (dobInput && form.dataset.role === "user") {
+      const handleDobChange = () => {
+        const val = dobInput.value;
+        const age = calculateClientAge(val);
+        const wrapper = form.querySelector("#signup-guardian-wrapper");
+        const guardianField = form.querySelector("#guardianEmail");
+        if (wrapper) {
+          if (age !== null && age >= 15 && age < 18) {
+            wrapper.style.display = "block";
+            if (guardianField) guardianField.required = true;
+          } else {
+            wrapper.style.display = "none";
+            if (guardianField) guardianField.required = false;
+          }
+        }
+      };
+      dobInput.addEventListener("change", handleDobChange);
+      dobInput.addEventListener("input", handleDobChange);
+    }
   });
 
   // Onboarding complete-profile form submission

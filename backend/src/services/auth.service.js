@@ -1,7 +1,7 @@
 import admin from "firebase-admin";
 import { repositories } from "../repositories/index.js";
 import { createId, hashPassword, hashValue, hmacValue, maskDestination, signAccessToken, signRefreshToken, verifyPassword, verifyRefreshToken, signOnboardingToken, verifyOnboardingToken, verifyTotp } from "../utils/security.js";
-import { normalizeEmail } from "../utils/validation.js";
+import { normalizeEmail, calculateAgeFromDob } from "../utils/validation.js";
 import { randomInt } from "node:crypto";
 import { redisClient } from "../config/redis.js";
 import { appConfig } from "../config/app.js";
@@ -14,7 +14,16 @@ export async function createUser({ role = "user", fullName, email, mobile, langu
     throw new Error("Password is required.");
   }
 
-  const age = calculateExactAge(dateOfBirth);
+  let normalizedDob = null;
+  let age = null;
+  if (dateOfBirth) {
+    age = calculateAgeFromDob(dateOfBirth);
+    if (age === null) {
+      throw new Error("Invalid Date of Birth. Date must be a valid date in the past.");
+    }
+    const match = String(dateOfBirth).trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    normalizedDob = `${match[1]}-${match[2]}-${match[3]}`;
+  }
   
   if (role === "user" && age !== null && age < 15) {
     throw new Error("Minimum user age requirement is 15 years.");
@@ -43,8 +52,8 @@ export async function createUser({ role = "user", fullName, email, mobile, langu
     mobile: mobile || null,
     languageCode,
     passwordHash: password ? hashPassword(password) : "",
-    dateOfBirth: dateOfBirth || null,
-    date_of_birth: dateOfBirth || null,
+    dateOfBirth: normalizedDob,
+    date_of_birth: normalizedDob,
     guardianEmail: isMinorUser ? (guardianEmail || null) : null,
     isGuardianConsentVerified: isConsentVerified,
     isActive: true,
@@ -102,20 +111,8 @@ export async function loginUser({ email, mobile, password, role, totp }) {
   return createSession(user);
 }
 
-export function calculateExactAge(dobString) {
-  if (!dobString) return null;
-  const dob = new Date(dobString);
-  if (isNaN(dob.getTime())) return null;
-  
-  const today = new Date();
-  let age = today.getFullYear() - dob.getFullYear();
-  const m = today.getMonth() - dob.getMonth();
-  
-  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
-    age--;
-  }
-  return age;
-}
+export const calculateExactAge = calculateAgeFromDob;
+
 
 export async function loginWithFirebase(idToken, role, flow = "signin") {
   let decodedToken;
@@ -247,6 +244,9 @@ export async function completeGoogleOnboarding(onboardingToken, profileData) {
     return { status: "AGE_NOT_ELIGIBLE" };
   }
 
+  const match = String(dateOfBirth).trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const normalizedDob = match ? `${match[1]}-${match[2]}-${match[3]}` : null;
+
   const isMinor = age >= 15 && age < 18;
   if (isMinor && !guardianEmail) {
     throw new Error("Guardian email is required for minor accounts.");
@@ -263,7 +263,8 @@ export async function completeGoogleOnboarding(onboardingToken, profileData) {
     const patch = {
       firebaseUid,
       fullName,
-      dateOfBirth,
+      dateOfBirth: normalizedDob,
+      date_of_birth: normalizedDob,
       profileCompletedAt: new Date().toISOString(),
       onboardingStatus: isMinor ? "PENDING_GUARDIAN" : "COMPLETED",
       emailVerifiedAt: new Date().toISOString(),
@@ -278,7 +279,7 @@ export async function completeGoogleOnboarding(onboardingToken, profileData) {
       fullName,
       email: normalizedEmail,
       firebaseUid,
-      dateOfBirth,
+      dateOfBirth: normalizedDob,
       guardianEmail: isMinor ? guardianEmail : null,
       onboardingStatus: isMinor ? "PENDING_GUARDIAN" : "COMPLETED",
       profileCompletedAt: new Date().toISOString(),

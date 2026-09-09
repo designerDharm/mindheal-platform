@@ -26,7 +26,7 @@ export async function listListeners({ query = {}, user }) {
     return forbidden(err.message);
   }
 
-  const age = calculateAgeFromDob(user.dateOfBirth);
+  const age = calculateAgeFromDob(user.dateOfBirth || user.date_of_birth);
   if (age === null || age < 18) {
     return forbidden("You must be 18 years or older to browse Peer Listeners.");
   }
@@ -59,7 +59,7 @@ export async function applyListener({ body, user }) {
   }
 
   // 1. Double-check age 18+
-  const age = calculateAgeFromDob(user.dateOfBirth);
+  const age = calculateAgeFromDob(user.dateOfBirth || user.date_of_birth);
   if (age === null || age < 18) {
     return badRequest("You must be 18 years or older to register as a Peer Listener.");
   }
@@ -332,7 +332,7 @@ export async function createSessionRequest({ body, user }) {
     return forbidden("You must accept the peer marketplace disclaimer policy before requesting a session.");
   }
 
-  const age = calculateAgeFromDob(user.dateOfBirth);
+  const age = calculateAgeFromDob(user.dateOfBirth || user.date_of_birth);
   if (age === null || age < 18) {
     return forbidden("You must be 18 years or older to request a session.");
   }

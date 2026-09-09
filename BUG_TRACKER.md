@@ -214,13 +214,28 @@
 
 #### MH-09: Signup drops DOB; adult gate allows unknown age
 - **Priority:** P1 (High)
-- **Status:** `Open`
-- **Affected Files:** `src/services/mock-api.js`, `backend/src/app.js`
-- **Reproduction Steps:** Complete signup flow with DOB; inspect network payload and attempt accessing adult AI services without DOB.
-- **Expected Result:** DOB is sent in registration; users with missing DOB are blocked from adult AI endpoints.
-- **Actual Result (Before Fix):** `mock-api.js` omitted DOB from register payload; adult gate failed open when DOB was missing.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Status:** `Staging verified`
+- **Affected Files:** `src/services/mock-api.js`, `src/main.js`, `backend/src/app.js`, `backend/src/utils/validation.js`, `backend/src/services/auth.service.js`, `backend/src/controllers/ai.controller.js`, `backend/src/controllers/peer.controller.js`, `backend/tests/dob_adult_restrictions.test.js`
+- **Reproduction Steps:**
+  1. Signup with DOB dropped by frontend service (`mock-api.js`).
+  2. Legacy `calculateAge` in `app.js` returns 20 when DOB is missing/null/empty.
+  3. User with missing DOB accesses adult generative AI endpoints (`/api/v1/ai/chat`, `/api/v1/analysis/*`) and succeeds.
+  4. User with future DOB (e.g. 2040-01-01) treats negative timestamp diff as adult.
+  5. User aged 17 years 364 days or minor attempts adult AI features.
+- **Expected Result:**
+  - DOB is forwarded consistently in registration payloads.
+  - DOB is strictly validated and normalized into `YYYY-MM-DD` (calendar validity and rejecting future dates).
+  - Insecure adult fallback (`return 20`) removed from `app.js`.
+  - Missing, invalid, or future DOB cannot unlock adult-only features. Boundary ages (18th birthday today vs tomorrow) behave with exact precision.
+  - Minors aged 15–17 require verified guardian email. Users under 15 and counsellors under 21 are rejected.
+- **Fix Commit:** `fix(auth): repair date-of-birth handling and adult restrictions (MH-09)`
+- **Verification Evidence:**
+  - Unit and route integration test suite `backend/tests/dob_adult_restrictions.test.js`: 5/5 tests passing:
+    1. `calculateAgeFromDob` and `calculateExactAge` edge cases (null, empty, invalid format, non-existent calendar date, future dates all return `null`; exact 18 today returns 18, 17y 364d returns 17, 18y 1d returns 18, exact 21 returns 21, turning 21 tomorrow returns 20, exact 15 returns 15, turning 15 tomorrow returns 14).
+    2. `createUser` validates and normalizes `dateOfBirth` into `YYYY-MM-DD` (future DOB rejected, invalid date rejected, user under 15 rejected, minor 15-17 without guardian rejected, counsellor under 21 rejected, valid adult 18+ normalized).
+    3. Adult generative AI and peer features block missing, invalid, or minor DOB.
+    4. `app.js` route-level `requireAdult` middleware strictly enforces verified adult age of 18+ on `/api/v1/ai/chat` (null DOB blocked with 403, future DOB blocked with 403, 17y 364d minor blocked with 403, exactly 18 allowed with 200, 18y 1d allowed with 200).
+  - Full onboarding and auth test suites (`tests/onboarding.test.js`, `tests/auth.service.test.js`, `tests/auth.controller.test.js`: 38/38 subtests) passing cleanly.
 
 #### MH-10: Email/mobile verification is optional on backend
 - **Priority:** P1 (High)

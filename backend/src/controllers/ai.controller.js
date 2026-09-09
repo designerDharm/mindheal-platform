@@ -1,18 +1,18 @@
 import { repositories } from "../repositories/index.js";
 import * as aiService from "../services/ai.service.js";
 import { credit, debit, reserveCredits, releaseCredits } from "../services/wallet.service.js";
-import { badRequest, created, ok } from "../utils/http.js";
+import { badRequest, created, forbidden, ok } from "../utils/http.js";
 import { createId, hashValue } from "../utils/security.js";
 import { calculateAgeFromDob, requireFields } from "../utils/validation.js";
 
 export async function chat({ body, user }) {
   const age = calculateAgeFromDob(user?.dateOfBirth || user?.date_of_birth);
-  if (user && (user.dateOfBirth || user.date_of_birth) && age < 18) {
-    return badRequest("AI features fail closed for minor accounts. Users must be at least 18 years old.");
+  if (age === null || age < 18) {
+    return forbidden("AI features fail closed for minor accounts. Users must be at least 18 years old.");
   }
   const missing = requireFields(body, ["message"]);
   if (missing) return badRequest("Message is required.", missing);
-  const result = await aiService.chatResponse({ message: body.message, languageCode: body.languageCode || "en" });
+  const result = await aiService.chatResponse({ message: body.message, userId: user?.id, languageCode: body.languageCode || "en" });
   if (result.safety?.riskLevel === "high") {
     await repositories.crisisEvents.create({
       id: createId("cri"),
@@ -66,8 +66,8 @@ export async function unlockReport({ params, user }) {
 
 async function createReport(reportType, body, user) {
   const age = typeof user === "object" ? calculateAgeFromDob(user?.dateOfBirth || user?.date_of_birth) : null;
-  if (user && (user.dateOfBirth || user.date_of_birth) && age < 18) {
-    return badRequest("AI self-reflection reports require verified age of 18 or above.");
+  if (age === null || age < 18) {
+    return forbidden("AI self-reflection reports require verified age of 18 or above.");
   }
   const userId = typeof user === "object" ? user.id : user;
   const inputText = body.inputText || body.description;

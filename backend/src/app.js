@@ -5,6 +5,7 @@ import { repositories } from "./repositories/index.js";
 import { appConfig } from "./config/app.js";
 import { redisClient } from "./config/redis.js";
 import { hashValue } from "./utils/security.js";
+import { calculateAgeFromDob } from "./utils/validation.js";
 
 const rateLimitStore = new Map();
 
@@ -158,21 +159,13 @@ async function authenticate(req, route) {
 
   // Non-negotiable product rule: Server-side age enforcement for adult generative AI endpoints
   if (route.requireAdult) {
-    const isAdult = calculateAge(user.dateOfBirth) >= 18;
-    if (!isAdult) {
+    const age = calculateAgeFromDob(user.dateOfBirth || user.date_of_birth);
+    if (age === null || age < 18) {
       return { error: forbidden("Generative AI services are restricted to verified adult users aged 18 or above.") };
     }
   }
 
   return { user };
-}
-
-function calculateAge(dobString) {
-  if (!dobString) return 20; // Default adult fallback if DOB not populated in legacy seed
-  const dob = new Date(dobString);
-  const diff = Date.now() - dob.getTime();
-  const ageDate = new Date(diff);
-  return Math.abs(ageDate.getUTCFullYear() - 1970);
 }
 
 function applyHeaders(req, res) {
