@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert";
-import { login } from "../src/controllers/auth.controller.js";
+import { login, register, registerCounsellor } from "../src/controllers/auth.controller.js";
 import { repositories } from "../src/repositories/index.js";
 import { hashPassword } from "../src/utils/security.js";
 
@@ -40,5 +40,31 @@ test("auth controller", async (t) => {
     } finally {
       repositories.users = originalUsers;
     }
+  });
+
+  await t.test("MH-10: requires valid verificationProof for user registration", async () => {
+    const res = await register({
+      body: {
+        fullName: "Test User",
+        email: "test_no_proof@example.com",
+        password: "Password123!"
+      }
+    });
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.error.message, /Verification proof is required/);
+  });
+
+  await t.test("MH-10: requires valid verificationProof for counsellor registration", async () => {
+    const res = await registerCounsellor({
+      body: {
+        fullName: "Test Counsellor",
+        mobile: "+919876543211",
+        password: "Password123!",
+        licenseNumber: "LIC-001",
+        specializations: ["CBT"]
+      }
+    });
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.error.message, /Verification proof is required/);
   });
 });

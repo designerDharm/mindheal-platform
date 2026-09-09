@@ -20,12 +20,14 @@ export async function register({ body, headers = {}, ip }) {
     return badRequest("Either email or mobile number must be provided.", { email: "Required", mobile: "Required" });
   }
 
-  // Atomically verify & consume single-use verificationProof if provided
-  if (body.verificationProof) {
-    const consumed = await authService.consumeVerificationProof(body.verificationProof, destination);
-    if (!consumed) {
-      return badRequest("Invalid, expired, or previously consumed verification proof. Please complete verification again.");
-    }
+  if (!body.verificationProof) {
+    return badRequest("Verification proof is required. Please verify your email or mobile before registering.", { verificationProof: "Required" });
+  }
+
+  const candidateDestinations = [body.email, body.mobile].filter(Boolean);
+  const consumed = await authService.consumeVerificationProof(body.verificationProof, candidateDestinations);
+  if (!consumed) {
+    return badRequest("Invalid, expired, reused, or destination-mismatched verification proof. Please complete verification again.");
   }
 
   try {
@@ -39,6 +41,8 @@ export async function register({ body, headers = {}, ip }) {
       guardianEmail
     } = body;
 
+    const isEmailVerified = email && consumed.destination === email.trim().toLowerCase();
+
     const user = await authService.createUser({
       fullName,
       email,
@@ -47,6 +51,7 @@ export async function register({ body, headers = {}, ip }) {
       languageCode,
       dateOfBirth,
       guardianEmail,
+      emailVerifiedAt: isEmailVerified ? new Date().toISOString() : null,
       role: "user"
     });
     return created(await authService.createSession(user));
@@ -200,12 +205,14 @@ export async function registerCounsellor({ body }) {
     return badRequest("Mobile number is mandatory for counsellor registration.", { mobile: "Required" });
   }
 
-  // Atomically verify & consume single-use verificationProof if provided
-  if (body.verificationProof) {
-    const consumed = await authService.consumeVerificationProof(body.verificationProof, body.mobile);
-    if (!consumed) {
-      return badRequest("Invalid, expired, or previously consumed verification proof. Please complete mobile verification again.");
-    }
+  if (!body.verificationProof) {
+    return badRequest("Verification proof is required. Please verify your mobile number before registering.", { verificationProof: "Required" });
+  }
+
+  const candidateDestinations = [body.mobile, body.email].filter(Boolean);
+  const consumed = await authService.consumeVerificationProof(body.verificationProof, candidateDestinations);
+  if (!consumed) {
+    return badRequest("Invalid, expired, reused, or destination-mismatched verification proof. Please complete mobile verification again.");
   }
 
   try {
@@ -223,6 +230,8 @@ export async function registerCounsellor({ body }) {
       bio
     } = body;
 
+    const isEmailVerified = email && consumed.destination === email.trim().toLowerCase();
+
     const user = await authService.createUser({
       fullName,
       email,
@@ -230,6 +239,7 @@ export async function registerCounsellor({ body }) {
       password,
       languageCode,
       dateOfBirth,
+      emailVerifiedAt: isEmailVerified ? new Date().toISOString() : null,
       role: "counsellor"
     });
     const application = await authService.createCounsellorApplication({

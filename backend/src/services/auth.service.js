@@ -813,7 +813,8 @@ export async function verifyOtp(challengeId, code, destination) {
   const proofData = {
     verificationProof,
     destination: destClean,
-    createdAt: Date.now()
+    createdAt: Date.now(),
+    expiresAt: Date.now() + verificationProofTtlSeconds * 1000
   };
 
   await redisSetEx(`otp_proof:${verificationProof}`, verificationProofTtlSeconds, JSON.stringify(proofData));
@@ -825,18 +826,61 @@ export async function verifyOtp(challengeId, code, destination) {
 }
 
 export async function consumeVerificationProof(verificationProof, destination) {
-  if (!verificationProof) return false;
-  const proofRaw = await redisGet(`otp_proof:${verificationProof}`);
-  if (!proofRaw) return false;
+  if (!verificationProof) return null;
+  const key = `otp_proof:${verificationProof}`;
 
-  const proof = JSON.parse(proofRaw);
-  const destClean = String(destination).trim().toLowerCase();
+  let proofRaw = null;
+  if (!redisClient.isOpen) {
+    if (appConfig.env === "production") {
+      throw new Error("OTP store is unavailable.");
+    }
+    proofRaw = inMemoryStore.get(key) || null;
+    if (proofRaw) {
+      // Immediate single-use consumption in memory
+      inMemoryStore.delete(key);
+    }
+  } else {
+    // Atomic GET and DEL in Redis using Lua script
+    const luaScript = `
+      local val = redis.call('GET', KEYS[1])
+      if val then
+        redis.call('DEL', KEYS[1])
+      end
+      return val
+    `;
+    proofRaw = await redisClient.eval(luaScript, { keys: [key] });
+  }
 
-  if (proof.destination !== destClean) return false;
+  if (!proofRaw) return null;
 
-  // Single-use atomic consumption
-  await redisDel(`otp_proof:${verificationProof}`);
-  return true;
+  let proof;
+  try {
+    proof = typeof proofRaw === "string" ? JSON.parse(proofRaw) : proofRaw;
+  } catch {
+    return null;
+  }
+
+  // Check TTL/expiration
+  if (proof.expiresAt && Date.now() > proof.expiresAt) {
+    return null;
+  }
+
+  // Bind proof to verified destination
+  const candidateDestinations = (Array.isArray(destination) ? destination : [destination])
+    .filter(Boolean)
+    .map((d) => String(d).trim().toLowerCase());
+
+  const proofDest = String(proof.destination).trim().toLowerCase();
+  const matched = candidateDestinations.includes(proofDest);
+
+  if (!matched) {
+    return null;
+  }
+
+  return {
+    verified: true,
+    destination: proofDest
+  };
 }
 
 export async function forgotPassword(email) {

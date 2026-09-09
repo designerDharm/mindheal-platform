@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert";
 import { createHmac } from "node:crypto";
-import { createSession, issueOtp, loginWithFirebase, logoutUser, refreshSession, sanitizeUser, verifyOtp } from "../src/services/auth.service.js";
+import { consumeVerificationProof, createSession, issueOtp, loginWithFirebase, logoutUser, refreshSession, sanitizeUser, verifyOtp } from "../src/services/auth.service.js";
 import { appConfig } from "../src/config/app.js";
 import { redisClient } from "../src/config/redis.js";
 import { repositories } from "../src/repositories/index.js";
@@ -145,6 +145,36 @@ test("auth flow", async (t) => {
         /OTP store is unavailable/
       );
     });
+  });
+
+  await t.test("MH-10: consumeVerificationProof binds to destination, consumes once, and rejects reuse/mismatch", async () => {
+    const email = "proof_test@example.com";
+    const issued = await issueOtp(email);
+    const verified = await verifyOtp(issued.challengeId, issued.devCode, email);
+    assert.ok(verified.verificationProof);
+
+    // 1. Destination mismatch fails
+    const mismatch = await consumeVerificationProof(verified.verificationProof, "different@example.com");
+    assert.strictEqual(mismatch, null);
+
+    // 2. Re-verifying destination after mismatch: since it was immediately deleted/invalidated, reuse fails
+    const secondMismatch = await consumeVerificationProof(verified.verificationProof, email);
+    assert.strictEqual(secondMismatch, null);
+
+    // 3. Fresh valid proof consumes once
+    const email2 = "proof_test_2@example.com";
+    const issued2 = await issueOtp(email2);
+    const verified2 = await verifyOtp(issued2.challengeId, issued2.devCode, email2);
+    const success = await consumeVerificationProof(verified2.verificationProof, email2);
+    assert.deepStrictEqual(success, { verified: true, destination: email2 });
+
+    // 4. Replay fails
+    const replay = await consumeVerificationProof(verified2.verificationProof, email2);
+    assert.strictEqual(replay, null);
+
+    // 5. Non-existent proof fails
+    const nonExistent = await consumeVerificationProof("proof_random_non_existent", email2);
+    assert.strictEqual(nonExistent, null);
   });
 });
 

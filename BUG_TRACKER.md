@@ -224,13 +224,36 @@
 
 #### MH-10: Email/mobile verification is optional on backend
 - **Priority:** P1 (High)
-- **Status:** `Open`
-- **Affected Files:** `backend/src/controllers/auth.controller.js`
-- **Reproduction Steps:** Submit registration without `verificationProof`.
-- **Expected Result:** HTTP 400 Bad Request requiring verified proof.
-- **Actual Result (Before Fix):** Account created without verifying contact channel.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Status:** `Staging verified`
+- **Affected Files:** `backend/src/controllers/auth.controller.js`, `backend/src/services/auth.service.js`, `backend/tests/auth.controller.test.js`, `backend/tests/auth.service.test.js`
+- **Reproduction Steps:**
+  1. Submit registration without `verificationProof`.
+  2. Submit registration with expired or non-existent proof.
+  3. Submit registration with destination-mismatched proof (proof for destination A used for destination B).
+  4. Submit registration with previously consumed proof.
+  5. Fire concurrent registration requests with identical proof.
+- **Expected Result:**
+  - Mandatory `verificationProof` enforced on public user and counsellor registrations (HTTP 400 if missing).
+  - Proof bound strictly to verified destination (`destClean`) with expiration check.
+  - Single-use atomic consumption prevents reuse and race conditions.
+  - Valid proof succeeds exactly once (HTTP 201).
+- **Actual Result (Before Fix):**
+  - Verification proof was optional on backend (`if (body.verificationProof)`); accounts could be created without contact channel verification, and proofs lacked atomic single-use guarantees.
+- **Fix Commit:** `fix(auth): require completed email/mobile verification proof during registration (MH-10)`
+- **Verification Evidence:**
+  - Automated deep verification suite `scratch/reproduce_mh10_deep.mjs`: all 8 checks passed:
+    1. Missing proof in user registration rejected (HTTP 400).
+    2. Missing proof in counsellor registration rejected (HTTP 400).
+    3. Destination mismatch rejected (HTTP 400).
+    4. Valid proof creates user account (HTTP 201).
+    5. Reused proof rejected (HTTP 400).
+    6. Expired / invalid proof rejected (HTTP 400).
+    7. Counsellor mobile proof verified and single-use enforced.
+    8. Concurrent race with identical proof: exactly 1 succeeds (HTTP 201), concurrent attempts fail (HTTP 400).
+  - Automated unit and integration suites:
+    - `backend/tests/auth.controller.test.js`: 4/4 passed.
+    - `backend/tests/auth.service.test.js`: 19/19 passed.
+    - `backend/tests/onboarding.test.js`: 17/17 passed.
 
 #### MH-11: Administrator second factor (TOTP) is not enforced
 - **Priority:** P1 (High)
