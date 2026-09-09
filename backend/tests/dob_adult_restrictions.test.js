@@ -264,7 +264,9 @@ test("MH-09: Date of Birth and Adult Restrictions Suite", async (t) => {
     await repositories.users.update(u3.id, {
       dateOfBirth: getDateOffset(18, 1),
       date_of_birth: getDateOffset(18, 1),
-      onboardingStatus: "COMPLETED" // bypass onboarding check to test requireAdult specifically
+      onboardingStatus: "COMPLETED", // bypass onboarding check to test requireAdult specifically
+      isGuardianConsentVerified: true,
+      guardianConsentStatus: "APPROVED"
     });
     const token3 = signAccessToken(u3);
     const res3 = await dispatch(token3);

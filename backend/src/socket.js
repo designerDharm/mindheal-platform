@@ -2,6 +2,7 @@ import { Server } from "socket.io";
 import { verifyAccessToken } from "./utils/security.js";
 import { repositories } from "./repositories/index.js";
 import { appConfig } from "./config/app.js";
+import { calculateAgeFromDob } from "./utils/validation.js";
 
 let ioInstance;
 
@@ -29,10 +30,18 @@ export function initializeSockets(httpServer) {
         return next(new Error("Account disabled"));
       }
 
+      const age = calculateAgeFromDob(user.dateOfBirth || user.date_of_birth);
+      if (user.role === "user" && age !== null && age >= 15 && age < 18 && (!user.isGuardianConsentVerified || user.guardianConsentStatus !== "APPROVED" || user.onboardingStatus === "PENDING_GUARDIAN")) {
+        return next(new Error("Guardian consent required"));
+      }
+
       socket.user = user;
       next();
     } catch (err) {
-      next(new Error(err.message === "Account disabled" ? "Account disabled" : "Authentication error"));
+      if (err.message === "Account disabled" || err.message === "Guardian consent required") {
+        return next(new Error(err.message));
+      }
+      next(new Error("Authentication error"));
     }
   });
 
@@ -51,6 +60,14 @@ export function initializeSockets(httpServer) {
           socket.disconnect(true);
           return next(new Error("Account disabled"));
         }
+
+        const age = calculateAgeFromDob(freshUser.dateOfBirth || freshUser.date_of_birth);
+        if (freshUser.role === "user" && age !== null && age >= 15 && age < 18 && (!freshUser.isGuardianConsentVerified || freshUser.guardianConsentStatus !== "APPROVED" || freshUser.onboardingStatus === "PENDING_GUARDIAN")) {
+          socket.emit("guardian_consent_required", { message: "Parent/guardian approval is required." });
+          socket.disconnect(true);
+          return next(new Error("Guardian consent required"));
+        }
+
         next();
       } catch (err) {
         next(err);

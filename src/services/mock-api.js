@@ -162,6 +162,9 @@ export const api = {
     });
 
     if (remote.ok) {
+      if (remote.data.status === "GUARDIAN_CONSENT_REQUIRED") {
+        return remote.data;
+      }
       if (remote.data.session) {
         localStorage.setItem("mindheal-access-token", remote.data.session.accessToken);
         return remote.data.session.user;
@@ -187,6 +190,9 @@ export const api = {
     });
 
     if (remote.ok) {
+      if (remote.data.status === "GUARDIAN_CONSENT_REQUIRED") {
+        return remote.data;
+      }
       if (remote.data.session) {
         localStorage.setItem("mindheal-access-token", remote.data.session.accessToken);
         return remote.data.session.user;

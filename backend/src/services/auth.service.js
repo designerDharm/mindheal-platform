@@ -9,7 +9,7 @@ import { firebaseAuthVerifier } from "../config/firebase.js";
 
 const otpStore = new Map();
 
-export async function createUser({ role = "user", fullName, email, mobile, languageCode = "en", password, firebaseUid, dateOfBirth, guardianEmail, onboardingStatus = "COMPLETED", profileCompletedAt = null, emailVerifiedAt = null, isGuardianConsentVerified = null, guardianConsentStatus = null }) {
+export async function createUser({ role = "user", fullName, email, mobile, languageCode = "en", password, firebaseUid, dateOfBirth, guardianEmail, onboardingStatus = null, profileCompletedAt = null, emailVerifiedAt = null, isGuardianConsentVerified = null, guardianConsentStatus = null }) {
   if (!password && !firebaseUid) {
     throw new Error("Password is required.");
   }
@@ -38,9 +38,15 @@ export async function createUser({ role = "user", fullName, email, mobile, langu
   }
 
   const isMinorUser = role === "user" && age !== null && age >= 15 && age < 18;
-  const isConsentVerified = isGuardianConsentVerified !== null ? isGuardianConsentVerified : !isMinorUser;
-  const consentStatus = guardianConsentStatus !== null ? guardianConsentStatus : (isMinorUser ? "PENDING" : "APPROVED");
-  const defaultOnboarding = onboardingStatus !== undefined ? onboardingStatus : (isMinorUser ? "PENDING_GUARDIAN" : "COMPLETED");
+  const isConsentVerified = isMinorUser
+    ? Boolean(isGuardianConsentVerified === true && guardianConsentStatus === "APPROVED")
+    : true;
+  const consentStatus = isMinorUser
+    ? (isConsentVerified ? "APPROVED" : "PENDING")
+    : "APPROVED";
+  const derivedOnboardingStatus = isMinorUser
+    ? (isConsentVerified ? "COMPLETED" : "PENDING_GUARDIAN")
+    : (onboardingStatus || "COMPLETED");
 
   const user = {
     id: createId("usr"),
@@ -58,13 +64,18 @@ export async function createUser({ role = "user", fullName, email, mobile, langu
     isGuardianConsentVerified: isConsentVerified,
     isActive: true,
     profileCompletedAt,
-    onboardingStatus: defaultOnboarding,
+    onboardingStatus: derivedOnboardingStatus,
     emailVerifiedAt,
     guardianConsentStatus: consentStatus,
     createdAt: new Date().toISOString()
   };
   await repositories.users.create(user);
   await ensureWallet(user);
+
+  if (isMinorUser && !isConsentVerified && user.guardianEmail) {
+    await triggerGuardianConsentEmail(user);
+  }
+
   return user;
 }
 
@@ -108,6 +119,11 @@ export async function loginUser({ email, mobile, password, role, totp }) {
     }
   }
   
+  const age = calculateExactAge(user.dateOfBirth || user.date_of_birth);
+  if (user.role === "user" && age !== null && age >= 15 && age < 18 && !user.isGuardianConsentVerified) {
+    return { status: "GUARDIAN_CONSENT_REQUIRED", email: user.email };
+  }
+
   return createSession(user);
 }
 
@@ -150,9 +166,9 @@ export async function loginWithFirebase(idToken, role, flow = "signin") {
       return { status: "PROFILE_REQUIRED", email, name, onboardingToken };
     }
 
-    const age = calculateExactAge(user.dateOfBirth);
-    if (age !== null && age >= 15 && age < 18 && !user.isGuardianConsentVerified) {
-      return { status: "GUARDIAN_CONSENT_REQUIRED", email };
+    const age = calculateExactAge(user.dateOfBirth || user.date_of_birth);
+    if (user.role === "user" && age !== null && age >= 15 && age < 18 && !user.isGuardianConsentVerified) {
+      return { status: "GUARDIAN_CONSENT_REQUIRED", email: user.email };
     }
 
     const session = await createSession(user);
@@ -209,8 +225,8 @@ export async function linkGoogleAccount(email, password, idToken, role) {
     return { status: "PROFILE_REQUIRED", email: decodedToken.email, name: decodedToken.name || "", onboardingToken };
   }
 
-  const age = calculateExactAge(updatedUser.dateOfBirth);
-  if (age !== null && age >= 15 && age < 18 && !updatedUser.isGuardianConsentVerified) {
+  const age = calculateExactAge(updatedUser.dateOfBirth || updatedUser.date_of_birth);
+  if (updatedUser.role === "user" && age !== null && age >= 15 && age < 18 && !updatedUser.isGuardianConsentVerified) {
     return { status: "GUARDIAN_CONSENT_REQUIRED", email: decodedToken.email };
   }
 
@@ -360,6 +376,13 @@ async function triggerGuardianConsentEmail(user) {
 }
 
 export async function createSession(user) {
+  const age = calculateExactAge(user.dateOfBirth || user.date_of_birth);
+  if (user.role === "user" && age !== null && age >= 15 && age < 18 && !user.isGuardianConsentVerified) {
+    const err = new Error("Parent/guardian approval is required before accessing MindHeal services.");
+    err.code = "GUARDIAN_CONSENT_REQUIRED";
+    throw err;
+  }
+
   const accessToken = signAccessToken(user);
   const refreshToken = signRefreshToken(user);
 
@@ -384,6 +407,13 @@ export async function refreshSession(refreshToken) {
   if (user.isActive === false || user.status === "disabled" || user.status === "suspended") {
     const err = new Error("User account is disabled");
     err.code = "ACCOUNT_DISABLED";
+    throw err;
+  }
+
+  const age = calculateExactAge(user.dateOfBirth || user.date_of_birth);
+  if (user.role === "user" && age !== null && age >= 15 && age < 18 && !user.isGuardianConsentVerified) {
+    const err = new Error("Guardian consent is pending for this minor account.");
+    err.code = "GUARDIAN_CONSENT_REQUIRED";
     throw err;
   }
 

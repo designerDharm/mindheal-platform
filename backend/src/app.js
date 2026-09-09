@@ -146,6 +146,14 @@ async function authenticate(req, route) {
     }
   }
   
+  const userAge = calculateAgeFromDob(user.dateOfBirth || user.date_of_birth);
+  const isMinorUser = user.role === "user" && userAge !== null && userAge >= 15 && userAge < 18;
+  if (isMinorUser && (!user.isGuardianConsentVerified || user.guardianConsentStatus !== "APPROVED" || user.onboardingStatus === "PENDING_GUARDIAN")) {
+    if (!req.url.includes("/user/me") && !req.url.includes("/auth/logout") && !req.url.includes("/auth/refresh")) {
+      return { error: forbidden("Parent/guardian approval is required before your account can access MindHeal services.", { code: "GUARDIAN_CONSENT_REQUIRED" }) };
+    }
+  }
+
   if (user.onboardingStatus !== "COMPLETED" && !req.url.includes("/user/me") && !req.url.includes("/auth/logout") && !req.url.includes("/auth/refresh")) {
     return { error: forbidden("Your profile onboarding is incomplete. Please complete your profile to access this resource.") };
   }

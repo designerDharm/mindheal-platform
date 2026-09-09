@@ -4641,7 +4641,13 @@ function attachPageHandlers() {
       
       state.authError = "";
       try {
-        await api.login(role, cleanPayload);
+        const res = await api.login(role, cleanPayload);
+        if (res && res.status === "GUARDIAN_CONSENT_REQUIRED") {
+          state.guardianPendingEmail = res.email;
+          toast("Guardian consent required. An email has been sent.", "warning");
+          navigate("/auth/guardian-pending");
+          return;
+        }
         toast(`${role === "admin" ? "Admin" : role === "counsellor" ? "Counsellor" : "User"} session started.`);
         state.authError = "";
         navigate(form.dataset.panel);
@@ -4673,11 +4679,19 @@ function attachPageHandlers() {
           ...state.signupPayload,
           verificationProof: result.verificationProof
         };
-        await api.signUp(state.otpRole, finalPayload);
-        toast("Verification successful! Account created.");
+        const res = await api.signUp(state.otpRole, finalPayload);
         state.otpMode = false;
         state.signupPayload = null;
         state.challengeId = null;
+
+        if (res && res.status === "GUARDIAN_CONSENT_REQUIRED") {
+          state.guardianPendingEmail = res.email;
+          toast("Guardian consent required. An email has been sent.", "warning");
+          navigate("/auth/guardian-pending");
+          return;
+        }
+
+        toast("Verification successful! Account created.");
         navigate(state.otpPanel);
       } catch (err) {
         toast(`Verification failed: ${err.message || "Invalid OTP code"}`, "error");
@@ -4965,6 +4979,13 @@ function attachPageHandlers() {
           user = await api.login(role, { email: socialPayload.email, password: socialPayload.password });
         }
         
+        if (user && user.status === "GUARDIAN_CONSENT_REQUIRED") {
+          state.guardianPendingEmail = user.email;
+          toast("Guardian consent required. An email has been sent.", "warning");
+          navigate("/auth/guardian-pending");
+          return;
+        }
+
         toast(`Welcome! Logged in successfully via ${provider}.`);
         state.authError = "";
         navigate(form.dataset.panel);
@@ -5111,10 +5132,18 @@ function attachPageHandlers() {
       event.preventDefault();
       const payload = getFormData(form);
       try {
+        let authRes;
         if (state.dreamAuthMode === "signup") {
-          await api.signUp("user", { ...payload, language: "English" });
+          authRes = await api.signUp("user", { ...payload, language: "English" });
         } else {
-          await api.login("user", payload);
+          authRes = await api.login("user", payload);
+        }
+        if (authRes && authRes.status === "GUARDIAN_CONSENT_REQUIRED") {
+          state.showDreamAuthModal = false;
+          state.guardianPendingEmail = authRes.email;
+          toast("Guardian consent required. An email has been sent.", "warning");
+          navigate("/auth/guardian-pending");
+          return;
         }
         toast("Authenticated successfully. Starting dream analysis...");
         state.showDreamAuthModal = false;

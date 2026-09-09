@@ -327,13 +327,21 @@
 
 #### MH-42: Password-created minor marked onboarding complete before consent
 - **Priority:** P1 (High)
-- **Status:** `Open`
-- **Affected Files:** `backend/src/services/auth.service.js`, `backend/src/app.js`
+- **Status:** `Staging verified`
+- **Affected Files:** `backend/src/services/auth.service.js`, `backend/src/controllers/auth.controller.js`, `backend/src/controllers/user.controller.js`, `backend/src/app.js`, `backend/src/socket.js`, `backend/src/utils/http.js`, `src/main.js`, `src/services/mock-api.js`, `backend/tests/guardian_minor_onboarding.test.js`
 - **Reproduction Steps:** Register 16-year-old user with password.
-- **Expected Result:** `onboardingStatus` is `PENDING_GUARDIAN`; adult/general routes blocked until guardian consents.
-- **Actual Result (Before Fix):** User marked `onboardingStatus: COMPLETED`.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Expected Result:** `onboardingStatus` is `PENDING_GUARDIAN`; adult/general routes blocked until guardian consents. Identical restrictions applied across password and Google flows.
+- **Actual Result (Before Fix):** User marked `onboardingStatus: COMPLETED` due to default parameter overriding minor derivation, and password login issued active sessions without guardian consent.
+- **Remediation:**
+  - In `backend/src/services/auth.service.js`: `createUser` strictly derives `onboardingStatus` as `"PENDING_GUARDIAN"` and `isGuardianConsentVerified` as `false` for minors (15-17) regardless of client parameters.
+  - In `backend/src/services/auth.service.js`: `loginUser` and `createSession` fail closed for unverified minors, returning `{ status: "GUARDIAN_CONSENT_REQUIRED", email }` and preventing session token issuance across password, Google, and token refresh (`refreshSession`) flows.
+  - In `backend/src/controllers/auth.controller.js` & `backend/src/controllers/user.controller.js`: Explicitly blocked privilege tampering (`onboardingStatus`, `guardianConsentStatus`, `isGuardianConsentVerified`) across public registration, counsellor registration, profile completion, and `/user/me`.
+  - In `backend/src/app.js` & `backend/src/socket.js`: Enforced HTTP 403 `code: "GUARDIAN_CONSENT_REQUIRED"` and Socket.IO connection rejection for pending minors on all protected service routes.
+  - In `src/main.js` & `src/services/mock-api.js`: Aligned frontend to intercept `GUARDIAN_CONSENT_REQUIRED` across password sign-up, password login, social fallback, and dream analysis modals, redirecting the user to `/auth/guardian-pending`.
+- **Verification Evidence:**
+  - Automated test suite `backend/tests/guardian_minor_onboarding.test.js` (8/8 PASSED): verified minor registration, tampering prevention, password/Google login restriction, token refresh rejection, HTTP 403 route gating, `/user/me` rejection, and successful unlocking upon guardian approval.
+  - Regression suites passed: `dob_adult_restrictions.test.js`, `onboarding.test.js`, `auth.service.test.js`, `auth.controller.test.js` (51/51 PASSED).
+  - Client checks passed: `npm run check` (0 errors), root `npm test` (12/12 PASSED).
 
 #### MH-13: Social sign-in fabricated account fallback
 - **Priority:** P1 (High)

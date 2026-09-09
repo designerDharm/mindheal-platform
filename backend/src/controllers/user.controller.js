@@ -8,7 +8,15 @@ export async function getMe({ user }) {
 }
 
 export async function updateMe({ body, user }) {
-  const forbiddenKeys = ["role", "passwordHash", "password_hash", "is_active", "isActive", "isGuardianConsentVerified", "is_guardian_consent_verified", "totp_secret", "totpSecret", "verificationStatus", "verification_status"];
+  const forbiddenKeys = [
+    "role", "passwordHash", "password_hash",
+    "is_active", "isActive",
+    "isGuardianConsentVerified", "is_guardian_consent_verified",
+    "guardianConsentStatus", "guardian_consent_status",
+    "onboardingStatus", "onboarding_status",
+    "totp_secret", "totpSecret",
+    "verificationStatus", "verification_status"
+  ];
   const presentForbidden = forbiddenKeys.filter((key) => body[key] !== undefined);
   if (presentForbidden.length > 0) {
     return badRequest(`Modification of privilege or security fields is forbidden: ${presentForbidden.join(", ")}`);

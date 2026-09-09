@@ -50,12 +50,14 @@ export function badRequest(message, fields = {}) {
   return { status: 400, body: { success: false, error: { code: "BAD_REQUEST", message, fields } } };
 }
 
-export function unauthorized(message = "Authentication required.") {
-  return { status: 401, body: { success: false, error: { code: "UNAUTHORIZED", message } } };
+export function unauthorized(message = "Authentication required.", extra = {}) {
+  const { code = "UNAUTHORIZED", ...rest } = extra;
+  return { status: 401, body: { success: false, error: { code, message, ...rest } } };
 }
 
-export function forbidden(message = "You do not have permission to access this resource.") {
-  return { status: 403, body: { success: false, error: { code: "FORBIDDEN", message } } };
+export function forbidden(message = "You do not have permission to access this resource.", extra = {}) {
+  const { code = "FORBIDDEN", ...rest } = extra;
+  return { status: 403, body: { success: false, error: { code, message, ...rest } } };
 }
 
 export function internalServerError(message = "Something went wrong.") {

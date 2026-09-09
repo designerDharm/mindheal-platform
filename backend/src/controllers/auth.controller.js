@@ -6,7 +6,14 @@ export async function register({ body, headers = {}, ip }) {
   if (body.role && body.role !== "user") {
     return badRequest("Public registration permits role 'user' only.");
   }
-  const forbiddenPrivileges = ["isActive", "is_active", "verificationStatus", "verification_status", "isGuardianConsentVerified", "is_guardian_consent_verified", "totpSecret", "totp_secret"];
+  const forbiddenPrivileges = [
+    "isActive", "is_active",
+    "verificationStatus", "verification_status",
+    "isGuardianConsentVerified", "is_guardian_consent_verified",
+    "guardianConsentStatus", "guardian_consent_status",
+    "onboardingStatus", "onboarding_status",
+    "totpSecret", "totp_secret"
+  ];
   const presentForbidden = forbiddenPrivileges.filter((key) => body[key] !== undefined);
   if (presentForbidden.length > 0) {
     return badRequest(`Modification of privilege or security fields is forbidden during registration: ${presentForbidden.join(", ")}`);
@@ -54,6 +61,13 @@ export async function register({ body, headers = {}, ip }) {
       emailVerifiedAt: isEmailVerified ? new Date().toISOString() : null,
       role: "user"
     });
+    if (user.role === "user" && !user.isGuardianConsentVerified) {
+      return created({
+        status: "GUARDIAN_CONSENT_REQUIRED",
+        email: user.email,
+        message: "Registration successful. Parent/guardian approval is required before your account can access MindHeal services."
+      });
+    }
     return created(await authService.createSession(user));
   } catch (err) {
     return badRequest("Registration failed", err.message);
@@ -120,7 +134,15 @@ export async function completeProfile({ body, req, res }) {
     return unauthorized("Onboarding session expired or missing.");
   }
 
-  const forbiddenPrivileges = ["role", "isAdmin", "is_admin", "isActive", "is_active", "status", "verificationStatus", "verification_status", "isGuardianConsentVerified", "is_guardian_consent_verified", "totpSecret", "totp_secret"];
+  const forbiddenPrivileges = [
+    "role", "isAdmin", "is_admin",
+    "isActive", "is_active", "status",
+    "verificationStatus", "verification_status",
+    "isGuardianConsentVerified", "is_guardian_consent_verified",
+    "guardianConsentStatus", "guardian_consent_status",
+    "onboardingStatus", "onboarding_status",
+    "totpSecret", "totp_secret"
+  ];
   const presentForbidden = forbiddenPrivileges.filter((key) => body[key] !== undefined);
   if (presentForbidden.length > 0) {
     return badRequest(`Modification of privilege or security fields is forbidden during profile onboarding: ${presentForbidden.join(", ")}`);
@@ -207,7 +229,14 @@ export async function registerCounsellor({ body }) {
   if (body.role && body.role !== "counsellor") {
     return badRequest("Counsellor registration permits role 'counsellor' only.");
   }
-  const forbiddenPrivileges = ["isActive", "is_active", "status", "verificationStatus", "verification_status", "isGuardianConsentVerified", "is_guardian_consent_verified", "totpSecret", "totp_secret"];
+  const forbiddenPrivileges = [
+    "isActive", "is_active", "status",
+    "verificationStatus", "verification_status",
+    "isGuardianConsentVerified", "is_guardian_consent_verified",
+    "guardianConsentStatus", "guardian_consent_status",
+    "onboardingStatus", "onboarding_status",
+    "totpSecret", "totp_secret"
+  ];
   const presentForbidden = forbiddenPrivileges.filter((key) => body[key] !== undefined);
   if (presentForbidden.length > 0) {
     return badRequest(`Modification of privilege or security fields is forbidden during counsellor registration: ${presentForbidden.join(", ")}`);
