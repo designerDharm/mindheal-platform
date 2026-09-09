@@ -1,7 +1,7 @@
 import { repositories } from "../repositories/index.js";
 import { getIO } from "../socket.js";
 import { appConfig } from "../config/app.js";
-import { createRazorpayOrder, verifyRazorpaySignature, credit, debit, calculateCommission } from "../services/wallet.service.js";
+import { createRazorpayOrder, verifyRazorpaySignature, fetchRazorpayPayment, credit, debit, calculateCommission } from "../services/wallet.service.js";
 import { postJournalTransaction } from "../services/double_entry.service.js";
 import { rtcService } from "../services/rtc.service.js";
 import { badRequest, created, forbidden, ok } from "../utils/http.js";
@@ -535,6 +535,29 @@ export async function initiateRequestPaymentOrder({ params, user }) {
   const quote = await repositories.peerSessionQuotes.findByRequestId(request.id);
   if (!quote) return notFound("Session quote not found.");
 
+  if (quote.status === "paid") {
+    return badRequest("Session quote has already been paid.");
+  }
+
+  if (quote.expiresAt && new Date(quote.expiresAt) < new Date()) {
+    return badRequest("Session quote has expired.");
+  }
+
+  if (typeof repositories.peerSessions?.findByRequestId === "function") {
+    const existingSession = await repositories.peerSessions.findByRequestId(request.id);
+    if (existingSession && (existingSession.status === "active" || existingSession.sessionStatus === "active")) {
+      return badRequest("A session has already been activated for this request.");
+    }
+  }
+
+  // If this quote already has an active unpaid payment order, return it
+  if (quote.paymentOrderId) {
+    const existingOrder = await repositories.paymentOrders.find(quote.paymentOrderId);
+    if (existingOrder && existingOrder.status === "created") {
+      return created({ order: existingOrder });
+    }
+  }
+
   const receiptId = createId("rec");
   let razorpayOrder;
   try {
@@ -549,11 +572,16 @@ export async function initiateRequestPaymentOrder({ params, user }) {
     gatewayOrderId: razorpayOrder.id,
     userId: user.id,
     amountPaise: quote.totalAmountPaise,
+    quoteId: quote.id,
+    peerSessionRequestId: request.id,
     status: "created",
     createdAt: new Date().toISOString()
   };
 
   const createdOrder = await repositories.paymentOrders.create(order);
+  if (typeof repositories.peerSessionQuotes.updatePaymentOrder === "function") {
+    await repositories.peerSessionQuotes.updatePaymentOrder(quote.id, createdOrder.id, razorpayOrder.id);
+  }
   return created({ order: createdOrder });
 }
 
@@ -571,6 +599,17 @@ export async function verifyRequestPayment({ params, body, user }) {
 
   const quote = await repositories.peerSessionQuotes.findByRequestId(request.id);
   if (!quote) return notFound("Session quote not found.");
+
+  if (quote.status === "paid") {
+    return badRequest("Session quote has already been paid.");
+  }
+
+  if (typeof repositories.peerSessions?.findByRequestId === "function") {
+    const existingSession = await repositories.peerSessions.findByRequestId(request.id);
+    if (existingSession) {
+      return badRequest("A session has already been activated for this request.");
+    }
+  }
 
   const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = body || {};
   if (!razorpay_payment_id || !razorpay_signature) {
@@ -596,24 +635,73 @@ export async function verifyRequestPayment({ params, body, user }) {
     return badRequest("Payment order amount does not match session quote amount.");
   }
 
-  if (order.gatewayOrderId && razorpay_order_id && order.gatewayOrderId !== razorpay_order_id) {
-    return badRequest("Payment proof does not match this order's gateway order identifier.");
+  // Cross-request & quote binding: verify the payment order was created specifically for this quote and request
+  if (order.quoteId && order.quoteId !== quote.id) {
+    return badRequest("Payment order is associated with a different session quote.");
+  }
+  if (order.peerSessionRequestId && order.peerSessionRequestId !== request.id) {
+    return badRequest("Payment order is associated with a different session request.");
+  }
+  if (quote.paymentOrderId && order.id !== quote.paymentOrderId && order.gatewayOrderId !== quote.gatewayOrderId) {
+    return badRequest("Payment order does not match the order initiated for this session quote.");
   }
 
-  const expectedGatewayOrderId = order.gatewayOrderId || razorpay_order_id;
-  if (!expectedGatewayOrderId) {
+  if (!order.gatewayOrderId) {
     return badRequest("Missing gateway order reference.");
   }
 
-  if (!verifyRazorpaySignature(expectedGatewayOrderId, razorpay_payment_id, razorpay_signature)) {
-    return badRequest("Invalid payment signature.");
+  if (razorpay_order_id && order.gatewayOrderId !== razorpay_order_id) {
+    return badRequest("Payment proof does not match this order's gateway order identifier.");
+  }
+
+  if (typeof repositories.paymentOrders.findByPaymentId === "function") {
+    const existingPayment = await repositories.paymentOrders.findByPaymentId(razorpay_payment_id);
+    if (existingPayment && existingPayment.id !== order.id) {
+      return badRequest("Payment identifier has already been used for another order.");
+    }
   }
 
   if (order.status !== "created") {
     return badRequest("Payment order is already processed.");
   }
 
+  if (!verifyRazorpaySignature(order.gatewayOrderId, razorpay_payment_id, razorpay_signature)) {
+    return badRequest("Invalid payment signature.");
+  }
+
+  let gatewayPayment = null;
+  try {
+    gatewayPayment = await fetchRazorpayPayment(razorpay_payment_id);
+  } catch (err) {
+    return badRequest(`Failed to verify payment with gateway: ${err.message}`);
+  }
+
+  if (gatewayPayment) {
+    if (gatewayPayment.order_id && gatewayPayment.order_id !== order.gatewayOrderId) {
+      return badRequest("Gateway payment order ID does not match order.");
+    }
+    if (gatewayPayment.amount && Number(gatewayPayment.amount) !== Number(order.amountPaise)) {
+      return badRequest("Gateway payment amount does not match order amount.");
+    }
+    if (gatewayPayment.currency && gatewayPayment.currency.toUpperCase() !== "INR") {
+      return badRequest("Gateway payment currency mismatch.");
+    }
+    if (gatewayPayment.status && gatewayPayment.status !== "captured") {
+      return badRequest(`Gateway payment is not captured (status: ${gatewayPayment.status}).`);
+    }
+  }
+
   return await executeTransaction(async () => {
+    await repositories.paymentOrders.update(order.id, {
+      status: "paid",
+      gatewayPaymentId: razorpay_payment_id,
+      paidAt: new Date().toISOString()
+    });
+
+    if (typeof repositories.peerSessionQuotes.updateStatus === "function") {
+      await repositories.peerSessionQuotes.updateStatus(quote.id, "paid");
+    }
+
     await credit(user.id, expectedAmountPaise / 100, "peer_session_topup", {
       referenceType: "payment_order",
       referenceId: order.id,
@@ -635,12 +723,6 @@ export async function verifyRequestPayment({ params, body, user }) {
       await repositories.journalTransactions.create(topupJournal);
     }
 
-    await repositories.paymentOrders.update(order.id, {
-      status: "paid",
-      gatewayPaymentId: razorpay_payment_id,
-      paidAt: new Date().toISOString()
-    });
-
     await debit(user.id, expectedAmountPaise / 100, "peer_session_payment", {
       referenceType: "PeerSessionRequest",
       referenceId: request.id
@@ -648,17 +730,23 @@ export async function verifyRequestPayment({ params, body, user }) {
 
     const sessionId = createId("pss");
     const startedAt = new Date().toISOString();
-    const duration = request.requestedDurationMinutes;
+    const duration = request.requestedDurationMinutes || quote.durationMinutes || 15;
     const expiresAt = new Date(Date.now() + duration * 60 * 1000).toISOString();
 
     const session = await repositories.peerSessions.create({
       id: sessionId,
+      requestId: request.id,
       peerSessionRequestId: request.id,
+      quoteId: quote.id,
       requesterUserId: request.requesterUserId,
       listenerProfileId: request.listenerProfileId,
       sessionDurationMinutes: duration,
+      status: "active",
       sessionStatus: "active",
+      paymentState: "escrowed",
+      settlementState: "unsettled",
       startedAt,
+      sessionStartedAt: startedAt,
       expiresAt
     });
 
@@ -675,7 +763,9 @@ export async function verifyRequestPayment({ params, body, user }) {
         { accountKey: "PLATFORM_ESCROW", entrySide: "credit", amountPaise: quote.totalAmountPaise }
       ]
     });
-    await repositories.journalTransactions.create(escrowJournal);
+    if (escrowJournal && repositories.journalTransactions?.create) {
+      await repositories.journalTransactions.create(escrowJournal);
+    }
 
     return ok({ verified: true, session });
   });

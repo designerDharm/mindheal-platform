@@ -620,6 +620,14 @@ export const memoryRepositories = {
       const q = await this.findById(id);
       if (q) q.status = status;
       return q;
+    },
+    async updatePaymentOrder(id, paymentOrderId, gatewayOrderId) {
+      const q = await this.findById(id);
+      if (q) {
+        q.paymentOrderId = paymentOrderId;
+        q.gatewayOrderId = gatewayOrderId;
+      }
+      return q;
     }
   },
 
@@ -627,6 +635,10 @@ export const memoryRepositories = {
     async findById(id) {
       store.peerSessions ||= [];
       return store.peerSessions.find(s => s.id === id) || null;
+    },
+    async findByRequestId(requestId) {
+      store.peerSessions ||= [];
+      return store.peerSessions.find(s => s.requestId === requestId || s.peerSessionRequestId === requestId) || null;
     },
     async create(session) {
       store.peerSessions ||= [];

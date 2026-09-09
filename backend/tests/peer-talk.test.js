@@ -280,4 +280,98 @@ test("Peer Talk Marketplace End-to-End Flow", async (t) => {
     assert.strictEqual(unknownRes.status, 400);
     assert.strictEqual(unknownRes.body.error.message, "Payment order not found.");
   });
+
+  await t.test("10. verifyRequestPayment rejects cross-request proofs and activates exactly one session upon valid payment", async () => {
+    const listenerProfile = await repositories.peerListenerProfiles.findByUserId(userB.id);
+
+    // Create Request X and Request Y
+    const reqX = await repositories.peerSessionRequests.create({
+      id: createId("psr"),
+      requesterUserId: userA.id,
+      listenerProfileId: listenerProfile.id,
+      requestedDurationMinutes: 15,
+      requestedMode: "text",
+      requestStatus: "accepted",
+      expiresAt: new Date(Date.now() + 60000).toISOString()
+    });
+
+    const quoteX = await repositories.peerSessionQuotes.create({
+      id: createId("psq"),
+      peerSessionRequestId: reqX.id,
+      requesterUserId: userA.id,
+      listenerProfileId: listenerProfile.id,
+      durationMinutes: 15,
+      baseFeePaise: 50000,
+      grossAmountPaise: 50000,
+      commissionAmountPaise: 5000,
+      commissionRateBps: 1000,
+      listenerEarningPaise: 45000,
+      totalAmountPaise: 50000,
+      currency: "INR",
+      status: "pending",
+      expiresAt: new Date(Date.now() + 60000).toISOString()
+    });
+
+    const reqY = await repositories.peerSessionRequests.create({
+      id: createId("psr"),
+      requesterUserId: userA.id,
+      listenerProfileId: listenerProfile.id,
+      requestedDurationMinutes: 15,
+      requestedMode: "text",
+      requestStatus: "accepted",
+      expiresAt: new Date(Date.now() + 60000).toISOString()
+    });
+
+    const quoteY = await repositories.peerSessionQuotes.create({
+      id: createId("psq"),
+      peerSessionRequestId: reqY.id,
+      requesterUserId: userA.id,
+      listenerProfileId: listenerProfile.id,
+      durationMinutes: 15,
+      baseFeePaise: 50000,
+      grossAmountPaise: 50000,
+      commissionAmountPaise: 5000,
+      commissionRateBps: 1000,
+      listenerEarningPaise: 45000,
+      totalAmountPaise: 50000,
+      currency: "INR",
+      status: "pending",
+      expiresAt: new Date(Date.now() + 60000).toISOString()
+    });
+
+    // Initiate payment orders
+    const initX = await peerController.initiateRequestPaymentOrder({ params: { id: reqX.id }, user: userA });
+    const orderX = initX.body.data.order;
+    const initY = await peerController.initiateRequestPaymentOrder({ params: { id: reqY.id }, user: userA });
+    const orderY = initY.body.data.order;
+
+    // Cross-request attack: use Order Y on Request X
+    const crossRes = await peerController.verifyRequestPayment({
+      params: { id: reqX.id },
+      user: userA,
+      body: {
+        orderId: orderY.id,
+        razorpay_order_id: orderY.gatewayOrderId,
+        razorpay_payment_id: "pay_cross_test",
+        razorpay_signature: "sig_cross_test"
+      }
+    });
+    assert.strictEqual(crossRes.status, 400);
+    assert.match(crossRes.body.error.message, /different session quote/);
+
+    // Legitimate payment for Request X activates one session
+    const legitX = await peerController.verifyRequestPayment({
+      params: { id: reqX.id },
+      user: userA,
+      body: {
+        orderId: orderX.id,
+        razorpay_order_id: orderX.gatewayOrderId,
+        razorpay_payment_id: "pay_legit_x",
+        razorpay_signature: "sig_legit_x"
+      }
+    });
+    assert.strictEqual(legitX.status, 200);
+    assert.strictEqual(legitX.body.data.verified, true);
+    assert.ok(legitX.body.data.session.id);
+  });
 });

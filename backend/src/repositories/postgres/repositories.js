@@ -226,6 +226,8 @@ function mapPaymentOrder(row) {
     userId: row.user_id,
     amountPaise: Number(row.amount_paise || 0),
     status: row.status,
+    quoteId: row.quote_id || null,
+    peerSessionRequestId: row.peer_session_request_id || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     paidAt: row.paid_at
@@ -515,6 +517,8 @@ function mapPeerSessionQuote(row) {
     currency: row.currency || "INR",
     quoteVersion: row.quote_version || "v1.0",
     pricingPolicyVersion: row.pricing_policy_version || "v1.0",
+    paymentOrderId: row.payment_order_id || null,
+    gatewayOrderId: row.gateway_order_id || null,
     expiresAt: row.expires_at,
     status: row.status || "pending",
     createdAt: row.created_at
@@ -1030,9 +1034,9 @@ export const postgresRepositories = {
   paymentOrders: {
     async create(order) {
       const res = await query(
-        `INSERT INTO payment_orders (id, gateway, gateway_order_id, gateway_payment_id, user_id, amount_paise, status, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-        [order.id, order.gateway, order.gatewayOrderId, order.gatewayPaymentId || null, order.userId, order.amountPaise, order.status, order.createdAt || new Date()]
+        `INSERT INTO payment_orders (id, gateway, gateway_order_id, gateway_payment_id, user_id, amount_paise, status, quote_id, peer_session_request_id, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+        [order.id, order.gateway, order.gatewayOrderId, order.gatewayPaymentId || null, order.userId, order.amountPaise, order.status, order.quoteId || null, order.peerSessionRequestId || null, order.createdAt || new Date()]
       );
       return mapPaymentOrder(res.rows[0]);
     },
@@ -1544,6 +1548,10 @@ export const postgresRepositories = {
     async updateStatus(id, status) {
       const res = await query("UPDATE peer_session_quotes SET status = $1 WHERE id = $2 RETURNING *", [status, id]);
       return mapPeerSessionQuote(res.rows[0]);
+    },
+    async updatePaymentOrder(id, paymentOrderId, gatewayOrderId) {
+      const res = await query("UPDATE peer_session_quotes SET payment_order_id = $1, gateway_order_id = $2 WHERE id = $3 RETURNING *", [paymentOrderId, gatewayOrderId, id]);
+      return mapPeerSessionQuote(res.rows[0]);
     }
   },
 
@@ -1552,11 +1560,15 @@ export const postgresRepositories = {
       const res = await query("SELECT * FROM peer_sessions WHERE id = $1 LIMIT 1", [id]);
       return mapPeerSession(res.rows[0]);
     },
+    async findByRequestId(requestId) {
+      const res = await query("SELECT * FROM peer_sessions WHERE request_id = $1 LIMIT 1", [requestId]);
+      return mapPeerSession(res.rows[0]);
+    },
     async create(session) {
       const res = await query(
         `INSERT INTO peer_sessions (id, request_id, quote_id, requester_user_id, listener_profile_id, status, payment_state, settlement_state)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-        [session.id, session.requestId || null, session.quoteId || null, session.requesterUserId, session.listenerProfileId, session.status || "requested", session.paymentState || "pending", session.settlementState || "unsettled"]
+        [session.id, session.requestId || session.peerSessionRequestId || null, session.quoteId || null, session.requesterUserId, session.listenerProfileId, session.status || session.sessionStatus || "requested", session.paymentState || "pending", session.settlementState || "unsettled"]
       );
       return mapPeerSession(res.rows[0]);
     },

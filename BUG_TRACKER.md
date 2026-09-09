@@ -136,19 +136,33 @@
   - Repository contract test suite: 2/2 passed.
   - Automated regression test suite `backend/tests/wallet.controller.test.js` and `backend/tests/wallet.service.test.js`: 12/12 subtests passing.
 
-#### MH-41: Peer session payment accepts unrelated valid proof
+#### MH-41: Peer session payment accepts unrelated valid proof & cross-request substitution
 - **Priority:** P0 (Critical)
 - **Status:** `Staging verified`
-- **Affected Files:** `backend/src/controllers/peer.controller.js`, `backend/tests/peer-talk.test.js`
+- **Affected Files:** `backend/src/controllers/peer.controller.js`, `backend/src/repositories/postgres/repositories.js`, `backend/src/repositories/memory/index.js`, `backend/migrations/013_peer_session_quotes_payment_order.sql`, `backend/tests/peer-talk.test.js`
 - **Reproduction Steps:**
-  1. Create accepted peer session request and quote for ₹500 (`quote_total: 50000`).
-  2. Submit `POST /api/v1/peer-session-requests/:id/payment-verify` with valid signature for an unknown or unrelated external gateway order ID.
-- **Expected Result:** Rejection with HTTP 400/403.
-- **Actual Result (Before Fix):** Controller automatically created a synthetic order in `paymentOrders` matching quote amount and activated the peer session.
-- **Fix Commit:** `a4b5df4`
+  1. Create accepted peer session requests X and Y with quotes for user A.
+  2. Attempt to verify Request X with an unknown external gateway order ID (`order_unknown_fake`).
+  3. Attempt to verify Request X using payment order initiated for Request Y (cross-request substitution).
+  4. Attempt to verify Request X using payment order belonging to User B.
+  5. Attempt to reuse an already captured `razorpay_payment_id`.
+  6. Attempt to verify Request X with mismatched payment order amount.
+- **Expected Result:**
+  - Unknown submitted gateway order fails with HTTP 400 without creating synthetic replacement order.
+  - Cross-request proof rejected with HTTP 400 (`Payment order is associated with a different session quote.`).
+  - Cross-user order rejected with HTTP 403.
+  - Amount mismatch rejected with HTTP 400.
+  - Reused payment identifier rejected with HTTP 400.
+  - Gateway payment captured status, amountPaise, and currency verified.
+  - Exact matching payment activates exactly one session (HTTP 200).
+- **Actual Result (Before Fix):**
+  - Created synthetic replacement orders for arbitrary submitted gateway order IDs, accepted cross-request proofs between different session requests, and lacked quote immutability and gateway state checks.
+- **Fix Commits:** `a4b5df4`, and comprehensive quote-binding hardening
 - **Verification Evidence:**
-  - Dedicated reproducer `scratch/reproduce_mh41.mjs` executed: unknown order rejected (HTTP 400), mismatched amount rejected (HTTP 400), other user order rejected (HTTP 403), valid matching payment accepted (HTTP 200).
-  - Regression check: `backend/tests/peer-talk.test.js` (10/10 pass).
+  - Deep multi-vector verification script `scratch/reproduce_mh41_deep.mjs`: all 8 security checks and legitimate session activations PASSED.
+  - Database migration `013_peer_session_quotes_payment_order.sql` applied cleanly to live PostgreSQL.
+  - Repository contract test suite: 2/2 passed.
+  - Automated integration test suite `backend/tests/peer-talk.test.js`: 11/11 tests passing.
 
 ---
 
