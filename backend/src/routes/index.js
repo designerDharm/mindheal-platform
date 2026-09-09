@@ -130,6 +130,8 @@ export const routes = [
   route("GET", `${p}/peer-listeners/me/earnings`, peerController.getEarnings, ["user", "counsellor", "admin"]),
   route("POST", `${p}/peer-session-requests`, peerController.createSessionRequest, ["user", "counsellor", "admin"]),
   route("GET", `${p}/peer-session-requests/:id`, peerController.getSessionRequest, ["user", "counsellor", "admin"]),
+  route("GET", `${p}/peer-session-requests/:id/quote`, peerController.getSessionRequestQuote, ["user", "counsellor", "admin"]),
+  route("GET", `${p}/peer-session-quotes/:id`, peerController.getPeerQuote, ["user", "counsellor", "admin"]),
   route("POST", `${p}/peer-session-requests/:id/accept`, peerController.acceptSessionRequest, ["user", "counsellor", "admin"]),
   route("POST", `${p}/peer-session-requests/:id/decline`, peerController.declineSessionRequest, ["user", "counsellor", "admin"]),
   route("POST", `${p}/peer-session-requests/:id/payment-order`, peerController.initiateRequestPaymentOrder, ["user", "counsellor", "admin"]),

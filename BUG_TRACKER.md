@@ -227,13 +227,27 @@
 
 #### MH-40: Peer request details lack participant authorization
 - **Priority:** P1 (High)
-- **Status:** `Open`
-- **Affected Files:** `backend/src/controllers/peer.controller.js`
+- **Status:** `Staging verified`
+- **Affected Files:** `backend/src/controllers/peer.controller.js`, `backend/src/routes/index.js`, `backend/tests/peer_request_authorization.test.js`
 - **Reproduction Steps:** User C calls `GET /api/v1/peer-session-requests/:id` for a request between User A and User B.
 - **Expected Result:** HTTP 403 Forbidden.
 - **Actual Result (Before Fix):** Details returned to any authenticated user.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Fix Commit:** Staged
+- **Verification Evidence:**
+  - Implemented participant authorization helper `authorizePeerRequestParticipant(request, user)` in `peer.controller.js`, allowing access strictly to requester (`request.requesterUserId`), matched listener profile (`request.listenerProfileId`), or platform administrator (`user.role === "admin"`).
+  - Implemented quote participant authorization helper `authorizePeerQuoteParticipant(quote, user)` and protected quote endpoints `GET /api/v1/peer-session-requests/:id/quote` and `GET /api/v1/peer-session-quotes/:id`.
+  - Updated `createSessionRequest` to explicitly persist `requesterUserId: user.id` and `listenerProfileId: listener.id` with quote records.
+  - Automated test suite `backend/tests/peer_request_authorization.test.js` (9/9 tests passing):
+    - `✔ 1. Unit: authorizePeerRequestParticipant & authorizePeerQuoteParticipant authorization logic`
+    - `✔ 2. End-to-end: GET /api/v1/peer-session-requests/:id permits requester User A`
+    - `✔ 3. End-to-end: GET /api/v1/peer-session-requests/:id permits listener User B`
+    - `✔ 4. End-to-end: GET /api/v1/peer-session-requests/:id permits platform Administrator`
+    - `✔ 5. End-to-end: GET /api/v1/peer-session-requests/:id REJECTS unrelated User C with 403`
+    - `✔ 6. End-to-end: GET /api/v1/peer-session-requests/:id REJECTS unrelated Counsellor D with 403`
+    - `✔ 7. End-to-end: GET /api/v1/peer-session-requests/:id returns 404 for non-existent ID`
+    - `✔ 8. Direct quote endpoints: /peer-session-requests/:id/quote and /peer-session-quotes/:id`
+  - Peer Talk regression suite `backend/tests/peer-talk.test.js`: 11/11 tests passing.
+  - Frontend test suite: 39/39 tests passing.
 
 ---
 

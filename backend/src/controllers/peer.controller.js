@@ -424,6 +424,10 @@ export async function createSessionRequest({ body, user }) {
     await repositories.peerSessionQuotes.create({
       id: quoteId,
       peerSessionRequestId: requestId,
+      requesterUserId: user.id,
+      listenerProfileId: listener.id,
+      durationMinutes: duration,
+      grossAmountPaise: totalAmountPaise,
       baseFeePaise: rate.feePaise,
       discountPaise: 0,
       commissionPaise,
@@ -445,12 +449,124 @@ export async function createSessionRequest({ body, user }) {
   });
 }
 
-export async function getSessionRequest({ params }) {
+export async function authorizePeerRequestParticipant(request, user) {
+  if (!user) {
+    return { authorized: false, status: 401, error: "Authentication required." };
+  }
+
+  // Admins have platform-wide access
+  if (user.role === "admin") {
+    return { authorized: true, role: "admin" };
+  }
+
+  // Requester
+  if (request.requesterUserId === user.id) {
+    return { authorized: true, role: "requester" };
+  }
+
+  // Listener
+  if (request.listenerProfileId) {
+    if (request.listenerProfileId === user.id) {
+      return { authorized: true, role: "listener" };
+    }
+    if (typeof repositories.peerListenerProfiles?.findById === "function") {
+      const listener = await repositories.peerListenerProfiles.findById(request.listenerProfileId);
+      if (listener && (listener.userId === user.id || listener.id === user.id)) {
+        return { authorized: true, role: "listener" };
+      }
+    }
+    if (typeof repositories.peerListenerProfiles?.findByUserId === "function") {
+      const myProfile = await repositories.peerListenerProfiles.findByUserId(user.id);
+      if (myProfile && myProfile.id === request.listenerProfileId) {
+        return { authorized: true, role: "listener" };
+      }
+    }
+  }
+
+  return { authorized: false, status: 403, error: "You are not authorized to access this peer session request." };
+}
+
+export async function authorizePeerQuoteParticipant(quote, user) {
+  if (!user) {
+    return { authorized: false, status: 401, error: "Authentication required." };
+  }
+
+  // Admins have platform-wide access
+  if (user.role === "admin") {
+    return { authorized: true, role: "admin" };
+  }
+
+  // Check direct quote fields if available
+  if (quote.requesterUserId && quote.requesterUserId === user.id) {
+    return { authorized: true, role: "requester" };
+  }
+
+  if (quote.listenerProfileId) {
+    if (quote.listenerProfileId === user.id) {
+      return { authorized: true, role: "listener" };
+    }
+    if (typeof repositories.peerListenerProfiles?.findById === "function") {
+      const listener = await repositories.peerListenerProfiles.findById(quote.listenerProfileId);
+      if (listener && (listener.userId === user.id || listener.id === user.id)) {
+        return { authorized: true, role: "listener" };
+      }
+    }
+    if (typeof repositories.peerListenerProfiles?.findByUserId === "function") {
+      const myProfile = await repositories.peerListenerProfiles.findByUserId(user.id);
+      if (myProfile && myProfile.id === quote.listenerProfileId) {
+        return { authorized: true, role: "listener" };
+      }
+    }
+  }
+
+  // Fallback to associated request if quote references one
+  if (quote.peerSessionRequestId && typeof repositories.peerSessionRequests?.findById === "function") {
+    const request = await repositories.peerSessionRequests.findById(quote.peerSessionRequestId);
+    if (request) {
+      return await authorizePeerRequestParticipant(request, user);
+    }
+  }
+
+  return { authorized: false, status: 403, error: "You are not authorized to access this peer session quote." };
+}
+
+export async function getSessionRequest({ params, user }) {
   const request = await repositories.peerSessionRequests.findById(params.id);
   if (!request) return notFound("Session request not found.");
 
+  const auth = await authorizePeerRequestParticipant(request, user);
+  if (!auth.authorized) {
+    return forbidden(auth.error);
+  }
+
   const quote = await repositories.peerSessionQuotes.findByRequestId(params.id);
   return ok({ ...request, quote });
+}
+
+export async function getSessionRequestQuote({ params, user }) {
+  const request = await repositories.peerSessionRequests.findById(params.id);
+  if (!request) return notFound("Session request not found.");
+
+  const auth = await authorizePeerRequestParticipant(request, user);
+  if (!auth.authorized) {
+    return forbidden(auth.error);
+  }
+
+  const quote = await repositories.peerSessionQuotes.findByRequestId(params.id);
+  if (!quote) return notFound("Session quote not found.");
+  return ok(quote);
+}
+
+export async function getPeerQuote({ params, user }) {
+  const quote = await repositories.peerSessionQuotes.findById(params.id);
+  if (!quote) return notFound("Session quote not found.");
+
+  const auth = await authorizePeerQuoteParticipant(quote, user);
+  if (!auth.authorized) {
+    return forbidden(auth.error);
+  }
+
+  return ok(quote);
 }
 
 export async function acceptSessionRequest({ params, user }) {
