@@ -29,7 +29,26 @@ export async function register({ body, headers = {}, ip }) {
   }
 
   try {
-    const user = await authService.createUser({ ...body, role: "user" });
+    const {
+      fullName,
+      email,
+      mobile,
+      password,
+      languageCode,
+      dateOfBirth,
+      guardianEmail
+    } = body;
+
+    const user = await authService.createUser({
+      fullName,
+      email,
+      mobile,
+      password,
+      languageCode,
+      dateOfBirth,
+      guardianEmail,
+      role: "user"
+    });
     return created(await authService.createSession(user));
   } catch (err) {
     return badRequest("Registration failed", err.message);
@@ -173,8 +192,40 @@ export async function registerCounsellor({ body }) {
   }
 
   try {
-    const user = await authService.createUser({ role: "counsellor", ...body });
-    const application = await authService.createCounsellorApplication({ userId: user.id, ...body });
+    const {
+      fullName,
+      email,
+      mobile,
+      password,
+      languageCode,
+      dateOfBirth,
+      licenseNumber,
+      specializations,
+      languagesSpoken,
+      experienceYears,
+      bio
+    } = body;
+
+    const user = await authService.createUser({
+      fullName,
+      email,
+      mobile,
+      password,
+      languageCode,
+      dateOfBirth,
+      role: "counsellor"
+    });
+    const application = await authService.createCounsellorApplication({
+      userId: user.id,
+      fullName,
+      email,
+      mobile,
+      licenseNumber,
+      specializations,
+      languagesSpoken,
+      experienceYears,
+      bio
+    });
     const session = await authService.createSession(user);
     return created({ session, application, counsellor: { ...application, status: application.status || "pending" } });
   } catch (err) {
