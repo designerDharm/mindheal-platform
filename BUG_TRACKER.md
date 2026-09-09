@@ -71,17 +71,24 @@
 #### MH-03: Public signup creates administrator role
 - **Priority:** P0 (Critical)
 - **Status:** `Staging verified`
-- **Affected Files:** `backend/src/controllers/auth.controller.js`
+- **Affected Files:** `backend/src/controllers/auth.controller.js`, `backend/src/services/auth.service.js`, `backend/tests/onboarding.test.js`
 - **Reproduction Steps:**
-  1. Send `POST /api/v1/auth/counsellor/register` with `{ email, password, role: "admin" }`.
-  2. Inspect returned user record and database entry.
-- **Expected Result:** Role is strictly forced to `"counsellor"` regardless of client input.
-- **Actual Result (Before Fix):** Controller spread `{ role: "counsellor", ...body }`, allowing client payload `role: "admin"` to override the server role.
-- **Fix Commit:** `f1515db`
+  1. Send `POST /api/v1/auth/register` or `POST /api/v1/auth/counsellor/register` with `{ role: "admin" }` or protected attributes (`status: "approved"`, `isActive: true`, `isGuardianConsentVerified: true`).
+  2. Send Google onboarding profile completion payload with `{ role: "admin" }` or forged onboarding token.
+  3. Submit direct counsellor application with `{ status: "approved" }`.
+- **Expected Result:**
+  - Non-permitted role overrides and privilege injections are rejected with HTTP 400.
+  - Server assigns roles exclusively on server (`"user"` for user signup, `"counsellor"` for counsellor signup).
+  - Firebase onboarding strictly creates `"user"` or `"counsellor"`, never `"admin"`.
+  - Counsellor application status is strictly forced to `"pending"`.
+  - Valid user and counsellor registrations work cleanly (HTTP 201).
+- **Actual Result (Before Fix):**
+  - Controllers accepted client-provided `role` and spread unprotected body fields, allowing creation of administrator accounts and pre-approved counsellor applications.
+- **Fix Commits:** `f1515db`, `6911690`
 - **Verification Evidence:**
-  - Automated reproducer test executed with payload `{ role: "admin" }`: server returned HTTP 201 with role `"counsellor"`.
-  - Regression check: `backend/tests/onboarding.test.js` (16/16 tests passing).
-  - Audit check `B01` verified.
+  - Isolated multi-scenario reproducer script passed all 5 edge-case checks with HTTP 400 rejection for tampering.
+  - Added regression test 16 in `backend/tests/onboarding.test.js`: all 17 integration tests passing.
+  - Full auth test suite (32/32 tests) passing cleanly.
 
 #### MH-35: Mock Firebase identities accepted in production memory mode
 - **Priority:** P0 (Critical)
