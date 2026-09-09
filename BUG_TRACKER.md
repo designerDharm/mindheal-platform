@@ -228,7 +228,7 @@
   - Insecure adult fallback (`return 20`) removed from `app.js`.
   - Missing, invalid, or future DOB cannot unlock adult-only features. Boundary ages (18th birthday today vs tomorrow) behave with exact precision.
   - Minors aged 15–17 require verified guardian email. Users under 15 and counsellors under 21 are rejected.
-- **Fix Commit:** `fix(auth): repair date-of-birth handling and adult restrictions (MH-09)`
+- **Fix Commit:** `cc271ad`
 - **Verification Evidence:**
   - Unit and route integration test suite `backend/tests/dob_adult_restrictions.test.js`: 5/5 tests passing:
     1. `calculateAgeFromDob` and `calculateExactAge` edge cases (null, empty, invalid format, non-existent calendar date, future dates all return `null`; exact 18 today returns 18, 17y 364d returns 17, 18y 1d returns 18, exact 21 returns 21, turning 21 tomorrow returns 20, exact 15 returns 15, turning 15 tomorrow returns 14).
