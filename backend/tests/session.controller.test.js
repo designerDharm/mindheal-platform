@@ -434,12 +434,12 @@ test("session controller", async (t) => {
       assert.strictEqual(response.status, 200);
       assert.deepStrictEqual(calls, [
         "transaction",
-        "session_counsellor_payout",
+        "session_counsellor_pending_earning",
         "session_platform_commission",
         "session:update"
       ]);
 
-      const counsellorPayout = ledgerByWallet.wal_counsellor.find((entry) => entry.entryType === "session_counsellor_payout");
+      const counsellorPayout = ledgerByWallet.wal_counsellor.find((entry) => entry.entryType === "session_counsellor_pending_earning");
       const platformCommission = ledgerByWallet.wal_platform.find((entry) => entry.entryType === "session_platform_commission");
       assert.strictEqual(counsellorPayout.amountPaise, 72000);
       assert.strictEqual(counsellorPayout.referenceId, "ses_complete");
@@ -490,7 +490,7 @@ test("session controller", async (t) => {
           return [{ direction: "debit", amountPaise: 90000, entryType: "session_hold", ...baseReference }];
         }
         if (walletId === "wal_counsellor") {
-          return [{ direction: "credit", amountPaise: 72000, entryType: "session_counsellor_payout", ...baseReference }];
+          return [{ direction: "credit", amountPaise: 72000, entryType: "session_counsellor_pending_earning", ...baseReference }];
         }
         if (walletId === "wal_platform") {
           return [{ direction: "credit", amountPaise: 18000, entryType: "session_platform_commission", ...baseReference }];

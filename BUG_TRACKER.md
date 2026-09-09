@@ -186,13 +186,26 @@
 
 #### MH-07: Socket rooms do not verify session membership
 - **Priority:** P1 (High)
-- **Status:** `Open`
+- **Status:** `Staging verified`
 - **Affected Files:** `backend/src/socket.js`
 - **Reproduction Steps:** Client socket connects with User C credentials and emits `join_session` for session between User A and User B.
-- **Expected Result:** Socket is denied entry and cannot receive session messages.
-- **Actual Result (Before Fix):** Socket joins room and receives messages without verifying session participant list.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Expected Result:** Socket is denied entry, cannot receive history, and cannot send or receive session messages.
+- **Actual Result (Before Fix):** Socket joined room and received messages without verifying session participant list.
+- **Fix Commit:** `d74c617` (`fix(security): enforce socket session membership, state, and account restrictions (MH-07)`)
+- **Verification Evidence:**
+  - Implemented `authorizeSessionParticipant` in `backend/src/socket.js` to strictly authorize requester, listener (via `listenerProfileId` or `userId`), counselling client/counsellor, or admin.
+  - Enforced account status checks (disabled/suspended accounts rejected and disconnected) and minor age checks (age 15-17 requiring approved guardian consent).
+  - Enforced session state verification: cancelled sessions reject room join and message sending (`SESSION_CANCELLED`); ended, completed, or expired sessions disallow sending new messages (`SESSION_INACTIVE`) and prevent active room joining.
+  - Blocked unauthorized sockets from room join (`socket.join`), chat history emission (`peer_chat_history`), and message broadcasting (`send_message`).
+  - Created end-to-end integration test suite `backend/tests/socket_membership.test.js` verifying 11/11 tests passing across real Socket.IO client connections:
+    - User C cannot join User A & B's session (FORBIDDEN, `session_error` emitted, no room join).
+    - User C does not receive chat history.
+    - User C cannot send messages to User A & B's session (FORBIDDEN, rejected before save/broadcast).
+    - User A and User B can join and exchange real-time messages, while User C cannot listen or eavesdrop.
+    - Sending messages to ended or cancelled sessions is rejected (`SESSION_INACTIVE`).
+    - Counselling sessions enforce client and counsellor membership.
+    - Account deactivation immediately disconnects active socket connections.
+  - Full suite verification: 164/164 backend tests passing, 39/39 frontend tests passing.
 
 #### MH-21: Mood logging accepts client-supplied owner
 - **Priority:** P1 (High)

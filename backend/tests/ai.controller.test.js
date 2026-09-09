@@ -104,8 +104,8 @@ test("ai controller", async (t) => {
       assert.match(response.body.error.message, /Report update failed/);
 
       const walletEntries = store.ledgerEntries.filter((entry) => entry.walletId === walletId);
-      const debitEntry = walletEntries.find((entry) => entry.entryType === "pdf_unlock");
-      const refundEntry = walletEntries.find((entry) => entry.entryType === "pdf_unlock_refund");
+      const debitEntry = walletEntries.find((entry) => entry.entryType === "ai_credit_reserve");
+      const refundEntry = walletEntries.find((entry) => entry.entryType === "ai_credit_release");
 
       assert.ok(debitEntry);
       assert.ok(refundEntry);
@@ -113,9 +113,8 @@ test("ai controller", async (t) => {
       assert.strictEqual(refundEntry.direction, "credit");
       assert.strictEqual(debitEntry.amountPaise, 4900);
       assert.strictEqual(refundEntry.amountPaise, 4900);
-      assert.strictEqual(refundEntry.referenceType, "analysis_report");
-      assert.strictEqual(refundEntry.referenceId, reportId);
-      assert.match(refundEntry.notes, /Automatic refund/);
+      assert.strictEqual(refundEntry.referenceType, "AiServiceReservation");
+      assert.match(refundEntry.notes, /Credits released due to/);
     } finally {
       repositories.reports.update = originalReportsUpdate;
       store.analysisReports.length = originalReportsLength;

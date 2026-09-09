@@ -42,6 +42,7 @@ test("storage service", async (t) => {
   });
 
   await t.test("fails closed in production when Firebase Storage is not configured", () => {
+    const storageServiceModulePath = resolve(backendRoot, "src/services/storage.service.js");
     const result = spawnSync(
       process.execPath,
       [
@@ -49,10 +50,7 @@ test("storage service", async (t) => {
         "-e",
         [
           "process.env.NODE_ENV = 'production';",
-          "delete process.env.FIREBASE_STORAGE_BUCKET;",
-          "delete process.env.GOOGLE_APPLICATION_CREDENTIALS;",
-          "delete process.env.FIREBASE_ADMIN_CREDENTIALS;",
-          "const { StorageService } = await import('./src/services/storage.service.js');",
+          `const { StorageService } = await import(${JSON.stringify(storageServiceModulePath)});`,
           "try {",
           "  await StorageService.uploadFile(Buffer.from('demo'), 'sample.png', 'image/png', 'uploads');",
           "  process.exit(1);",
@@ -62,11 +60,16 @@ test("storage service", async (t) => {
         ].join("\n")
       ],
       {
-        cwd: backendRoot,
+        cwd: resolve(backendRoot, "tests"),
         encoding: "utf8",
         env: {
           ...process.env,
           NODE_ENV: "production",
+          OTP_TEST_MODE: "false",
+          DOTENV_CONFIG_PATH: "/dev/null",
+          FIREBASE_STORAGE_BUCKET: "",
+          FIREBASE_ADMIN_CREDENTIALS: "",
+          GOOGLE_APPLICATION_CREDENTIALS: "",
           JWT_ACCESS_SECRET: "test_access_secret_32_chars_minimum_value",
           JWT_REFRESH_SECRET: "test_refresh_secret_32_chars_minimum_value",
           ALLOWED_ORIGINS: "https://mindheal.example"

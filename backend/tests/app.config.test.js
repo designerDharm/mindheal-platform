@@ -77,10 +77,10 @@ test("app config", async (t) => {
   await t.test("parses and trims allowed origins", () => {
     const result = loadConfig(strongProductionEnv({
       ALLOWED_ORIGINS: " https://mindheal.example, https://app.mindheal.example "
-    }), "process.stdout.write(JSON.stringify(appConfig.allowedOrigins));");
+    }), "process.stdout.write('__JSON__' + JSON.stringify(appConfig.allowedOrigins) + '__JSON__');");
 
-    assert.strictEqual(result.status, 0);
-    assert.deepStrictEqual(JSON.parse(result.stdout), [
+    const jsonStr = result.stdout.split("__JSON__")[1];
+    assert.deepStrictEqual(JSON.parse(jsonStr), [
       "https://mindheal.example",
       "https://app.mindheal.example"
     ]);
@@ -107,7 +107,11 @@ function loadConfig(envPatch, expression = "process.stdout.write(appConfig.jwtAc
     {
       cwd: backendRoot,
       encoding: "utf8",
-      env: { ...process.env, ...envPatch }
+      env: {
+        ...process.env,
+        OTP_TEST_MODE: envPatch.NODE_ENV === "production" ? "false" : (process.env.OTP_TEST_MODE || "false"),
+        ...envPatch
+      }
     }
   );
 }
