@@ -16,6 +16,7 @@ import {
   team,
   videos
 } from "./data/mindheal-data.js";
+import { legalDocuments } from "./data/legal-docs.js";
 import { api } from "./services/mock-api.js?v=5";
 import { escapeHtml, formatInr, getFormData, html, toast } from "./utils/dom.js";
 import { bindMoodStudioForm, parseMoodNote, renderMoodStudio } from "./features/mood-studio.js";
@@ -233,14 +234,34 @@ function updateSeoMetadata(path) {
     "/resources": "Mental Health Resources & Guides | MindHeal",
     "/about": "About MindHeal | Psychological Wellness Platform",
     "/contact": "Contact Us & Business Inquiries | MindHeal",
-    "/crisis": "Immediate Crisis Support & Emergency Helplines | MindHeal"
+    "/crisis": "Immediate Crisis Support & Emergency Helplines | MindHeal",
+    "/legal": "User Terms of Use | MindHeal Legal Centre",
+    "/legal/user-terms": "User Terms of Use | MindHeal Legal Centre",
+    "/legal/user-privacy": "User Privacy Notice | MindHeal Legal Centre",
+    "/legal/professional-terms": "Counsellor & Professional Terms | MindHeal Legal Centre",
+    "/legal/professional-privacy": "Counsellor Privacy Policy | MindHeal Legal Centre",
+    "/legal/ai-notice": "AI Algorithm & Clinical Notice | MindHeal Legal Centre",
+    "/legal/refunds": "Cancellation & Refund Policy | MindHeal Legal Centre",
+    "/legal/cookies": "Cookie & Storage Policy | MindHeal Legal Centre",
+    "/legal/safety": "Clinical Safety Framework & Emergency Policy | MindHeal Legal Centre",
+    "/legal/subprocessors": "Authorized Third-Party Subprocessors | MindHeal Legal Centre"
   };
 
   const descriptions = {
     "/": "MindHeal connects people with AI-guided self-help, verified counsellors, analysis reports, wellness tools, and multilingual mental health support.",
     "/services": "Explore AI dream analysis, handwriting/signature analysis, CBT thought records, and clinical screening services.",
     "/counsellors": "Connect with verified, licensed psychologists and counsellors for video, audio, or chat therapy sessions.",
-    "/pricing": "Affordable pay-per-session and subscription options for psychological counselling and AI reports."
+    "/pricing": "Affordable pay-per-session and subscription options for psychological counselling and AI reports.",
+    "/legal": "Review the official terms of use, client rights, and platform boundaries for MindHeal users.",
+    "/legal/user-terms": "Review the official terms of use, client rights, and platform boundaries for MindHeal users.",
+    "/legal/user-privacy": "Comprehensive disclosure of data processing, DPDP Act compliance, and mental health confidentiality.",
+    "/legal/professional-terms": "Terms governing verified clinical psychologists, counsellors, and independent practitioners.",
+    "/legal/professional-privacy": "Privacy standards, KYC verification records, and payout security for clinical professionals.",
+    "/legal/ai-notice": "Clinical boundaries, non-diagnostic disclaimers, and data protection rules for the AI companion.",
+    "/legal/refunds": "Transparent cancellation windows, automatic refund handling, and wallet withdrawal policies.",
+    "/legal/cookies": "Strictly necessary authentication tokens, local storage usage, and zero advertising tracker guarantee.",
+    "/legal/safety": "Patient safety protocols, automated crisis escalation, and 24/7 national emergency contacts.",
+    "/legal/subprocessors": "Authorized third-party infrastructure, security credentials, and data hosting jurisdictions."
   };
 
   document.title = titles[path] || baseTitle;
@@ -715,6 +736,10 @@ async function resolvePage(path) {
   if (path === "/legal/cookies") return legalCookiesPage();
   if (path === "/legal/safety") return legalSafetyPage();
   if (path === "/legal/subprocessors") return legalSubprocessorsPage();
+  if (path.startsWith("/legal/")) {
+    const slug = path.replace(/^\/legal\//, "");
+    if (legalDocuments[slug]) return renderLegalPage(slug);
+  }
   if (path === "/auth/user-login") return authPage("user", "login");
   if (path === "/auth/user-signup") return authPage("user", "signup");
   if (path === "/auth/counsellor-login") return authPage("counsellor", "login");
@@ -1044,6 +1069,7 @@ function siteFooter() {
           <a href="#/legal/user-privacy" style="color:rgba(255,255,255,0.6);text-decoration:none;" class="hover-opacity">Privacy Notice</a>
           <a href="#/legal/user-terms" style="color:rgba(255,255,255,0.6);text-decoration:none;" class="hover-opacity">User Terms</a>
           <a href="#/legal/professional-terms" style="color:rgba(255,255,255,0.6);text-decoration:none;" class="hover-opacity">Counsellor Terms</a>
+          <a href="#/legal/refunds" style="color:rgba(255,255,255,0.6);text-decoration:none;" class="hover-opacity">Refund Policy</a>
           <a href="#/legal/cookies" style="color:rgba(255,255,255,0.6);text-decoration:none;" class="hover-opacity">Cookie Policy</a>
           <a href="#/legal/safety" style="color:rgba(255,255,255,0.6);text-decoration:none;" class="hover-opacity">Clinical Safety</a>
         </div>
@@ -2541,128 +2567,87 @@ function otpVerificationScreen(role, target, panelPath) {
   `;
 }
 
-function legalHeaderNav(activeType) {
-  const links = [
-    ["user-terms", "User Terms"],
-    ["user-privacy", "User Privacy"],
-    ["professional-terms", "Counsellor Terms"],
-    ["professional-privacy", "Counsellor Privacy"],
-    ["ai-notice", "AI Notice"],
-    ["refunds", "Refund Policy"],
-    ["cookies", "Cookie Policy"],
-    ["safety", "Clinical Safety"],
-    ["subprocessors", "Subprocessors"]
-  ];
+export function legalHeaderNav(activeType) {
+  const links = Object.values(legalDocuments).map((doc) => [doc.id, doc.navLabel]);
 
   return html`
     <nav style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:32px;padding:16px;background:var(--color-cream);border-radius:16px;border:1px solid var(--color-border);">
       ${links.map(([id, label]) => `
         <a href="#/legal/${id}" class="btn secondary ${activeType === id ? 'active' : ''}" style="font-size:13px;padding:8px 16px;border-radius:10px;text-decoration:none;${activeType === id ? 'background:var(--color-charcoal);color:white;' : ''}">
-          ${label}
+          ${t(label)}
         </a>
       `).join("")}
     </nav>
   `;
 }
 
-function legalUserTermsPage() {
+export function renderLegalPage(docId = "user-terms") {
+  const doc = legalDocuments[docId] || legalDocuments["user-terms"];
   return html`
     <main class="page" style="padding:100px 0 80px 0;">
       <div class="container" style="max-width:840px;margin:0 auto;padding:0 24px;">
-        <span class="status-pill warning" style="margin-bottom:12px;display:inline-block;font-weight:700;">LEGAL CENTRE • DRAFT 0.9</span>
-        <h1 class="page-title" style="font-family:var(--font-serif);font-size:42px;margin-bottom:12px;">User Terms of Use</h1>
+        <span class="status-pill warning" style="margin-bottom:12px;display:inline-block;font-weight:700;">${doc.badge || "LEGAL CENTRE • OFFICIAL POLICY"}</span>
+        <h1 class="page-title" style="font-family:var(--font-serif);font-size:42px;margin-bottom:12px;">${t(doc.title)}</h1>
         <p style="color:var(--color-text-muted);font-size:14px;margin-bottom:24px;">
-          Operator: Prilient Technologies Pvt. Ltd. (trading as MindHeal) | Effective: August 3, 2026
+          ${doc.effectiveDate}
         </p>
 
-        ${legalHeaderNav("user-terms")}
+        ${legalHeaderNav(doc.id)}
 
         <div style="background:white;border-radius:20px;padding:40px;border:1px solid var(--color-border);line-height:1.8;color:var(--color-charcoal);">
-          <div style="background:var(--color-cream);padding:24px;border-radius:16px;border-left:4px solid var(--color-coral);margin-bottom:32px;">
-            <h3 style="margin-bottom:8px;font-size:18px;">Plain-Language Summary</h3>
-            <ul style="padding-left:20px;font-size:14px;display:flex;flex-direction:column;gap:6px;">
-              <li>MindHeal is a technology platform and marketplace connecting users to self-help tools, AI features, and independent clinicians.</li>
-              <li>MindHeal is NOT an emergency service. In crisis, call 112 or Tele-MANAS (14416).</li>
-              <li>AI outputs & screening scores are for self-reflection and care navigation — NOT medical diagnosis.</li>
-              <li>Independent human Professionals are solely responsible for their diagnosis, therapy, and prescriptions.</li>
-              <li>Users aged 15–17 require verified guardian consent and cannot access AI chat/interpretation tools.</li>
-            </ul>
-          </div>
+          ${doc.summary && doc.summary.length ? html`
+            <div style="background:var(--color-cream);padding:24px;border-radius:16px;border-left:4px solid var(--color-coral);margin-bottom:32px;">
+              <h3 style="margin-bottom:8px;font-size:18px;">${t("Plain-Language Summary")}</h3>
+              <ul style="padding-left:20px;font-size:14px;display:flex;flex-direction:column;gap:6px;">
+                ${doc.summary.map((item) => `<li>${item}</li>`).join("")}
+              </ul>
+            </div>
+          ` : ""}
 
-          <h2 style="font-size:22px;margin:28px 0 12px 0;">1. Acceptance & Operator Info</h2>
-          <p>These Terms form a binding agreement between the user and Prilient Technologies Pvt. Ltd. By creating an account or using MindHeal, you confirm acceptance of these terms.</p>
+          ${doc.sections.map((section) => html`
+            <h2 style="font-size:22px;margin:28px 0 12px 0;">${section.title}</h2>
+            <p>${section.content}</p>
+          `).join("")}
 
-          <h2 style="font-size:22px;margin:28px 0 12px 0;">2. Eligibility & Minors (15–17 Age Policy)</h2>
-          <p>Users must be at least 15 years old. Users aged 15–17 may use MindHeal only after a verified parent or lawful guardian accepts these terms. Restricted AI chat and AI interpretation features remain strictly limited to users aged 18+.</p>
-
-          <h2 style="font-size:22px;margin:28px 0 12px 0;">3. Emergency & Crisis Disclaimer</h2>
-          <p>MindHeal does not provide continuous medical monitoring. If in immediate danger of self-harm or medical emergency, call 112 or Tele-MANAS (14416 / 1-800-891-4416) immediately.</p>
-
-          <h2 style="font-size:22px;margin:28px 0 12px 0;">4. Independent Professionals & Prescriptions</h2>
-          <p>Counsellors and psychologists act in their independent professional capacity. Prescriptions may only be issued by legally authorised Registered Medical Practitioners (RMPs) with active platform capability.</p>
-
-          <h2 style="font-size:22px;margin:28px 0 12px 0;">5. Refunds & Platform Commission</h2>
-          <p>Paid bookings are subject to our transparent cancellation policy. Approved platform commission is set to 10% on eligible service fees.</p>
+          ${doc.table && doc.table.length ? html`
+            <div style="overflow-x:auto;margin-top:28px;">
+              <table style="width:100%;border-collapse:collapse;font-size:13px;text-align:left;">
+                <thead>
+                  <tr style="background:var(--color-cream);border-bottom:2px solid var(--color-border);">
+                    <th style="padding:12px 16px;font-weight:700;">Subprocessor Entity</th>
+                    <th style="padding:12px 16px;font-weight:700;">Purpose & Functional Mandate</th>
+                    <th style="padding:12px 16px;font-weight:700;">Data Categories Processed</th>
+                    <th style="padding:12px 16px;font-weight:700;">Location & Jurisdiction</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${doc.table.map((row) => `
+                    <tr style="border-bottom:1px solid var(--color-border);">
+                      <td style="padding:12px 16px;font-weight:600;color:var(--color-charcoal);">${escapeHtml(row.name)}</td>
+                      <td style="padding:12px 16px;">${escapeHtml(row.purpose)}</td>
+                      <td style="padding:12px 16px;color:var(--color-text-muted);">${escapeHtml(row.dataProcessed)}</td>
+                      <td style="padding:12px 16px;font-weight:500;">${escapeHtml(row.location)}</td>
+                    </tr>
+                  `).join("")}
+                </tbody>
+              </table>
+            </div>
+          ` : ""}
         </div>
       </div>
     </main>
   `;
 }
 
-function legalUserPrivacyPage() {
-  return html`
-    <main class="page" style="padding:100px 0 80px 0;">
-      <div class="container" style="max-width:840px;margin:0 auto;padding:0 24px;">
-        <span class="status-pill warning" style="margin-bottom:12px;display:inline-block;font-weight:700;">LEGAL CENTRE • DRAFT 0.9</span>
-        <h1 class="page-title" style="font-family:var(--font-serif);font-size:42px;margin-bottom:12px;">User Privacy Notice</h1>
-        <p style="color:var(--color-text-muted);font-size:14px;margin-bottom:24px;">
-          DPDP Act 2023 & SPDI Rules 2011 Compliant | Effective: August 3, 2026
-        </p>
-
-        ${legalHeaderNav("user-privacy")}
-
-        <div style="background:white;border-radius:20px;padding:40px;border:1px solid var(--color-border);line-height:1.8;color:var(--color-charcoal);">
-          <p><strong>Commitment:</strong> MindHeal does not sell personal data. MindHeal does not use private mental-health content, counselling notes, assessment answers, or clinical records for targeted advertising.</p>
-
-          <h2 style="font-size:22px;margin:28px 0 12px 0;">1. Data We Collect</h2>
-          <p>Account identity, eligibility/age, mood & CBT records, session metadata, AI prompts/responses, payment transaction IDs, and technical audit security logs.</p>
-
-          <h2 style="font-size:22px;margin:28px 0 12px 0;">2. Granular Unbundled Consents</h2>
-          <p>Core account processing, health data, AI model transmission, and counsellor sharing are managed via explicit, unbundled user checkboxes. Sharing with Professionals is OFF by default.</p>
-
-          <h2 style="font-size:22px;margin:28px 0 12px 0;">3. Guardian Privacy Boundaries</h2>
-          <p>Verified guardians of 15–17 year olds receive access ONLY to booking, billing, and emergency metadata. Private chat logs, CBT journals, and screening assessments remain strictly confidential.</p>
-        </div>
-      </div>
-    </main>
-  `;
-}
-
-function legalProfessionalTermsPage() {
-  return html`
-    <main class="page" style="padding:100px 0 80px 0;">
-      <div class="container" style="max-width:840px;margin:0 auto;padding:0 24px;">
-        <span class="status-pill warning" style="margin-bottom:12px;display:inline-block;font-weight:700;">LEGAL CENTRE • DRAFT 0.9</span>
-        <h1 class="page-title" style="font-family:var(--font-serif);font-size:42px;margin-bottom:12px;">Counsellor & Professional Terms</h1>
-        ${legalHeaderNav("professional-terms")}
-        <div style="background:white;border-radius:20px;padding:40px;border:1px solid var(--color-border);line-height:1.8;color:var(--color-charcoal);">
-          <p>Governs all independent counsellors, clinical psychologists, therapists, and medical practitioners on MindHeal.</p>
-          <h2 style="font-size:22px;margin:28px 0 12px 0;">1. Eligibility & Verification</h2>
-          <p>Professionals must be at least 21 years old and hold active RCI, NMC, or state professional registrations. Verification by MindHeal confirms credential checks but does not transfer clinical liability to MindHeal.</p>
-          <h2 style="font-size:22px;margin:28px 0 12px 0;">2. Platform Commission</h2>
-          <p>Approved platform commission is set at 10% of eligible service fees. Weekly automated payouts are processed for completed sessions.</p>
-        </div>
-      </div>
-    </main>
-  `;
-}
-
-function legalProfessionalPrivacyPage() { return legalUserPrivacyPage(); }
-function legalAiNoticePage() { return legalUserTermsPage(); }
-function legalRefundsPage() { return legalUserTermsPage(); }
-function legalCookiesPage() { return legalUserPrivacyPage(); }
-function legalSafetyPage() { return legalUserTermsPage(); }
-function legalSubprocessorsPage() { return legalUserPrivacyPage(); }
+export function legalUserTermsPage() { return renderLegalPage("user-terms"); }
+export function legalUserPrivacyPage() { return renderLegalPage("user-privacy"); }
+export function legalProfessionalTermsPage() { return renderLegalPage("professional-terms"); }
+export function legalProfessionalPrivacyPage() { return renderLegalPage("professional-privacy"); }
+export function legalAiNoticePage() { return renderLegalPage("ai-notice"); }
+export function legalRefundsPage() { return renderLegalPage("refunds"); }
+export function legalCookiesPage() { return renderLegalPage("cookies"); }
+export function legalSafetyPage() { return renderLegalPage("safety"); }
+export function legalSubprocessorsPage() { return renderLegalPage("subprocessors"); }
 
 function authPage(role, mode) {
   if (state.otpMode && state.otpRole === role) {

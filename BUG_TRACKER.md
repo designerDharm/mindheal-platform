@@ -627,13 +627,20 @@
 
 #### MH-27: Legal-centre links open wrong aliased documents
 - **Priority:** P2 (Medium)
-- **Status:** `Open`
-- **Affected Files:** `src/main.js`
-- **Reproduction Steps:** Click Cookie Policy, Refund Policy, or Subprocessors.
-- **Expected Result:** Respective dedicated policy content displayed.
-- **Actual Result (Before Fix):** Aliased to Privacy Policy or Terms with mismatched headings.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Status:** `Staging verified`
+- **Affected Files:** `src/data/legal-docs.js`, `src/main.js`, `tests/legal-routing.test.js`
+- **Reproduction Steps:** Click Cookie Policy, Refund Policy, or Subprocessors in legal navigation or footer.
+- **Expected Result:** Respective dedicated policy content displayed with matching titles, plain-language summaries, clauses, and structured vendor/cookie schedules.
+- **Actual Result (Before Fix):** Functions aliased directly to `legalUserPrivacyPage()` or `legalUserTermsPage()`, displaying generic "User Terms of Use" or "User Privacy Notice" headings and unrelated clauses.
+- **Fix Commit:** `fix(legal): eliminate policy aliases and establish dedicated legal centre SSoT (MH-27)`
+- **Verification Evidence:**
+  - Created `src/data/legal-docs.js` as single source of truth (SSoT) containing authentic, dedicated policies for all 9 documents: `user-terms`, `user-privacy`, `professional-terms`, `professional-privacy`, `ai-notice`, `refunds`, `cookies`, `safety`, and `subprocessors`.
+  - Replaced all alias forwarding functions with dedicated page handlers powered by `renderLegalPage(docId)`.
+  - Updated `legalHeaderNav` to dynamically render tabs from SSoT with active highlighting.
+  - Added dedicated SEO titles and descriptions in `updateSeoMetadata(path)` for all legal paths.
+  - Added Refund Policy to footer navigation.
+  - Added unit test suite `tests/legal-routing.test.js` with 8/8 passing subtests.
+  - Full regression test suite passing (86/86 tests).
 
 #### MH-28: Dream auth modal lacks accessible dialog behavior
 - **Priority:** P2 (Medium)
