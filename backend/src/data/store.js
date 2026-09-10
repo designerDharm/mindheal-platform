@@ -9,6 +9,7 @@ export const store = {
       email: "arjun@example.com",
       mobile: "+919999999991",
       languageCode: "en",
+      dateOfBirth: "1994-06-15",
       passwordHash: "",
       isActive: true,
       createdAt: new Date().toISOString()
@@ -20,6 +21,7 @@ export const store = {
       email: "neha.s@example.com",
       mobile: "+919999999992",
       languageCode: "hi",
+      dateOfBirth: "1996-08-22",
       passwordHash: "",
       isActive: true,
       createdAt: new Date().toISOString()
@@ -31,6 +33,7 @@ export const store = {
       email: "demo.user@example.com",
       mobile: "+919999999999",
       languageCode: "en",
+      dateOfBirth: "1992-03-10",
       passwordHash: "",
       isActive: true,
       createdAt: new Date().toISOString()

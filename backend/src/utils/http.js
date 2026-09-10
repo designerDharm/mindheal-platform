@@ -46,8 +46,12 @@ export function created(data) {
   return { status: 201, body: { success: true, data } };
 }
 
-export function badRequest(message, fields = {}) {
-  return { status: 400, body: { success: false, error: { code: "BAD_REQUEST", message, fields } } };
+export function badRequest(message, extra = {}) {
+  const fields = (extra && typeof extra === "object" && extra.fields)
+    ? extra.fields
+    : (typeof extra === "object" && extra !== null ? extra : {});
+  const code = extra?.code || "BAD_REQUEST";
+  return { status: 400, body: { success: false, error: { code, message, fields } } };
 }
 
 export function unauthorized(message = "Authentication required.", extra = {}) {
@@ -58,6 +62,11 @@ export function unauthorized(message = "Authentication required.", extra = {}) {
 export function forbidden(message = "You do not have permission to access this resource.", extra = {}) {
   const { code = "FORBIDDEN", ...rest } = extra;
   return { status: 403, body: { success: false, error: { code, message, ...rest } } };
+}
+
+export function payloadTooLarge(message = "Request payload too large.", extra = {}) {
+  const { code = "PAYLOAD_TOO_LARGE", ...rest } = extra;
+  return { status: 413, body: { success: false, error: { code, message, ...rest } } };
 }
 
 export function internalServerError(message = "Something went wrong.") {

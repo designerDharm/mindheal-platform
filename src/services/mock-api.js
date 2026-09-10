@@ -736,10 +736,79 @@ export const api = {
 
     const remote = await request(endpoint, {
       method: "POST",
-      body: { inputText: payload.description || payload.inputText, inputMediaUrl }
+      body: {
+        inputText: payload.description || payload.inputText,
+        inputMediaUrl,
+        metadata: payload.metadata || null
+      }
     });
     if (remote.ok) return remote.data;
     throw new Error(remote.error?.message || "Analysis request failed");
+  },
+
+  async transcribeDreamAudio(audioBlob, metadata = {}) {
+    const apiBaseUrl = getApiBaseUrl();
+    const formData = new FormData();
+    const mime = audioBlob.type || "audio/webm";
+    const ext = mime.includes("mp4") || mime.includes("m4a") ? "m4a" : mime.includes("wav") ? "wav" : mime.includes("ogg") ? "ogg" : mime.includes("mp3") ? "mp3" : "webm";
+    const filename = metadata.filename || `dream_recording_${Date.now()}.${ext}`;
+    formData.append("audio", audioBlob, filename);
+    if (metadata.duration) {
+      formData.append("duration", String(metadata.duration));
+    }
+    const headers = authHeaders();
+    const response = await fetch(`${apiBaseUrl}/analysis/dream/transcribe`, {
+      method: "POST",
+      headers,
+      body: formData
+    });
+    const payload = await response.json().catch(() => null);
+    if (!payload || !response.ok || payload.success === false) {
+      throw new Error(payload?.error?.message || "Audio transcription failed.");
+    }
+    return payload.data;
+  },
+
+  async extractDreamNotes(imageFile, metadata = {}) {
+    const apiBaseUrl = getApiBaseUrl();
+    const formData = new FormData();
+    const filename = metadata.filename || imageFile.name || `dream_notes_${Date.now()}.jpg`;
+    formData.append("image", imageFile, filename);
+    const headers = authHeaders();
+    const response = await fetch(`${apiBaseUrl}/analysis/dream/extract-notes`, {
+      method: "POST",
+      headers,
+      body: formData
+    });
+    const payload = await response.json().catch(() => null);
+    if (!payload || !response.ok || payload.success === false) {
+      throw new Error(payload?.error?.message || "Notes extraction failed.");
+    }
+    return payload.data;
+  },
+
+  async organiseDream(text, metadata = {}) {
+    const apiBaseUrl = getApiBaseUrl();
+    const headers = {
+      ...authHeaders(),
+      "Content-Type": "application/json"
+    };
+    if (metadata.mockTest) {
+      headers["x-mock-test"] = metadata.mockTest;
+    }
+    const response = await fetch(`${apiBaseUrl}/analysis/dream/organise`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        text,
+        sourceType: metadata.sourceType || "type"
+      })
+    });
+    const payload = await response.json().catch(() => null);
+    if (!payload || !response.ok || payload.success === false) {
+      throw new Error(payload?.error?.message || "Dream organisation failed.");
+    }
+    return payload.data;
   },
 
   async unlockReport(id) {

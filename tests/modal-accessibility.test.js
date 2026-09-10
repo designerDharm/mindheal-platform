@@ -173,38 +173,17 @@ globalThis.ResizeObserver = class {
   disconnect() {}
 };
 
-test("MH-28: Dream auth modal has dialog semantics, accessible names, and labelled controls", async () => {
+test("SSoT & MH-28: Dream analysis eliminates duplicate auth modals and enforces global auth SSoT", async () => {
   const mainCode = fs.readFileSync(path.resolve("src/main.js"), "utf8");
 
-  // Extract dream modal snippet
-  const dreamMatch = mainCode.match(/<!-- GLASSMORPHIC AUTH MODAL overlay -->([\s\S]*?serviceHandwritingAnalysis)/);
-  assert.ok(dreamMatch, "Dream auth modal template should exist in main.js");
-  const dreamModalHtml = dreamMatch[1];
+  // Verify that duplicate modal markup and state flags have been completely eliminated
+  assert.ok(!mainCode.includes('data-modal="dream-auth"'), 'Separate dream-auth modal overlay must be eliminated');
+  assert.ok(!mainCode.includes('showDreamAuthModal:'), 'showDreamAuthModal state flag must be eliminated');
 
-  // 1. Dialog semantics
-  assert.ok(dreamModalHtml.includes('role="dialog"'), 'Must have role="dialog"');
-  assert.ok(dreamModalHtml.includes('aria-modal="true"'), 'Must have aria-modal="true"');
-  assert.ok(dreamModalHtml.includes('aria-labelledby="dream-auth-modal-title"'), 'Must have aria-labelledby');
-  assert.ok(dreamModalHtml.includes('aria-describedby="dream-auth-modal-desc"'), 'Must have aria-describedby');
-  assert.ok(dreamModalHtml.includes('id="dream-auth-modal-title"'), 'Title element must have matching id');
-  assert.ok(dreamModalHtml.includes('id="dream-auth-modal-desc"'), 'Description element must have matching id');
-
-  // 2. Accessible names on controls
-  assert.ok(
-    dreamModalHtml.includes('aria-label="Close authentication dialog"'),
-    'Close button must have descriptive aria-label'
-  );
-  assert.ok(dreamModalHtml.includes('role="tablist"'), 'Tabs must be in role="tablist"');
-  assert.ok(dreamModalHtml.includes('role="tab"'), 'Tab buttons must have role="tab"');
-  assert.ok(dreamModalHtml.includes('aria-selected='), 'Tab buttons must declare aria-selected state');
-
-  // 3. Form input association
-  assert.ok(dreamModalHtml.includes('for="modal-name"'), 'Full name label must have matching for attribute');
-  assert.ok(dreamModalHtml.includes('id="modal-name"'), 'Full name input must have matching id');
-  assert.ok(dreamModalHtml.includes('for="modal-email"'), 'Email label must have matching for attribute');
-  assert.ok(dreamModalHtml.includes('id="modal-email"'), 'Email input must have matching id');
-  assert.ok(dreamModalHtml.includes('for="modal-password"'), 'Password label must have matching for attribute');
-  assert.ok(dreamModalHtml.includes('id="modal-password"'), 'Password input must have matching id');
+  // Verify Single Source of Truth routing: unauthenticated users redirect to canonical #/auth/user-login
+  assert.ok(mainCode.includes('window.location.hash = "#/auth/user-login"'), 'Unauthenticated service users must redirect to #/auth/user-login');
+  assert.ok(mainCode.includes('pending_analysis'), 'Pending analysis draft must be preserved during global auth redirect');
+  assert.ok(mainCode.includes('handlePostAuthRedirection'), 'handlePostAuthRedirection must exist to resume pending service analysis');
 });
 
 test("MH-28: Booking, Link Account, and Daily Diary modals have dialog semantics and accessible names", async () => {

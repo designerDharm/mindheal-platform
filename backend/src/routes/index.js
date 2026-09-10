@@ -77,6 +77,9 @@ export const routes = [
 
   route("POST", `${p}/ai/chat`, aiController.chat, ["user"], true),
   route("POST", `${p}/analysis/dream`, aiController.createDreamReport, ["user"], true),
+  route("POST", `${p}/analysis/dream/transcribe`, aiController.transcribeDreamAudio, ["user"], true),
+  route("POST", `${p}/analysis/dream/extract-notes`, aiController.extractDreamNotes, ["user"], true),
+  route("POST", `${p}/analysis/dream/organise`, aiController.organiseDream, ["user"], true),
   route("POST", `${p}/analysis/handwriting`, aiController.createHandwritingReport, ["user"], true),
   route("POST", `${p}/analysis/signature`, aiController.createSignatureReport, ["user"], true),
   route("GET", `${p}/analysis/reports`, aiController.listReports, ["user", "admin"]),

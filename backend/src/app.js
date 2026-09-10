@@ -254,7 +254,7 @@ function applyHeaders(req, res) {
   }
   
   res.setHeader("access-control-allow-methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-  res.setHeader("access-control-allow-headers", "content-type,authorization,x-idempotency-key");
+  res.setHeader("access-control-allow-headers", "content-type,authorization,x-idempotency-key,x-mock-test");
   res.setHeader("access-control-max-age", "86400"); // 24 hours preflight cache
   
   // Security Headers

@@ -23,6 +23,7 @@ import { bindMoodStudioForm, parseMoodNote, renderMoodStudio } from "./features/
 import { renderWalletTransactionsTable } from "./features/wallet-transactions.js";
 import { renderInsightLab } from "./features/insight-lab.js";
 import { renderPeerTalk } from "./features/peer-talk.js";
+import { createDefaultDreamCaptureState, renderDreamCapture, initDreamCaptureHandlers, resetDreamCaptureState, stopActiveMediaStream, resetDreamCaptureTimer } from "./features/dream-capture.js?v=21";
 import { t, getSelectedLanguage, handleLanguageChange, langCodes, translateDOM } from "./utils/i18n.js";
 
 const app = document.querySelector("#app");
@@ -107,8 +108,8 @@ export const state = {
   dreamAnalyzing: false,
   dreamResult: null,
   dreamError: "",
-  showDreamAuthModal: false,
-  dreamAuthMode: "signup",
+  pendingAnalysis: null,
+  dreamCapture: createDefaultDreamCaptureState(),
   handwritingInput: "",
   handwritingAnalyzing: false,
   handwritingResult: null,
@@ -279,6 +280,12 @@ window.addEventListener("hashchange", () => {
   if (state.route.path === "/") {
     state.serviceFilter = "all";
   }
+  // Milestone 7 Hardening: Stop active recording streams if user navigates away from dream capture
+  if (state.route.path !== "/services/dream" && (state.dreamCapture?.processingStage === "recording" || state.dreamCapture?.processingStage === "paused")) {
+    stopActiveMediaStream();
+    resetDreamCaptureTimer();
+    state.dreamCapture.processingStage = "idle";
+  }
   updateSeoMetadata(state.route.path);
   render();
 });
@@ -342,10 +349,6 @@ export function closeAnyOpenModal() {
   const triggerEl = state.modalTriggerElement;
   let changed = false;
 
-  if (state.showDreamAuthModal) {
-    state.showDreamAuthModal = false;
-    changed = true;
-  }
   if (state.bookingModalOpen) {
     state.bookingModalOpen = false;
     state.bookingModalTarget = null;
@@ -541,6 +544,7 @@ export function resetAnalysis(type = "dream") {
     state.dreamInput = "";
     state.dreamError = "";
     state.dreamAnalyzing = false;
+    resetDreamCaptureState(state);
   } else if (normalized.includes("handwriting")) {
     state.handwritingResult = null;
     state.handwritingInput = "";
@@ -5155,6 +5159,77 @@ function attachPageHandlers() {
     });
   });
 
+  async function handlePostAuthRedirection(role, defaultPanel) {
+    let pendingBooking = state.pendingBooking;
+    if (!pendingBooking) {
+      try {
+        const raw = sessionStorage.getItem("pending_booking");
+        if (raw) pendingBooking = JSON.parse(raw);
+      } catch (e) {}
+    }
+
+    if (pendingBooking && role === "user") {
+      state.pendingBooking = null;
+      try { sessionStorage.removeItem("pending_booking"); } catch (e) {}
+      toast(`Continuing booking with ${pendingBooking.name}...`);
+      navigate("/panel/user?section=counsellors");
+      await openBookingForCounsellor(pendingBooking);
+      return;
+    }
+
+    let pendingAnalysis = state.pendingAnalysis;
+    if (!pendingAnalysis) {
+      try {
+        const raw = sessionStorage.getItem("pending_analysis");
+        if (raw) pendingAnalysis = JSON.parse(raw);
+      } catch (e) {}
+    }
+
+    if (pendingAnalysis && role === "user") {
+      state.pendingAnalysis = null;
+      try { sessionStorage.removeItem("pending_analysis"); } catch (e) {}
+      toast(`Continuing ${pendingAnalysis.type}...`);
+      if (pendingAnalysis.type === "Dream Analysis") {
+        state.dreamInput = pendingAnalysis.description || "";
+        navigate("/services/dream");
+        await executeDreamAnalysis(state.dreamInput, null, pendingAnalysis.metadata || null);
+        return;
+      } else if (pendingAnalysis.type === "Handwriting Analysis") {
+        state.handwritingInput = pendingAnalysis.description || "";
+        navigate("/service-handwriting-analysis");
+        state.handwritingAnalyzing = true;
+        render();
+        try {
+          const res = await api.submitAnalysis({ type: "Handwriting Analysis", description: state.handwritingInput });
+          state.handwritingResult = res;
+        } catch (err) {
+          state.handwritingError = err.message || "Handwriting analysis failed.";
+        } finally {
+          state.handwritingAnalyzing = false;
+          render();
+        }
+        return;
+      } else if (pendingAnalysis.type === "Signature Analysis") {
+        state.signatureInput = pendingAnalysis.description || "";
+        navigate("/service-signature-analysis");
+        state.signatureAnalyzing = true;
+        render();
+        try {
+          const res = await api.submitAnalysis({ type: "Signature Analysis", description: state.signatureInput });
+          state.signatureResult = res;
+        } catch (err) {
+          state.signatureError = err.message || "Signature analysis failed.";
+        } finally {
+          state.signatureAnalyzing = false;
+          render();
+        }
+        return;
+      }
+    }
+
+    navigate(defaultPanel);
+  }
+
   document.querySelectorAll("[data-form='auth']").forEach((form) => {
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -5272,7 +5347,7 @@ function attachPageHandlers() {
           return;
         }
 
-        navigate(form.dataset.panel);
+        await handlePostAuthRedirection(role, form.dataset.panel);
       } catch (err) {
         const msg = err.message || "Invalid email, password, or role.";
         state.authError = msg;
@@ -5332,7 +5407,7 @@ function attachPageHandlers() {
           return;
         }
 
-        navigate(state.otpPanel);
+        await handlePostAuthRedirection(state.otpRole, state.otpPanel);
       } catch (err) {
         toast(`Verification failed: ${err.message || "Invalid OTP code"}`, "error");
       }
@@ -5592,7 +5667,7 @@ function attachPageHandlers() {
               return;
             }
 
-            navigate(form.dataset.panel);
+            await handlePostAuthRedirection(role, form.dataset.panel);
           } else if (res.status === "PROFILE_REQUIRED") {
             state.onboardingToken = res.onboardingToken;
             state.onboardingEmail = res.email;
@@ -5712,107 +5787,88 @@ function attachPageHandlers() {
     });
   });
 
-  // Switch tabs in Dream landing page auth modal
-  document.querySelectorAll("[data-action='dream-landing-tab-switch']").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.dreamAuthMode = button.dataset.mode;
+  // Shared executor for dream analysis
+  async function executeDreamAnalysis(descriptionText, sampleFile = null, metadata = null) {
+    state.dreamInput = descriptionText || "";
+    state.dreamError = "";
+
+    const auth = await api.getAuthProfile?.() || (await api.getState({ path: "/services/dream" })).auth;
+    if (!auth) {
+      const pending = {
+        type: "Dream Analysis",
+        description: state.dreamInput,
+        metadata,
+        returnUrl: "#/services/dream"
+      };
+      state.pendingAnalysis = pending;
+      try {
+        sessionStorage.setItem("pending_analysis", JSON.stringify(pending));
+      } catch (_) {}
+      if (state.dreamCapture) {
+        state.dreamCapture.isSubmitting = false;
+      }
+      toast("Please sign in or create an account to save and analyze your dream.", "info");
+      window.location.hash = "#/auth/user-login";
+      return;
+    }
+
+    state.dreamAnalyzing = true;
+    render();
+
+    try {
+      const payload = {
+        type: "Dream Analysis",
+        description: state.dreamInput,
+        sampleFile: sampleFile || undefined,
+        metadata: metadata || {
+          sourceType: state.dreamCapture?.sourceType || "typed",
+          rawText: state.dreamCapture?.rawText || state.dreamCapture?.rawInput || state.dreamInput || "",
+          organisedText: state.dreamCapture?.organisedText || state.dreamCapture?.structuredDraft || "",
+          approvedText: state.dreamInput,
+          wasAiOrganised: Boolean(state.dreamCapture?.wasAiOrganised || state.dreamCapture?.organisedData),
+          wasUserEdited: Boolean(state.dreamCapture?.wasUserEdited),
+          approvedAt: state.dreamCapture?.approvedAt || new Date().toISOString()
+        }
+      };
+      const result = await api.submitAnalysis(payload);
+      state.dreamResult = result;
+      if (state.dreamCapture) {
+        state.dreamCapture.isSubmitting = false;
+      }
+    } catch (error) {
+      state.dreamError = error.message || "Dream analysis failed.";
+      if (state.dreamCapture) {
+        state.dreamCapture.isSubmitting = false;
+        state.dreamCapture.errorMessage = state.dreamError;
+        // Retain review state so user can retry immediately without re-transcribing or re-uploading
+        state.dreamCapture.processingStage = "review";
+      }
+    } finally {
+      state.dreamAnalyzing = false;
       render();
-    });
-  });
+    }
+  }
 
-  // Close Dream landing page auth modal
-  document.querySelectorAll("[data-action='close-dream-auth-modal']").forEach((button) => {
-    button.addEventListener("click", () => {
-      const triggerEl = state.modalTriggerElement;
-      state.showDreamAuthModal = false;
-      render().then(() => restoreModalFocus(triggerEl));
-    });
-  });
-
-  // Submit analysis on Dream landing page
-  document.querySelectorAll("[data-form='dream-landing-analysis']").forEach((form) => {
+  // Submit analysis on Dream landing page (Type form or legacy form)
+  document.querySelectorAll("[data-form='dream-type-form'], [data-form='dream-landing-analysis']").forEach((form) => {
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const payload = getFormData(form);
-      state.dreamInput = payload.description || "";
-      state.dreamError = "";
-
-      const auth = await api.getAuthProfile?.() || (await api.getState({ path: "/service-dream-analysis" })).auth;
-      if (!auth) {
-        state.modalTriggerElement = form.querySelector("button[type='submit']") || document.activeElement;
-        state.showDreamAuthModal = true;
-        render();
-        return;
-      }
-
-      state.dreamAnalyzing = true;
-      render();
-
-      try {
-        const result = await api.submitAnalysis({
-          type: "Dream Analysis",
-          description: state.dreamInput,
-          sampleFile: form.elements.sampleFile?.files?.[0]
-        });
-        state.dreamResult = result;
-      } catch (error) {
-        state.dreamError = error.message || "Dream analysis failed.";
-      } finally {
-        state.dreamAnalyzing = false;
-        render();
-      }
+      const text = payload.description || state.dreamCapture?.rawInput || state.dreamInput || "";
+      const metadata = {
+        sourceType: "typed",
+        wasAiOrganised: false,
+        wasUserEdited: false,
+        approvedAt: new Date().toISOString()
+      };
+      await executeDreamAnalysis(text, null, metadata);
     });
   });
 
-  // Submit authentication in Dream landing page modal
-  document.querySelectorAll("[data-form='dream-landing-auth']").forEach((form) => {
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const payload = getFormData(form);
-      try {
-        let authRes;
-        if (state.dreamAuthMode === "signup") {
-          authRes = await api.signUp("user", { ...payload, language: "English" });
-        } else {
-          authRes = await api.login("user", payload);
-        }
-        if (authRes && authRes.status === "GUARDIAN_CONSENT_REQUIRED") {
-          state.showDreamAuthModal = false;
-          state.guardianPendingEmail = authRes.email;
-          toast("Guardian consent required. An email has been sent.", "warning");
-          navigate("/auth/guardian-pending");
-          return;
-        }
-        toast("Authenticated successfully. Starting dream analysis...");
-        state.showDreamAuthModal = false;
-        render();
-
-        let result;
-        if (state.dreamInput) {
-          state.dreamAnalyzing = true;
-          render();
-          result = await api.submitAnalysis({ type: "Dream Analysis", description: state.dreamInput });
-          state.dreamResult = result;
-        } else if (state.handwritingInput) {
-          state.handwritingAnalyzing = true;
-          render();
-          result = await api.submitAnalysis({ type: "Handwriting Analysis", description: state.handwritingInput });
-          state.handwritingResult = result;
-        } else if (state.signatureInput) {
-          state.signatureAnalyzing = true;
-          render();
-          result = await api.submitAnalysis({ type: "Signature Analysis", description: state.signatureInput });
-          state.signatureResult = result;
-        }
-      } catch (error) {
-        toast(`Authentication failed: ${error.message || "Invalid credentials"}`, "error");
-      } finally {
-        state.dreamAnalyzing = false;
-        state.handwritingAnalyzing = false;
-        state.signatureAnalyzing = false;
-        render();
-      }
-    });
+  // Wire up Multimodal Dream Capture handlers (Segmented tabs, Voice recording/pause/resume/finish, Scan notes, Review component)
+  initDreamCaptureHandlers(state, render, async (approvedDraft, metadata) => {
+    // Send ONLY the approved dream narrative without raw audio or image files
+    await executeDreamAnalysis(approvedDraft, null, metadata);
   });
 
   // Scroll to Analyzer on Handwriting landing page
@@ -5835,10 +5891,17 @@ function attachPageHandlers() {
 
       const auth = await api.getAuthProfile?.() || (await api.getState({ path: "/service-handwriting-analysis" })).auth;
       if (!auth) {
-        state.modalTriggerElement = form.querySelector("button[type='submit']") || document.activeElement;
-        state.dreamAuthMode = "signup";
-        state.showDreamAuthModal = true;
-        render();
+        const pending = {
+          type: "Handwriting Analysis",
+          description: state.handwritingInput,
+          returnUrl: "#/service-handwriting-analysis"
+        };
+        state.pendingAnalysis = pending;
+        try {
+          sessionStorage.setItem("pending_analysis", JSON.stringify(pending));
+        } catch (_) {}
+        toast("Please sign in or create an account to analyze your handwriting.", "info");
+        window.location.hash = "#/auth/user-login";
         return;
       }
 
@@ -5895,10 +5958,17 @@ function attachPageHandlers() {
 
       const auth = await api.getAuthProfile?.() || (await api.getState({ path: "/service-signature-analysis" })).auth;
       if (!auth) {
-        state.modalTriggerElement = form.querySelector("button[type='submit']") || document.activeElement;
-        state.dreamAuthMode = "signup";
-        state.showDreamAuthModal = true;
-        render();
+        const pending = {
+          type: "Signature Analysis",
+          description: state.signatureInput,
+          returnUrl: "#/service-signature-analysis"
+        };
+        state.pendingAnalysis = pending;
+        try {
+          sessionStorage.setItem("pending_analysis", JSON.stringify(pending));
+        } catch (_) {}
+        toast("Please sign in or create an account to analyze your signature.", "info");
+        window.location.hash = "#/auth/user-login";
         return;
       }
 
@@ -6761,42 +6831,8 @@ async function serviceDreamAnalysis() {
               </div>
             </div>
           ` : html`
-            <!-- INPUT STATE -->
-            <form data-form="dream-landing-analysis" style="display: flex; flex-direction: column; gap: 24px;">
-              <h3 style="font-family: var(--font-serif); font-size: 24px; color: white; margin: 0; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 16px;">Describe Your Subconscious Journey</h3>
-              
-              <div class="field" style="display: flex; flex-direction: column; gap: 8px;">
-                <label for="dreamDescriptionLanding" style="color: rgba(255,255,255,0.8); font-size: 14px; font-weight: 500;">What events, symbols, or emotions stood out?</label>
-                <textarea id="dreamDescriptionLanding" name="description" placeholder="Type here in detail... (e.g. 'I was flying over a vast dark ocean, then the sky turned into mirrors...')" style="min-height: 160px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 16px; padding: 20px; font-size: 15px; width: 100%; box-sizing: border-box; resize: vertical; outline: none; transition: border-color 0.3s;" required>${state.dreamInput}</textarea>
-              </div>
-
-              <div class="field" style="display: flex; flex-direction: column; gap: 8px;">
-                <label style="color: rgba(255,255,255,0.8); font-size: 14px; font-weight: 500;">Attach an illustration or notebook scan (Optional)</label>
-                <label for="dreamFileLanding" class="file-upload-dropzone-compact" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); display: flex; align-items: center; gap: 12px; cursor: pointer;">
-                  <i class="ph ph-image"></i>
-                  <span id="dream-file-text-landing">Choose file...</span>
-                  <input id="dreamFileLanding" name="sampleFile" type="file" accept="image/png,image/jpeg,application/pdf" style="display: none;" onchange="const name = this.files[0]?.name; document.getElementById('dream-file-text-landing').innerText = name || 'Choose file...'; this.closest('.file-upload-dropzone-compact').classList.toggle('has-file', !!name);" />
-                </label>
-              </div>
-
-              ${state.dreamError ? html`
-                <div class="analysis-error-banner" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #ef4444; border-radius: 12px; padding: 16px; font-size: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
-                  <span>${state.dreamError}</span>
-                  <button type="button" class="btn text" data-action="reset-dream-analysis" style="color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 4px 12px; font-size: 13px; border-radius: 8px; background: transparent; cursor: pointer;">Reset</button>
-                </div>
-              ` : ""}
-
-              <div style="display: flex; gap: 12px; align-items: center;">
-                <button id="dream-analyze-submit-btn" class="btn primary submit-btn" type="submit" style="flex: 1; background: var(--color-coral); color: white; border: none; height: 50px; font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 12px;">
-                  <i class="ph ph-sparkle"></i> Analyse Subconscious Dream
-                </button>
-                ${(state.dreamInput || state.dreamError) ? html`
-                  <button type="button" class="btn secondary" data-action="reset-dream-analysis" style="border: 1px solid rgba(255,255,255,0.15); color: white; background: transparent; height: 50px; padding: 0 20px; border-radius: 12px;">
-                    Reset
-                  </button>
-                ` : ""}
-              </div>
-            </form>
+            <!-- MULTIMODAL DREAM CAPTURE INPUT STATE -->
+            ${renderDreamCapture(state)}
           `}
         </div>
 
@@ -6827,53 +6863,6 @@ async function serviceDreamAnalysis() {
           </div>
         </div>
       </div>
-
-      <!-- GLASSMORPHIC AUTH MODAL overlay -->
-      ${state.showDreamAuthModal ? html`
-        <div class="modal-overlay" data-modal="dream-auth" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); backdrop-filter: blur(16px); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 24px;">
-          <div role="dialog" aria-modal="true" aria-labelledby="dream-auth-modal-title" aria-describedby="dream-auth-modal-desc" tabindex="-1" class="modal-dialog-card" style="background: #18181b; border: 1px solid rgba(255,255,255,0.1); width: 100%; max-width: 480px; border-radius: 24px; padding: 40px; position: relative; box-shadow: 0 24px 60px rgba(0,0,0,0.5);">
-            <button type="button" data-action="close-dream-auth-modal" aria-label="Close authentication dialog" style="position: absolute; top: 20px; right: 20px; background: transparent; border: none; color: rgba(255,255,255,0.6); font-size: 24px; cursor: pointer;">
-              <i class="ph ph-x" aria-hidden="true"></i>
-            </button>
-            
-            <h2 id="dream-auth-modal-title" style="font-family: var(--font-serif); font-size: 24px; color: white; margin: 0 0 16px 0;">
-              ${state.dreamAuthMode === 'signup' ? 'Create Account' : 'Sign In to Continue'}
-            </h2>
-
-            <div role="tablist" aria-label="Authentication Options" style="display: flex; gap: 16px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 16px; margin-bottom: 24px;">
-              <button type="button" role="tab" aria-selected="${state.dreamAuthMode === 'signup' ? 'true' : 'false'}" data-action="dream-landing-tab-switch" data-mode="signup" style="background: transparent; border: none; font-size: 16px; font-weight: 600; color: ${state.dreamAuthMode === 'signup' ? 'var(--color-coral)' : 'rgba(255,255,255,0.6)'}; cursor: pointer; padding-bottom: 8px; border-bottom: 2px solid ${state.dreamAuthMode === 'signup' ? 'var(--color-coral)' : 'transparent'};">Create Account</button>
-              <button type="button" role="tab" aria-selected="${state.dreamAuthMode === 'login' ? 'true' : 'false'}" data-action="dream-landing-tab-switch" data-mode="login" style="background: transparent; border: none; font-size: 16px; font-weight: 600; color: ${state.dreamAuthMode === 'login' ? 'var(--color-coral)' : 'rgba(255,255,255,0.6)'}; cursor: pointer; padding-bottom: 8px; border-bottom: 2px solid ${state.dreamAuthMode === 'login' ? 'var(--color-coral)' : 'transparent'};">Login</button>
-            </div>
-
-            <form data-form="dream-landing-auth" style="display: flex; flex-direction: column; gap: 20px;">
-              <div id="dream-auth-modal-desc" style="font-size: 14px; color: rgba(255,255,255,0.6); margin-bottom: 8px;">
-                To save and review your clinical dream analysis, please log in or create an account.
-              </div>
-              
-              ${state.dreamAuthMode === "signup" ? html`
-                <div class="field" style="display: flex; flex-direction: column; gap: 6px;">
-                  <label for="modal-name" style="color: rgba(255,255,255,0.8); font-size: 13px;">Full Name</label>
-                  <input id="modal-name" name="name" style="height: 44px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0 16px; color: white; outline: none; font-size: 14px;" required autocomplete="name" />
-                </div>
-              ` : ""}
-
-              <div class="field" style="display: flex; flex-direction: column; gap: 6px;">
-                <label for="modal-email" style="color: rgba(255,255,255,0.8); font-size: 13px;">Email Address</label>
-                <input id="modal-email" name="email" type="email" style="height: 44px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0 16px; color: white; outline: none; font-size: 14px;" required autocomplete="email" />
-              </div>
-
-              <div class="field" style="display: flex; flex-direction: column; gap: 6px;">
-                <label for="modal-password" style="color: rgba(255,255,255,0.8); font-size: 13px;">Password</label>
-                <input id="modal-password" name="password" type="password" style="height: 44px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0 16px; color: white; outline: none; font-size: 14px;" required autocomplete="current-password" />
-              </div>
-
-              <button class="btn primary" type="submit" style="background: var(--color-coral); color: white; border: none; height: 46px; border-radius: 8px; font-weight: 600; margin-top: 10px; width: 100%;">
-                ${state.dreamAuthMode === "signup" ? "Create Account & Analyze" : "Login & Analyze"}
-              </button>
-            </form>
-          </div>
-        </div>
-      ` : ""}
     </main>
   `;
 }
