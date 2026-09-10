@@ -277,3 +277,26 @@ export async function listMyScreenings({ user }) {
   const list = await repositories.screenings.listForUser(user.id);
   return ok(list);
 }
+
+export async function getScreening({ params, user }) {
+  const screening = await repositories.screenings.findById(params.id);
+  if (!screening) return notFound("Screening session not found.");
+
+  if (screening.userId !== user.id && user.role !== "admin") {
+    return forbidden("You are not authorized for this screening session.");
+  }
+
+  const responsesJson = typeof screening.responsesJson === "object" && screening.responsesJson ? screening.responsesJson : {};
+  const evaluation = evaluateScreening(screening.screeningType, responsesJson.responses || {}, screening.score);
+
+  return ok({
+    ...screening,
+    band: responsesJson.band || evaluation.band,
+    severity: responsesJson.severity || evaluation.severity,
+    title: evaluation.title,
+    description: evaluation.description,
+    safetyGuidance: responsesJson.safetyGuidance || evaluation.safetyGuidance,
+    hasPaidInterpretation: Boolean(responsesJson.hasPaidInterpretation),
+    interpretation: responsesJson.interpretation || null
+  });
+}

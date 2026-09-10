@@ -75,7 +75,37 @@ test("Diagnostic Screening End-to-End Flow (MH-37: Free Basic Screenings & Optio
     assert.strictEqual(balanceAfter, 0, "Completing screening must not debit wallet");
   });
 
-  await t.test("3. Optional paid interpretation fails when user has insufficient balance", async () => {
+  await t.test("3. Zero-balance user reads the completed screening result without a debit", async () => {
+    const controller = await import("../src/controllers/screening.controller.js");
+    const res = await controller.getScreening({
+      params: { id: sessionID },
+      user
+    });
+
+    assert.strictEqual(res.status, 200, "Reading screening result must succeed");
+    assert.strictEqual(res.body.success, true);
+    assert.strictEqual(res.body.data.id, sessionID);
+    assert.strictEqual(res.body.data.status, "completed");
+    assert.strictEqual(res.body.data.score, 12);
+    assert.strictEqual(res.body.data.band, "Moderate");
+    assert.strictEqual(res.body.data.hasPaidInterpretation, false);
+    assert.ok(res.body.data.safetyGuidance, "Safety guidance must be present when reading result");
+    assert.ok(res.body.data.safetyGuidance.helplines.some(h => h.number.includes("14416")));
+
+    // An unrelated user cannot read this screening
+    const otherUser = { id: createId("usr"), role: "user" };
+    const forbiddenRes = await controller.getScreening({
+      params: { id: sessionID },
+      user: otherUser
+    });
+    assert.strictEqual(forbiddenRes.status, 403, "Unrelated user must be forbidden from reading another's screening");
+
+    // Verify wallet balance is still strictly 0
+    const balance = await getBalance(user.id);
+    assert.strictEqual(balance, 0, "Reading screening result must not debit wallet");
+  });
+
+  await t.test("4. Optional paid interpretation fails when user has insufficient balance", async () => {
     const balance = await getBalance(user.id);
     assert.strictEqual(balance, 0);
 
@@ -93,7 +123,7 @@ test("Diagnostic Screening End-to-End Flow (MH-37: Free Basic Screenings & Optio
     assert.strictEqual(await getBalance(user.id), 0);
   });
 
-  await t.test("4. User can purchase optional in-depth clinical interpretation report after top-up", async () => {
+  await t.test("5. User can purchase optional in-depth clinical interpretation report after top-up", async () => {
     const wallet = await repositories.wallets.findByOwner(user.id);
     // Top up 100 INR = 10,000 paise
     await repositories.wallets.createLedgerEntry({
@@ -132,7 +162,7 @@ test("Diagnostic Screening End-to-End Flow (MH-37: Free Basic Screenings & Optio
     assert.strictEqual(await getBalance(user.id), 5100, "Idempotent interpretation request must not double-debit");
   });
 
-  await t.test("5. List my screenings returns completed screening", async () => {
+  await t.test("6. List my screenings returns completed screening", async () => {
     const controller = await import("../src/controllers/screening.controller.js");
     const res = await controller.listMyScreenings({ user });
 

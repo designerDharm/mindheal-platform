@@ -936,6 +936,11 @@ export const api = {
     return { success: remote.ok, data: remote.data, error: remote.error };
   },
 
+  async getScreening(id) {
+    const remote = await request(`/screenings/${id}`);
+    return { success: remote.ok, data: remote.data, error: remote.error };
+  },
+
   async requestScreeningInterpretation(id) {
     const remote = await request(`/screenings/${id}/interpret`, {
       method: "POST"

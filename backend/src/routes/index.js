@@ -80,6 +80,7 @@ export const routes = [
   route("POST", `${p}/screenings/:id/complete`, screeningController.completeScreening, ["user"]),
   route("POST", `${p}/screenings/:id/interpret`, screeningController.requestInterpretation, ["user"]),
   route("GET", `${p}/screenings/me`, screeningController.listMyScreenings, ["user"]),
+  route("GET", `${p}/screenings/:id`, screeningController.getScreening, ["user", "admin"]),
 
   route("GET", `${p}/wallet/balance`, walletController.balance, ["user", "counsellor", "admin"]),
   route("POST", `${p}/wallet/topup/initiate`, walletController.initiateTopup, ["user"]),
