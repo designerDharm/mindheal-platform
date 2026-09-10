@@ -501,13 +501,21 @@
 
 #### MH-20: Weekly payout worker calls missing repository method
 - **Priority:** P1 (High)
-- **Status:** `Open`
-- **Affected Files:** `backend/src/services/payout.service.js`, `backend/src/repositories/`
-- **Reproduction Steps:** Run weekly payout cron job.
-- **Expected Result:** Completes batch payout calculations cleanly.
-- **Actual Result (Before Fix):** Crashes with `TypeError: peerListenerProfiles.listAll is not a function`.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Status:** `Staging verified`
+- **Affected Files:** `backend/src/services/payout.service.js`, `backend/src/services/wallet.service.js`, `backend/src/repositories/memory/index.js`, `backend/src/repositories/postgres/repositories.js`, `backend/migrations/016_payout_records.sql`, `backend/tests/payout_worker.test.js`
+- **Reproduction Steps:** Run weekly payout worker batch or calculate peer/counsellor earnings for accounts with mixed deposits and earnings.
+- **Expected Result:**
+  - `repositories.peerListenerProfiles.listAll()` executes cleanly across both `memory` and `postgres` drivers.
+  - Personal customer wallet deposits (`topup`, `wallet_topup`, `peer_session_topup`) are strictly separated and never debited/swept by the payout worker.
+  - Payout batches and records are durably persisted with unique idempotency keys, preventing duplicate payouts upon retry.
+  - Provider transfers reconcile: confirmed transfers settle permanently; failed transfers remain unpaid (`status: 'failed'`) and automatically refund the debited amount via `payout_reversal` with double-entry reversal, reconciling wallet balances.
+- **Actual Result (Before Fix):** Crashed with `TypeError: peerListenerProfiles.listAll is not a function`. Swept full wallet balance including personal deposits, lacked durable payout record states, and had no provider transfer reconciliation or failure recovery.
+- **Fix Commit:** `fix(payout): repair worker engine, separate deposits from earnings, and implement reconciliation (MH-20)`
+- **Verification Evidence:**
+  - Automated test suite `backend/tests/payout_worker.test.js` passing (8/8 tests, 100%).
+  - Repository contract check `backend/tests/repository-contract.test.js` passing (2/2 tests, 100%).
+  - Full frontend suite `npm test` passing (71/71 tests, 100%).
+  - Syntax check `npm run check` clean (0 errors).
 
 #### MH-39: Listener identity confused with listener profile ID
 - **Priority:** P1 (High)

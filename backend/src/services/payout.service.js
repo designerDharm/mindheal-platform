@@ -1,129 +1,395 @@
 import { createId } from "../utils/security.js";
 import { repositories } from "../repositories/index.js";
-import { getBalance, debit } from "./wallet.service.js";
+import { debit, credit } from "./wallet.service.js";
 import { postJournalTransaction } from "./double_entry.service.js";
 
 /**
- * Weekly Payout Engine Worker
- * Aggregates eligible counsellor and peer listener earnings
- * and batches them for weekly payout processing.
+ * Calculates net eligible earnings for a peer listener.
+ * Strictly separates earned session revenue from user deposits (e.g. topup).
  */
-export async function executeWeeklyPayoutBatch(executedByUserId = "usr_admin") {
-  const result = {
-    counsellors: null,
-    peerListeners: null,
-    auditLogId: null
-  };
+export async function getEligiblePeerEarnings(userId) {
+  const wallet = await repositories.wallets.findByOwner(userId);
+  if (!wallet) return 0;
+  const ledger = await repositories.wallets.ledgerEntries(wallet.id);
 
-  // --- 1. Counsellor Payout Batching ---
-  const allLedgers = await repositories.wallets.allLedgerEntries();
-  const pendingEarningEntries = allLedgers.filter(
-    (e) => e.entryType === "session_counsellor_pending_earning" && e.direction === "credit"
+  // Strictly filter on earning entries
+  const earningCredits = ledger
+    .filter((e) => (e.entryType === "peer_session_earning" || e.entryType === "peer_session_pending_earning") && e.direction === "credit")
+    .reduce((sum, e) => sum + Number(e.amountPaise || 0), 0);
+
+  // Subtract previous payouts
+  const payoutDebits = ledger
+    .filter((e) => (e.entryType === "peer_payout" || e.entryType === "listener_payout") && e.direction === "debit")
+    .reduce((sum, e) => sum + Number(e.amountPaise || 0), 0);
+
+  // Add back any failed payout reversals
+  const payoutReversals = ledger
+    .filter((e) => (e.entryType === "payout_reversal" || e.entryType === "peer_payout_refund") && e.direction === "credit")
+    .reduce((sum, e) => sum + Number(e.amountPaise || 0), 0);
+
+  const netEligible = Math.max(0, earningCredits - (payoutDebits - payoutReversals));
+
+  // Cap at available wallet balance in case of other service deductions
+  const currentTotalBalance = ledger.reduce(
+    (sum, e) => sum + (e.direction === "credit" ? Number(e.amountPaise || 0) : -Number(e.amountPaise || 0)),
+    0
   );
 
-  const cutoffTime = Date.now() - 7 * 24 * 60 * 60 * 1000; // 7-day eligibility delay
-  const eligibleCounsellorEntries = pendingEarningEntries.filter(
-    (e) => new Date(e.createdAt || 0).getTime() <= cutoffTime
+  return Math.min(netEligible, Math.max(0, currentTotalBalance));
+}
+
+/**
+ * Calculates net mature eligible earnings for a counsellor.
+ * Strictly separates earned session revenue from user deposits.
+ */
+export async function getEligibleCounsellorEarnings(counsellorUserId, cutoffTime = Date.now() - 7 * 24 * 60 * 60 * 1000) {
+  const wallet = await repositories.wallets.findByOwner(counsellorUserId);
+  if (!wallet) return 0;
+  const ledger = await repositories.wallets.ledgerEntries(wallet.id);
+
+  // Strictly filter on mature session earning entries
+  const matureCredits = ledger
+    .filter(
+      (e) =>
+        (e.entryType === "session_counsellor_pending_earning" || e.entryType === "counsellor_earning") &&
+        e.direction === "credit" &&
+        new Date(e.createdAt || 0).getTime() <= cutoffTime
+    )
+    .reduce((sum, e) => sum + Number(e.amountPaise || 0), 0);
+
+  const payoutDebits = ledger
+    .filter((e) => e.entryType === "counsellor_payout" && e.direction === "debit")
+    .reduce((sum, e) => sum + Number(e.amountPaise || 0), 0);
+
+  const payoutReversals = ledger
+    .filter((e) => (e.entryType === "payout_reversal" || e.entryType === "counsellor_payout_refund") && e.direction === "credit")
+    .reduce((sum, e) => sum + Number(e.amountPaise || 0), 0);
+
+  const netEligible = Math.max(0, matureCredits - (payoutDebits - payoutReversals));
+
+  const currentTotalBalance = ledger.reduce(
+    (sum, e) => sum + (e.direction === "credit" ? Number(e.amountPaise || 0) : -Number(e.amountPaise || 0)),
+    0
   );
 
-  if (eligibleCounsellorEntries.length) {
-    let totalGrossPaise = 0;
-    let totalCommissionPaise = 0;
-    let totalPayoutPaise = 0;
-    const counsellorEarningsMap = new Map();
+  return Math.min(netEligible, Math.max(0, currentTotalBalance));
+}
 
-    for (const entry of eligibleCounsellorEntries) {
-      const amountPaise = Number(entry.amountPaise || 0);
-      totalPayoutPaise += amountPaise;
-      
-      const grossPaise = Math.floor((amountPaise * 10000) / 9000);
-      const commissionPaise = grossPaise - amountPaise;
+/**
+ * Weekly Payout Engine Worker
+ * Aggregates eligible counsellor and peer listener earnings,
+ * creates durable batch and record states, debits wallets transactionally,
+ * and maintains idempotency against retries.
+ */
+export async function executeWeeklyPayoutBatch({
+  executedByUserId = "usr_admin",
+  batchReference = null,
+  cutoffTime = Date.now() - 7 * 24 * 60 * 60 * 1000
+} = {}) {
+  const generatedReference = batchReference || `PAYOUT_BATCH_${Date.now()}`;
 
-      totalGrossPaise += grossPaise;
-      totalCommissionPaise += commissionPaise;
-
-      const counsellorWalletId = entry.walletId;
-      const existing = counsellorEarningsMap.get(counsellorWalletId) || 0;
-      counsellorEarningsMap.set(counsellorWalletId, existing + amountPaise);
-    }
-
-    const batchId = createId("bat");
-    result.counsellors = {
-      id: batchId,
-      batchReference: `COUNSELLOR_PAYOUT_BATCH_${Date.now()}`,
-      totalGrossPaise,
-      totalCommissionPaise,
-      totalPayoutPaise,
-      counsellorCount: counsellorEarningsMap.size,
-      status: "processed"
+  // 1. Check for existing batch (Idempotency against batch retries)
+  const existingBatch = await repositories.payoutBatches.findByReference(generatedReference);
+  if (existingBatch) {
+    const existingRecords = await repositories.payoutRecords.findByBatchId(existingBatch.id);
+    return {
+      status: "success",
+      isIdempotentReplay: true,
+      data: {
+        batch: existingBatch,
+        payouts: existingRecords
+      }
     };
   }
 
-  // --- 2. Peer Listener Payout Batching ---
-  const peerProfiles = await repositories.peerListenerProfiles.listAll();
-  const activePeerProfiles = peerProfiles.filter(p => p.verificationStatus === "approved");
-  
-  let peerPayoutCount = 0;
-  let totalPeerPayoutPaise = 0;
-  const peerPayoutsList = [];
+  const batchId = createId("bat");
+  const batchRecord = await repositories.payoutBatches.create({
+    id: batchId,
+    batchReference: generatedReference,
+    totalGrossPaise: 0,
+    totalCommissionPaise: 0,
+    totalPayoutPaise: 0,
+    status: "processing",
+    counsellorCount: 0,
+    listenerCount: 0,
+    payoutType: "mixed",
+    executedBy: executedByUserId,
+    metadata: { createdAt: new Date().toISOString() }
+  });
 
-  for (const profile of activePeerProfiles) {
-    const balancePaise = await getBalance(profile.userId);
-    if (balancePaise > 0) {
-      const amountInr = balancePaise / 100;
-      
-      // Debit the wallet to lock/deduct the payout
-      await debit(profile.userId, amountInr, "peer_payout", {
-        referenceType: "PeerListenerProfile",
-        referenceId: profile.id
+  let totalCounsellorPayoutPaise = 0;
+  let totalCounsellorGrossPaise = 0;
+  let totalCounsellorCommissionPaise = 0;
+  let counsellorCount = 0;
+  const counsellorPayouts = [];
+
+  // --- 2. Counsellor Payouts Processing ---
+  const counsellors = typeof repositories.counsellors.listAll === "function"
+    ? await repositories.counsellors.listAll()
+    : [];
+
+  for (const counsellor of counsellors) {
+    if (!counsellor.userId) continue;
+
+    const eligiblePaise = await getEligibleCounsellorEarnings(counsellor.userId, cutoffTime);
+    if (eligiblePaise > 0) {
+      const idempotencyKey = `payout_cns_${counsellor.id}_${batchId}`;
+
+      // Check if already in progress or created
+      const existingRecord = await repositories.payoutRecords.findByIdempotencyKey(idempotencyKey);
+      if (existingRecord) continue;
+
+      const payoutRecordId = createId("pout");
+      const payoutRecord = await repositories.payoutRecords.create({
+        id: payoutRecordId,
+        batchId: batchRecord.id,
+        payoutType: "counsellor",
+        beneficiaryId: counsellor.id,
+        userId: counsellor.userId,
+        amountPaise: eligiblePaise,
+        status: "processing",
+        idempotencyKey,
+        providerTransferId: `tr_${payoutRecordId}`,
+        createdAt: new Date().toISOString(),
+        processedAt: new Date().toISOString()
       });
 
-      // Post double-entry journal for this payout
-      const payoutJournal = await postJournalTransaction({
+      // Debit wallet for payout deduction
+      await debit(counsellor.userId, eligiblePaise / 100, "counsellor_payout", {
+        referenceType: "PayoutRecord",
+        referenceId: payoutRecord.id,
+        idempotencyKey
+      });
+
+      // Balanced Double-Entry Journal
+      const journal = await postJournalTransaction({
+        journalType: "COUNSELLOR_PAYOUT",
+        businessReferenceType: "PayoutRecord",
+        businessReferenceId: payoutRecord.id,
+        idempotencyKey: `jnl_${idempotencyKey}`,
+        description: `Weekly counsellor payout of ${eligiblePaise / 100} INR for ${counsellor.id}`,
+        entries: [
+          { accountKey: `USER_AVAILABLE_${counsellor.userId}`, entrySide: "debit", amountPaise: eligiblePaise },
+          { accountKey: "BANK_CLEARING", entrySide: "credit", amountPaise: eligiblePaise }
+        ]
+      });
+      await repositories.journalTransactions.create(journal);
+
+      const grossPaise = Math.floor((eligiblePaise * 10000) / 9000);
+      const commissionPaise = grossPaise - eligiblePaise;
+
+      totalCounsellorPayoutPaise += eligiblePaise;
+      totalCounsellorGrossPaise += grossPaise;
+      totalCounsellorCommissionPaise += commissionPaise;
+      counsellorCount++;
+      counsellorPayouts.push(payoutRecord);
+    }
+  }
+
+  // --- 3. Peer Listener Payouts Processing ---
+  const peerProfiles = typeof repositories.peerListenerProfiles.listAll === "function"
+    ? await repositories.peerListenerProfiles.listAll()
+    : (typeof repositories.peerListenerProfiles.list === "function"
+      ? await repositories.peerListenerProfiles.list()
+      : []);
+
+  const activeProfiles = peerProfiles.filter((p) => p.verificationStatus === "approved");
+
+  let totalPeerPayoutPaise = 0;
+  let listenerCount = 0;
+  const peerPayouts = [];
+
+  for (const profile of activeProfiles) {
+    if (!profile.userId) continue;
+
+    const eligiblePaise = await getEligiblePeerEarnings(profile.userId);
+    if (eligiblePaise > 0) {
+      const idempotencyKey = `payout_peer_${profile.id}_${batchId}`;
+
+      // Check if already in progress or created
+      const existingRecord = await repositories.payoutRecords.findByIdempotencyKey(idempotencyKey);
+      if (existingRecord) continue;
+
+      const payoutRecordId = createId("pout");
+      const payoutRecord = await repositories.payoutRecords.create({
+        id: payoutRecordId,
+        batchId: batchRecord.id,
+        payoutType: "peer_listener",
+        beneficiaryId: profile.id,
+        userId: profile.userId,
+        amountPaise: eligiblePaise,
+        status: "processing",
+        idempotencyKey,
+        providerTransferId: `tr_${payoutRecordId}`,
+        createdAt: new Date().toISOString(),
+        processedAt: new Date().toISOString()
+      });
+
+      // Debit wallet for payout deduction
+      await debit(profile.userId, eligiblePaise / 100, "peer_payout", {
+        referenceType: "PeerListenerProfile",
+        referenceId: profile.id,
+        idempotencyKey
+      });
+
+      // Balanced Double-Entry Journal
+      const journal = await postJournalTransaction({
         journalType: "PEER_PAYOUT",
         businessReferenceType: "PeerListenerProfile",
         businessReferenceId: profile.id,
-        idempotencyKey: `payout_${profile.id}_${Date.now()}`,
-        description: `Weekly payout of ${amountInr} INR for peer listener ${profile.id}`,
+        idempotencyKey: `jnl_${idempotencyKey}`,
+        description: `Weekly payout of ${eligiblePaise / 100} INR for peer listener ${profile.id}`,
         entries: [
-          { accountKey: `USER_AVAILABLE_${profile.userId}`, entrySide: "debit", amountPaise: balancePaise },
-          { accountKey: "BANK_CLEARING", entrySide: "credit", amountPaise: balancePaise }
+          { accountKey: `USER_AVAILABLE_${profile.userId}`, entrySide: "debit", amountPaise: eligiblePaise },
+          { accountKey: "BANK_CLEARING", entrySide: "credit", amountPaise: eligiblePaise }
         ]
       });
-      await repositories.journalTransactions.create(payoutJournal);
+      await repositories.journalTransactions.create(journal);
 
-      peerPayoutCount++;
-      totalPeerPayoutPaise += balancePaise;
-      peerPayoutsList.push({
-        listenerProfileId: profile.id,
-        userId: profile.userId,
-        amountPaise: balancePaise
-      });
+      totalPeerPayoutPaise += eligiblePaise;
+      listenerCount++;
+      peerPayouts.push(payoutRecord);
     }
   }
 
-  if (peerPayoutCount > 0) {
-    const batchId = createId("bat");
-    result.peerListeners = {
-      id: batchId,
-      batchReference: `PEER_PAYOUT_BATCH_${Date.now()}`,
-      totalPayoutPaise: totalPeerPayoutPaise,
-      listenerCount: peerPayoutCount,
-      status: "processed",
-      payouts: peerPayoutsList
-    };
-  }
+  const totalPayoutPaise = totalCounsellorPayoutPaise + totalPeerPayoutPaise;
+  const totalGrossPaise = totalCounsellorGrossPaise + totalPeerPayoutPaise;
+  const totalCommissionPaise = totalCounsellorCommissionPaise;
 
-  // --- 3. Record Payout Audit Event ---
+  // 4. Update Batch Record
+  const updatedBatch = await repositories.payoutBatches.update(batchRecord.id, {
+    totalGrossPaise,
+    totalCommissionPaise,
+    totalPayoutPaise,
+    counsellorCount,
+    listenerCount,
+    status: totalPayoutPaise > 0 ? "processing" : "paid"
+  });
+
+  // 5. Audit Log
   const auditId = createId("aud");
   await repositories.auditLogs.create({
     id: auditId,
     userId: executedByUserId,
     action: "EXECUTE_PAYOUT_BATCH",
     entityType: "PayoutBatch",
-    newValue: result
+    newValue: {
+      batchId: updatedBatch.id,
+      batchReference: updatedBatch.batchReference,
+      totalPayoutPaise,
+      counsellorCount,
+      listenerCount
+    }
   });
 
-  result.auditLogId = auditId;
-  return { status: "success", data: result };
+  return {
+    status: "success",
+    data: {
+      batch: updatedBatch,
+      counsellors: {
+        totalPayoutPaise: totalCounsellorPayoutPaise,
+        counsellorCount,
+        payouts: counsellorPayouts
+      },
+      peerListeners: {
+        totalPayoutPaise: totalPeerPayoutPaise,
+        listenerCount,
+        payouts: peerPayouts
+      },
+      auditLogId: auditId
+    }
+  };
+}
+
+/**
+ * Provider Reconciliation
+ * Reconciles provider transfer events (confirmed or failed).
+ * If confirmed: sets payout state to confirmed.
+ * If failed: sets payout state to failed (unpaid) and refunds debited funds
+ * back to provider's wallet balance via payout_reversal with double-entry reversal.
+ */
+export async function reconcilePayoutTransfer({
+  payoutId,
+  transferStatus, // "confirmed" | "paid" | "failed" | "rejected"
+  providerReference = null,
+  failureReason = null
+}) {
+  const record = await repositories.payoutRecords.findById(payoutId);
+  if (!record) {
+    const error = new Error(`Payout record '${payoutId}' not found.`);
+    error.code = "PAYOUT_NOT_FOUND";
+    throw error;
+  }
+
+  if (record.status === "confirmed") {
+    return { record, reconciled: true, alreadySettled: true };
+  }
+
+  const isSuccess = transferStatus === "confirmed" || transferStatus === "paid";
+  const isFailure = transferStatus === "failed" || transferStatus === "rejected";
+
+  if (isSuccess) {
+    const updated = await repositories.payoutRecords.update(record.id, {
+      status: "confirmed",
+      providerTransferId: providerReference || record.providerTransferId,
+      reconciledAt: new Date().toISOString()
+    });
+
+    if (record.batchId) {
+      await updateBatchStatusIfAllResolved(record.batchId);
+    }
+
+    return { record: updated, reconciled: true, status: "confirmed" };
+  }
+
+  if (isFailure) {
+    // 1. Mark record as failed (remains unpaid)
+    const updated = await repositories.payoutRecords.update(record.id, {
+      status: "failed",
+      failureReason: failureReason || "Provider transfer failed or rejected",
+      reconciledAt: new Date().toISOString()
+    });
+
+    // 2. Compensate provider: refund debited funds back to wallet
+    const refundInr = record.amountPaise / 100;
+    await credit(record.userId, refundInr, "payout_reversal", {
+      referenceType: "PayoutRecord",
+      referenceId: record.id,
+      notes: `Refund for failed payout transfer ${record.id}: ${failureReason || "transfer failed"}`
+    });
+
+    // 3. Post reversal journal transaction
+    const reversalJournal = await postJournalTransaction({
+      journalType: "PAYOUT_REVERSAL",
+      businessReferenceType: "PayoutRecord",
+      businessReferenceId: record.id,
+      idempotencyKey: `rev_${record.id}_${Date.now()}`,
+      description: `Reversal of failed payout for user ${record.userId}`,
+      entries: [
+        { accountKey: "BANK_CLEARING", entrySide: "debit", amountPaise: record.amountPaise },
+        { accountKey: `USER_AVAILABLE_${record.userId}`, entrySide: "credit", amountPaise: record.amountPaise }
+      ]
+    });
+    await repositories.journalTransactions.create(reversalJournal);
+
+    if (record.batchId) {
+      await updateBatchStatusIfAllResolved(record.batchId);
+    }
+
+    return { record: updated, reconciled: true, status: "failed", refunded: true };
+  }
+
+  throw new Error(`Unsupported transferStatus '${transferStatus}'. Use 'confirmed', 'paid', 'failed', or 'rejected'.`);
+}
+
+async function updateBatchStatusIfAllResolved(batchId) {
+  const batchRecords = await repositories.payoutRecords.findByBatchId(batchId);
+  const allResolved = batchRecords.every((r) => r.status === "confirmed" || r.status === "failed");
+  if (allResolved) {
+    const hasConfirmed = batchRecords.some((r) => r.status === "confirmed");
+    await repositories.payoutBatches.update(batchId, {
+      status: hasConfirmed ? "paid" : "failed",
+      paidAt: hasConfirmed ? new Date().toISOString() : null
+    });
+  }
 }

@@ -659,6 +659,44 @@ function mapPeerPolicyAcceptance(row) {
   };
 }
 
+function mapPayoutBatch(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    batchReference: row.batch_reference,
+    totalGrossPaise: Number(row.total_gross_paise || 0),
+    totalCommissionPaise: Number(row.total_commission_paise || 0),
+    totalPayoutPaise: Number(row.total_payout_paise || 0),
+    status: row.status,
+    counsellorCount: Number(row.counsellor_count || 0),
+    listenerCount: Number(row.listener_count || 0),
+    payoutType: row.payout_type || "mixed",
+    executedBy: row.executed_by,
+    metadata: row.metadata || {},
+    createdAt: row.created_at,
+    paidAt: row.paid_at
+  };
+}
+
+function mapPayoutRecord(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    batchId: row.batch_id,
+    payoutType: row.payout_type,
+    beneficiaryId: row.beneficiary_id,
+    userId: row.user_id,
+    amountPaise: Number(row.amount_paise || 0),
+    status: row.status,
+    providerTransferId: row.provider_transfer_id || null,
+    idempotencyKey: row.idempotency_key || null,
+    failureReason: row.failure_reason || null,
+    createdAt: row.created_at,
+    processedAt: row.processed_at,
+    reconciledAt: row.reconciled_at
+  };
+}
+
 // Double Entry mappings
 function mapLedgerAccount(row) {
   if (!row) return null;
@@ -1446,6 +1484,10 @@ export const postgresRepositories = {
       const where = whereClauses.length ? "WHERE " + whereClauses.join(" AND ") : "";
       const res = await query(`SELECT * FROM peer_listener_profiles ${where} ORDER BY created_at DESC`, values);
       return res.rows.map(mapPeerListenerProfile);
+    },
+    async listAll() {
+      const res = await query(`SELECT * FROM peer_listener_profiles ORDER BY created_at DESC`);
+      return res.rows.map(mapPeerListenerProfile);
     }
   },
 
@@ -1897,6 +1939,151 @@ export const postgresRepositories = {
     async delete(id) {
       await query("DELETE FROM promotional_banners WHERE id = $1", [id]);
       return true;
+    }
+  },
+
+  payoutBatches: {
+    async create(batch) {
+      const res = await query(
+        `INSERT INTO payout_batches (id, batch_reference, total_gross_paise, total_commission_paise, total_payout_paise, status, counsellor_count, listener_count, payout_type, executed_by, metadata, created_at, paid_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+         RETURNING *`,
+        [
+          batch.id,
+          batch.batchReference,
+          batch.totalGrossPaise || 0,
+          batch.totalCommissionPaise || 0,
+          batch.totalPayoutPaise || 0,
+          batch.status || "draft",
+          batch.counsellorCount || 0,
+          batch.listenerCount || 0,
+          batch.payoutType || "mixed",
+          batch.executedBy || null,
+          batch.metadata ? JSON.stringify(batch.metadata) : "{}",
+          batch.createdAt || new Date(),
+          batch.paidAt || null
+        ]
+      );
+      return mapPayoutBatch(res.rows[0]);
+    },
+    async findById(id) {
+      const res = await query(`SELECT * FROM payout_batches WHERE id = $1 LIMIT 1`, [id]);
+      return mapPayoutBatch(res.rows[0]);
+    },
+    async findByReference(batchReference) {
+      const res = await query(`SELECT * FROM payout_batches WHERE batch_reference = $1 LIMIT 1`, [batchReference]);
+      return mapPayoutBatch(res.rows[0]);
+    },
+    async update(id, patch) {
+      const { updates, values, index } = compactPatch(patch, {
+        status: "status",
+        paidAt: "paid_at",
+        totalGrossPaise: "total_gross_paise",
+        totalCommissionPaise: "total_commission_paise",
+        totalPayoutPaise: "total_payout_paise",
+        counsellorCount: "counsellor_count",
+        listenerCount: "listener_count",
+        metadata: "metadata"
+      });
+      if (!updates.length) return await this.findById(id);
+      values.push(id);
+      const res = await query(
+        `UPDATE payout_batches SET ${updates.join(", ")} WHERE id = $${index} RETURNING *`,
+        values
+      );
+      return mapPayoutBatch(res.rows[0]);
+    },
+    async list({ status, payoutType } = {}) {
+      const values = [];
+      const where = [];
+      if (status) {
+        values.push(status);
+        where.push(`status = $${values.length}`);
+      }
+      if (payoutType) {
+        values.push(payoutType);
+        where.push(`payout_type = $${values.length}`);
+      }
+      const whereClause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+      const res = await query(`SELECT * FROM payout_batches ${whereClause} ORDER BY created_at DESC`, values);
+      return res.rows.map(mapPayoutBatch);
+    }
+  },
+
+  payoutRecords: {
+    async create(record) {
+      const res = await query(
+        `INSERT INTO payout_records (id, batch_id, payout_type, beneficiary_id, user_id, amount_paise, status, provider_transfer_id, idempotency_key, failure_reason, created_at, processed_at, reconciled_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+         RETURNING *`,
+        [
+          record.id,
+          record.batchId || null,
+          record.payoutType,
+          record.beneficiaryId,
+          record.userId,
+          record.amountPaise,
+          record.status || "pending",
+          record.providerTransferId || null,
+          record.idempotencyKey || null,
+          record.failureReason || null,
+          record.createdAt || new Date(),
+          record.processedAt || null,
+          record.reconciledAt || null
+        ]
+      );
+      return mapPayoutRecord(res.rows[0]);
+    },
+    async findById(id) {
+      const res = await query(`SELECT * FROM payout_records WHERE id = $1 LIMIT 1`, [id]);
+      return mapPayoutRecord(res.rows[0]);
+    },
+    async findByBatchId(batchId) {
+      const res = await query(`SELECT * FROM payout_records WHERE batch_id = $1 ORDER BY created_at ASC`, [batchId]);
+      return res.rows.map(mapPayoutRecord);
+    },
+    async findByIdempotencyKey(key) {
+      const res = await query(`SELECT * FROM payout_records WHERE idempotency_key = $1 LIMIT 1`, [key]);
+      return mapPayoutRecord(res.rows[0]);
+    },
+    async update(id, patch) {
+      const { updates, values, index } = compactPatch(patch, {
+        status: "status",
+        providerTransferId: "provider_transfer_id",
+        failureReason: "failure_reason",
+        processedAt: "processed_at",
+        reconciledAt: "reconciled_at"
+      });
+      if (!updates.length) return await this.findById(id);
+      values.push(id);
+      const res = await query(
+        `UPDATE payout_records SET ${updates.join(", ")} WHERE id = $${index} RETURNING *`,
+        values
+      );
+      return mapPayoutRecord(res.rows[0]);
+    },
+    async list({ status, userId, beneficiaryId, batchId } = {}) {
+      const values = [];
+      const where = [];
+      if (status) {
+        values.push(status);
+        where.push(`status = $${values.length}`);
+      }
+      if (userId) {
+        values.push(userId);
+        where.push(`user_id = $${values.length}`);
+      }
+      if (beneficiaryId) {
+        values.push(beneficiaryId);
+        where.push(`beneficiary_id = $${values.length}`);
+      }
+      if (batchId) {
+        values.push(batchId);
+        where.push(`batch_id = $${values.length}`);
+      }
+      const whereClause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+      const res = await query(`SELECT * FROM payout_records ${whereClause} ORDER BY created_at DESC`, values);
+      return res.rows.map(mapPayoutRecord);
     }
   }
 };

@@ -33,7 +33,7 @@ export async function credit(ownerId, amountInr, entryType, reference = {}) {
     amountPaise: toPaise(amountInr),
     entryType,
     ...reference,
-    createdAt: new Date().toISOString()
+    createdAt: reference.createdAt || new Date().toISOString()
   };
   return await repositories.wallets.createLedgerEntry(entry);
 }
@@ -54,7 +54,7 @@ export async function debit(ownerId, amountInr, entryType, reference = {}) {
     amountPaise,
     entryType,
     ...reference,
-    createdAt: new Date().toISOString()
+    createdAt: reference.createdAt || new Date().toISOString()
   };
   return await repositories.wallets.createLedgerEntry(entry);
 }

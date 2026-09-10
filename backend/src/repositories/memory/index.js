@@ -564,6 +564,10 @@ export const memoryRepositories = {
         if (verificationStatus && p.verificationStatus !== verificationStatus) return false;
         return true;
       });
+    },
+    async listAll() {
+      store.peerListenerProfiles ||= [];
+      return [...store.peerListenerProfiles];
     }
   },
 
@@ -914,6 +918,83 @@ export const memoryRepositories = {
       const initialLength = store.promotionalBanners.length;
       store.promotionalBanners = store.promotionalBanners.filter(b => b.id !== id);
       return store.promotionalBanners.length !== initialLength;
+    }
+  },
+
+  payoutBatches: {
+    async create(batch) {
+      store.payoutBatches ||= [];
+      const record = {
+        ...batch,
+        createdAt: batch.createdAt || new Date().toISOString()
+      };
+      store.payoutBatches.push(record);
+      return record;
+    },
+    async findById(id) {
+      store.payoutBatches ||= [];
+      return store.payoutBatches.find(b => b.id === id) || null;
+    },
+    async findByReference(batchReference) {
+      store.payoutBatches ||= [];
+      return store.payoutBatches.find(b => b.batchReference === batchReference) || null;
+    },
+    async update(id, patch) {
+      const batch = await this.findById(id);
+      if (batch) {
+        Object.assign(batch, patch, { updatedAt: new Date().toISOString() });
+      }
+      return batch;
+    },
+    async list({ status, payoutType } = {}) {
+      store.payoutBatches ||= [];
+      return store.payoutBatches.filter(b => {
+        if (status && b.status !== status) return false;
+        if (payoutType && b.payoutType !== payoutType) return false;
+        return true;
+      });
+    }
+  },
+
+  payoutRecords: {
+    async create(record) {
+      store.payoutRecords ||= [];
+      const item = {
+        ...record,
+        status: record.status || "pending",
+        createdAt: record.createdAt || new Date().toISOString()
+      };
+      store.payoutRecords.push(item);
+      return item;
+    },
+    async findById(id) {
+      store.payoutRecords ||= [];
+      return store.payoutRecords.find(r => r.id === id) || null;
+    },
+    async findByBatchId(batchId) {
+      store.payoutRecords ||= [];
+      return store.payoutRecords.filter(r => r.batchId === batchId);
+    },
+    async findByIdempotencyKey(key) {
+      store.payoutRecords ||= [];
+      return store.payoutRecords.find(r => r.idempotencyKey === key) || null;
+    },
+    async update(id, patch) {
+      const record = await this.findById(id);
+      if (record) {
+        Object.assign(record, patch, { updatedAt: new Date().toISOString() });
+      }
+      return record;
+    },
+    async list({ status, userId, beneficiaryId, batchId } = {}) {
+      store.payoutRecords ||= [];
+      return store.payoutRecords.filter(r => {
+        if (status && r.status !== status) return false;
+        if (userId && r.userId !== userId) return false;
+        if (beneficiaryId && r.beneficiaryId !== beneficiaryId) return false;
+        if (batchId && r.batchId !== batchId) return false;
+        return true;
+      });
     }
   }
 };
