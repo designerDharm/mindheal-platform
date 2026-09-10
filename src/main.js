@@ -1427,7 +1427,7 @@ window.clinicalTestsData = [
   { name: 'Sleep Quality', short: 'PSQI', full: 'Pittsburgh Sleep Quality Index', desc: 'Clinical assessment of sleep quality and patterns.', placeholder: true }
 ];
 
-window.currentTestState = { testIndex: 0, questionIndex: 0, score: 0, isFinished: false };
+window.currentTestState = { testIndex: 0, questionIndex: 0, score: 0, isFinished: false, answers: [] };
 
 window.changeTestPreview = function(index, el) {
   if (el) {
@@ -1435,7 +1435,7 @@ window.changeTestPreview = function(index, el) {
     document.querySelectorAll('.mobile-quiz-chip').forEach(chip => chip.classList.remove('active'));
     el.classList.add('active');
   }
-  window.currentTestState = { testIndex: index, questionIndex: 0, score: 0, isFinished: false };
+  window.currentTestState = { testIndex: index, questionIndex: 0, score: 0, isFinished: false, answers: [] };
   window.renderTestContent();
 };
 
@@ -1443,6 +1443,8 @@ window.changeTestPreview = function(index, el) {
 window.handleTestAnswer = function(points) {
   const state = window.currentTestState;
   const test = window.clinicalTestsData[state.testIndex];
+  state.answers = state.answers || [];
+  state.answers.push(points);
   state.score += points;
   state.questionIndex++;
   
@@ -1490,8 +1492,51 @@ window.renderTestContent = function(isNextQuestion = false) {
           break;
         }
       }
+
+      // MH-16: Clinician-approved item-level safety rule
+      // PHQ-9 Item 9 asks: "Thoughts that you would be better off dead, or of hurting yourself in some way?"
+      // Any positive response (score >= 1) requires immediate, prominent crisis safety guidance regardless of total score
+      const isPHQ9 = test.short === "PHQ-9";
+      const item9Score = isPHQ9 && Array.isArray(state.answers) ? Number(state.answers[8] || 0) : 0;
+      const isPositiveItem9 = isPHQ9 && item9Score > 0;
+
+      const safetyBannerHtml = isPositiveItem9 ? `
+        <div class="crisis-safety-alert" style="background:#FFF5F5;border:2px solid #E53E3E;border-radius:16px;padding:24px;margin-bottom:24px;text-align:left;box-shadow:0 4px 12px rgba(229,62,62,0.12);">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+            <i class="ph-fill ph-warning-circle" style="font-size:32px;color:#E53E3E;flex-shrink:0;"></i>
+            <div>
+              <h4 style="margin:0;color:#9B2C2C;font-size:18px;font-family:var(--font-serif);font-weight:700;">${t("Urgent Safety Guidance")}</h4>
+              <span style="font-size:12px;color:#C53030;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;">${t("Clinician-Approved Crisis Protocol")}</span>
+            </div>
+          </div>
+          <p style="color:#2D3748;font-size:14px;line-height:1.6;margin:0 0 16px 0;">
+            ${t("You indicated having thoughts that you would be better off dead or of hurting yourself. Regardless of your total depression score (which is currently " + state.score + "), your life, safety, and well-being are our highest priority. Free, confidential support is available 24/7 right now.")}
+          </p>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <a href="tel:14416" class="btn" style="background:#E53E3E;color:white;font-weight:700;padding:12px 18px;border-radius:10px;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:10px;font-size:14px;">
+              <i class="ph-bold ph-phone-call"></i> ${t("Call Tele-MANAS (Govt of India, 24/7 Toll-Free): 14416 / 1800-891-4416")}
+            </a>
+            <a href="tel:9820466726" class="btn" style="background:white;color:#C53030;border:1.5px solid #E53E3E;font-weight:700;padding:12px 18px;border-radius:10px;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:10px;font-size:14px;">
+              <i class="ph-bold ph-phone"></i> ${t("Call AASRA Suicide Helpline: 9820466726")}
+            </a>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <a href="tel:18005990019" class="btn secondary" style="flex:1;min-width:180px;justify-content:center;padding:10px 14px;font-size:13px;border-radius:8px;">
+                <i class="ph-bold ph-phone"></i> ${t("KIRAN Helpline: 1800-599-0019")}
+              </a>
+              <a href="tel:112" class="btn secondary" style="flex:1;min-width:180px;justify-content:center;padding:10px 14px;font-size:13px;border-radius:8px;">
+                <i class="ph-bold ph-first-aid"></i> ${t("National Emergency: 112")}
+              </a>
+            </div>
+            <a href="#/crisis" style="text-align:center;color:#9B2C2C;font-size:13px;font-weight:600;margin-top:6px;text-decoration:underline;">
+              ${t("View Full Emergency & Crisis Support Directory")} →
+            </a>
+          </div>
+        </div>
+      ` : "";
+
       container.innerHTML = `
-        <div style="text-align:center;padding:32px 0;">
+        <div style="text-align:center;padding:24px 0;">
+          ${safetyBannerHtml}
           <div style="font-size:16px;color:var(--color-text-muted);margin-bottom:8px;">${t("Assessment Complete")}</div>
           <div style="font-size:64px;font-family:var(--font-serif);color:var(--color-coral);line-height:1;">${state.score}</div>
           <h4 style="font-family:var(--font-serif);font-size:24px;margin-top:16px;margin-bottom:8px;">${t(severityLabel)}</h4>
@@ -1970,7 +2015,7 @@ function sectionEmergency() {
         <h2 style="font-family:var(--font-serif);font-size:40px;color:white;margin-bottom:16px;">${t("In Crisis? Help is Available.")}</h2>
         <p style="color:rgba(255,255,255,0.7);font-size:18px;max-width:600px;margin:0 auto 40px auto;">${t("If you are experiencing severe distress or thoughts of self-harm, please contact a helpline immediately. You do not have to go through this alone.")}</p>
         <div style="display:flex;justify-content:center;gap:24px;flex-wrap:wrap;">
-          <a href="tel:9152987821" class="btn hover-lift" style="background:#FF4D4D;color:white;border:none;font-size:18px;padding:16px 32px;"><i class="ph-bold ph-phone" style="margin-right:8px;"></i> ${t("Call AASRA (India): 9820466726")}</a>
+          <a href="tel:9820466726" class="btn hover-lift" style="background:#FF4D4D;color:white;border:none;font-size:18px;padding:16px 32px;"><i class="ph-bold ph-phone" style="margin-right:8px;"></i> ${t("Call AASRA (India): 9820466726")}</a>
           <a href="tel:112" class="btn hover-lift" style="background:rgba(255,255,255,0.1);color:white;border:1px solid rgba(255,255,255,0.2);font-size:18px;padding:16px 32px;"><i class="ph-bold ph-ambulance" style="margin-right:8px;"></i> ${t("National Emergency: 112")}</a>
         </div>
       </div>

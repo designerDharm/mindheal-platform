@@ -407,33 +407,33 @@
 
 #### MH-16: Positive PHQ-9 Item 9 lacks tailored safety guidance
 - **Priority:** P1 (High)
-- **Status:** `Open`
-- **Affected Files:** `src/main.js`
+- **Status:** `Staging verified`
+- **Affected Files:** `src/main.js`, `backend/src/services/questionnaire.service.js`, `backend/src/controllers/screening.controller.js`
 - **Reproduction Steps:** Complete PHQ-9 with Q1–Q8 = 0, Q9 (self-harm thoughts) = 1 (Total score = 1, "Minimal").
-- **Expected Result:** Immediate, prominent crisis banner and helpline drawer rendered due to positive Item 9.
+- **Expected Result:** Immediate, prominent crisis banner and helpline drawer rendered due to positive Item 9 without any paywall.
 - **Actual Result (Before Fix):** Shows low-risk summary without crisis resources.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Fix Commit:** `fix(safety): implement item-level screening safety rules and server-side scoring (MH-16, MH-36, MH-17)`
+- **Verification Evidence:** `tests/screening-item9-safety.test.js` passes 5/5 subtests confirming `currentTestState.answers` preservation, clinician-approved positive Item 9 trigger even with score = 1, and rendering of Tele-MANAS (`14416`), AASRA (`9820466726`), and Emergency (`112`). Backend `tests/screening.test.js` subtest 8 passes confirming server-side escalation to `critical` severity.
 
 #### MH-17: Crisis call label and dial target disagree
 - **Priority:** P1 (High)
-- **Status:** `Open`
+- **Status:** `Staging verified`
 - **Affected Files:** `src/main.js`
 - **Reproduction Steps:** Click AASRA crisis call button.
 - **Expected Result:** Dial target matches displayed number (`tel:9820466726`).
 - **Actual Result (Before Fix):** Displayed AASRA number but link pointed to `tel:9152987821`.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Fix Commit:** `fix(safety): implement item-level screening safety rules and server-side scoring (MH-16, MH-36, MH-17)`
+- **Verification Evidence:** `tests/screening-item9-safety.test.js` subtest 4 confirms `sectionEmergency` AASRA button link strictly targets `tel:9820466726`.
 
 #### MH-36: Screening completion trusts arbitrary client scores
 - **Priority:** P1 (High)
-- **Status:** `Open`
-- **Affected Files:** `backend/src/controllers/screening.controller.js`
+- **Status:** `Staging verified`
+- **Affected Files:** `backend/src/services/questionnaire.service.js`, `backend/src/controllers/screening.controller.js`, `backend/src/routes/index.js`
 - **Reproduction Steps:** Submit `POST /api/v1/screenings/:id/complete` with `{ score: -999, answers: [] }`.
 - **Expected Result:** HTTP 400 Bad Request; server computes score from answers.
 - **Actual Result (Before Fix):** Server accepted client-provided score.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Fix Commit:** `fix(safety): implement item-level screening safety rules and server-side scoring (MH-16, MH-36, MH-17)`
+- **Verification Evidence:** `backend/tests/screening.test.js` passes 8/8 validation tests: rejects empty answers (`[]` and `{}`), rejects incomplete question sets, rejects out-of-range/negative values, rejects fabricated `-999` and score mismatches, and computes results deterministically on backend.
 
 #### MH-37: Basic screening requires payment despite free-access rule
 - **Priority:** P1 (High)

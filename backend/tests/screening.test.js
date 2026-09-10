@@ -172,3 +172,227 @@ test("Diagnostic Screening End-to-End Flow (MH-37: Free Basic Screenings & Optio
     assert.strictEqual(res.body.data[0].status, "completed");
   });
 });
+
+test("Backend Screening Scoring & Input Validation (MH-36: Versioned Definitions, Completeness, Value Checks & Fabricated Score Rejection)", async (t) => {
+  const controller = await import("../src/controllers/screening.controller.js");
+  const user = {
+    id: createId("usr"),
+    name: "Scoring Tester",
+    email: "scoring_test@example.com",
+    role: "user"
+  };
+  await repositories.users.create(user);
+  await repositories.wallets.createForOwner("user", user.id);
+
+  await t.test("1. Versioned questionnaire definitions are stored and exposed", async () => {
+    const res = await controller.listQuestionnaires();
+    assert.strictEqual(res.status, 200);
+    assert.ok(res.body.data.low_mood, "Must have low_mood definition");
+    assert.ok(res.body.data.anxiety, "Must have anxiety definition");
+    assert.ok(res.body.data.burnout, "Must have burnout definition");
+    assert.ok(res.body.data.counsellor_match, "Must have counsellor_match definition");
+
+    assert.strictEqual(res.body.data.low_mood.version, "1.0.0");
+    assert.deepStrictEqual(res.body.data.low_mood.allowedValues, [0, 1, 2, 3]);
+    assert.strictEqual(res.body.data.low_mood.questions.length, 6);
+  });
+
+  await t.test("2. Rejects empty answers ([] and {}) with 400 Bad Request", async () => {
+    const initRes = await controller.createScreening({
+      body: { screeningType: "low_mood" },
+      user
+    });
+    const scrId = initRes.body.data.id;
+
+    // Test with empty array
+    const emptyArrayRes = await controller.completeScreening({
+      params: { id: scrId },
+      body: { answers: [] },
+      user
+    });
+    assert.strictEqual(emptyArrayRes.status, 400);
+    assert.match(emptyArrayRes.body.error.message, /empty answers/i);
+
+    // Test with empty object
+    const emptyObjRes = await controller.completeScreening({
+      params: { id: scrId },
+      body: { responses: {} },
+      user
+    });
+    assert.strictEqual(emptyObjRes.status, 400);
+    assert.match(emptyObjRes.body.error.message, /empty answers/i);
+  });
+
+  await t.test("3. Rejects incomplete answers (fewer than required questions) with 400 Bad Request", async () => {
+    const initRes = await controller.createScreening({
+      body: { screeningType: "low_mood" },
+      user
+    });
+    const scrId = initRes.body.data.id;
+
+    // Only 2 of 6 questions answered
+    const res = await controller.completeScreening({
+      params: { id: scrId },
+      body: { responses: { q1: 1, q2: 2 } },
+      user
+    });
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.error.message, /incomplete answers/i);
+  });
+
+  await t.test("4. Rejects invalid answer values (negative, out of bounds, non-integer) with 400 Bad Request", async () => {
+    const initRes = await controller.createScreening({
+      body: { screeningType: "low_mood" },
+      user
+    });
+    const scrId = initRes.body.data.id;
+
+    // Value -1 (negative)
+    const negRes = await controller.completeScreening({
+      params: { id: scrId },
+      body: { responses: { q1: -1, q2: 1, q3: 1, q4: 1, q5: 1, q6: 1 } },
+      user
+    });
+    assert.strictEqual(negRes.status, 400);
+    assert.match(negRes.body.error.message, /invalid answer value/i);
+
+    // Value 4 (allowed are 0, 1, 2, 3)
+    const oobRes = await controller.completeScreening({
+      params: { id: scrId },
+      body: { responses: { q1: 4, q2: 1, q3: 1, q4: 1, q5: 1, q6: 1 } },
+      user
+    });
+    assert.strictEqual(oobRes.status, 400);
+    assert.match(oobRes.body.error.message, /invalid answer value/i);
+
+    // Value "invalid" (non-numeric)
+    const textRes = await controller.completeScreening({
+      params: { id: scrId },
+      body: { responses: { q1: "not_a_number", q2: 1, q3: 1, q4: 1, q5: 1, q6: 1 } },
+      user
+    });
+    assert.strictEqual(textRes.status, 400);
+    assert.match(textRes.body.error.message, /invalid answer value/i);
+  });
+
+  await t.test("5. Rejects fabricated client score (e.g. -999) with 400 Bad Request", async () => {
+    const initRes = await controller.createScreening({
+      body: { screeningType: "low_mood" },
+      user
+    });
+    const scrId = initRes.body.data.id;
+
+    // Fabricated score with empty answers: { score: -999, answers: [] }
+    const res1 = await controller.completeScreening({
+      params: { id: scrId },
+      body: { score: -999, answers: [] },
+      user
+    });
+    assert.strictEqual(res1.status, 400);
+    assert.match(res1.body.error.message, /fabricated|invalid score/i);
+
+    // Fabricated score with answers present: score: -999
+    const res2 = await controller.completeScreening({
+      params: { id: scrId },
+      body: {
+        score: -999,
+        responses: { q1: 1, q2: 1, q3: 1, q4: 1, q5: 1, q6: 1 }
+      },
+      user
+    });
+    assert.strictEqual(res2.status, 400);
+    assert.match(res2.body.error.message, /fabricated|invalid score/i);
+
+    // Fabricated mismatch score: actual score is 6, client claims 18
+    const res3 = await controller.completeScreening({
+      params: { id: scrId },
+      body: {
+        score: 18,
+        responses: { q1: 1, q2: 1, q3: 1, q4: 1, q5: 1, q6: 1 }
+      },
+      user
+    });
+    assert.strictEqual(res3.status, 400);
+    assert.match(res3.body.error.message, /client score mismatch/i);
+  });
+
+  await t.test("6. Strictly calculates result from answers on the backend without trusting client score", async () => {
+    const initRes = await controller.createScreening({
+      body: { screeningType: "low_mood" },
+      user
+    });
+    const scrId = initRes.body.data.id;
+
+    // Submit answers without any score field — server calculates 1+2+3+0+1+2 = 9
+    const res = await controller.completeScreening({
+      params: { id: scrId },
+      body: {
+        responses: { q1: 1, q2: 2, q3: 3, q4: 0, q5: 1, q6: 2 }
+      },
+      user
+    });
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.strictEqual(res.body.data.score, 9);
+    assert.strictEqual(res.body.data.band, "Mild");
+    assert.strictEqual(res.body.data.severity, "low");
+    assert.ok(res.body.data.description.includes("score is 9 out of 18"));
+
+    // Verify stored record has questionnaireVersion and calculated score
+    const stored = await repositories.screenings.findById(scrId);
+    assert.strictEqual(stored.score, 9);
+    assert.strictEqual(stored.responsesJson.questionnaireVersion, "1.0.0");
+    assert.strictEqual(stored.responsesJson.score, 9);
+  });
+
+  await t.test("7. Accepts array format answers and calculates score correctly", async () => {
+    const initRes = await controller.createScreening({
+      body: { screeningType: "burnout" },
+      user
+    });
+    const scrId = initRes.body.data.id;
+
+    // Burnout has 4 questions: [2, 3, 2, 3] -> sum = 10 (Severe Exhaustion)
+    const res = await controller.completeScreening({
+      params: { id: scrId },
+      body: {
+        answers: [2, 3, 2, 3]
+      },
+      user
+    });
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.data.score, 10);
+    assert.strictEqual(res.body.data.band, "Severe Exhaustion");
+    assert.strictEqual(res.body.data.severity, "severe");
+  });
+
+  await t.test("8. Synthetic positive PHQ-9 Item 9 triggers crisis guidance even when total score is low (MH-16)", async () => {
+    const initRes = await controller.createScreening({
+      body: { screeningType: "phq9" },
+      user
+    });
+    const scrId = initRes.body.data.id;
+
+    // Synthetic positive Item 9: Q1..Q8 = 0, Q9 = 1 (Total score = 1, "Minimal Depression")
+    const res = await controller.completeScreening({
+      params: { id: scrId },
+      body: {
+        answers: [0, 0, 0, 0, 0, 0, 0, 0, 1]
+      },
+      user
+    });
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.data.score, 1);
+    assert.strictEqual(res.body.data.band, "Minimal Depression");
+    assert.strictEqual(res.body.data.severity, "critical", "Severity must escalate to critical due to positive Item 9");
+    assert.strictEqual(res.body.data.safetyGuidance.hasItemLevelCrisisAlert, true);
+    assert.match(res.body.data.safetyGuidance.recommendedAction, /thoughts of being better off dead or hurting yourself/i);
+    assert.ok(res.body.data.safetyGuidance.helplines.some(h => h.number.includes("14416")));
+    assert.ok(res.body.data.safetyGuidance.helplines.some(h => h.number.includes("9820466726")));
+  });
+});
+
+

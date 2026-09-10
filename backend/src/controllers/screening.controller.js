@@ -3,107 +3,17 @@ import { getBalance, debit } from "../services/wallet.service.js";
 import { postJournalTransaction } from "../services/double_entry.service.js";
 import { badRequest, created, forbidden, ok, notFound } from "../utils/http.js";
 import { createId } from "../utils/security.js";
+import { QUESTIONNAIRES, validateAndEvaluateScreening } from "../services/questionnaire.service.js";
 
-const BASIC_SCREENING_TYPES = ["low_mood", "anxiety", "burnout", "counsellor_match"];
+const BASIC_SCREENING_TYPES = Object.keys(QUESTIONNAIRES);
 
-/**
- * Evaluates screening responses deterministically, calculating score,
- * risk banding, and crisis safety guidance.
- */
+export async function listQuestionnaires() {
+  return ok(QUESTIONNAIRES);
+}
+
 export function evaluateScreening(type, responses, clientScore = null) {
-  let computedScore = 0;
-  let hasValidAnswers = false;
-
-  if (responses && typeof responses === "object") {
-    for (const [, val] of Object.entries(responses)) {
-      const num = Number(val);
-      if (!isNaN(num) && Number.isFinite(num)) {
-        computedScore += num;
-        hasValidAnswers = true;
-      }
-    }
-  }
-
-  // Use computed score if responses were provided; fallback to clientScore only if valid number
-  const score = hasValidAnswers ? computedScore : (clientScore !== null && !isNaN(Number(clientScore)) ? Number(clientScore) : 0);
-
-  let band = "Minimal";
-  let title = "Screening Result";
-  let description = "";
-  let severity = "low";
-
-  if (type === "low_mood") {
-    title = "Low-Mood & Energy Result (PHQ)";
-    if (score < 5) {
-      band = "Minimal / Mild";
-      severity = "low";
-      description = `Your self-reflection score is ${score} out of 18. This indicates minimal to mild depressive patterns.`;
-    } else if (score < 10) {
-      band = "Mild";
-      severity = "low";
-      description = `Your self-reflection score is ${score} out of 18. This indicates mild low-mood patterns.`;
-    } else if (score < 15) {
-      band = "Moderate";
-      severity = "moderate";
-      description = `Your self-reflection score is ${score} out of 18. This indicates a moderate low-mood pattern. Consider establishing structured daily micro-routines.`;
-    } else {
-      band = "Severe";
-      severity = "severe";
-      description = `Your self-reflection score is ${score} out of 18. This indicates a significant low-mood pattern. Speaking with a verified mental health professional is strongly encouraged.`;
-    }
-  } else if (type === "anxiety") {
-    title = "Anxiety & Overthinking Result (GAD)";
-    if (score < 5) {
-      band = "Minimal / Mild";
-      severity = "low";
-      description = `Your self-reflection score is ${score} out of 18. This indicates a manageable anxiety level.`;
-    } else if (score < 10) {
-      band = "Mild";
-      severity = "low";
-      description = `Your self-reflection score is ${score} out of 18. This indicates mild worrying tendencies.`;
-    } else if (score < 15) {
-      band = "Moderate";
-      severity = "moderate";
-      description = `Your self-reflection score is ${score} out of 18. This indicates moderate worrying loops. Grounding exercises and somatic breathing can help interrupt these loops.`;
-    } else {
-      band = "Severe";
-      severity = "severe";
-      description = `Your self-reflection score is ${score} out of 18. This indicates severe restlessness and overthinking loops. Clinical guidance is strongly recommended.`;
-    }
-  } else if (type === "burnout") {
-    title = "Burnout & Exhaustion Result";
-    if (score < 4) {
-      band = "Healthy / Low Risk";
-      severity = "low";
-      description = `Your self-reflection score is ${score} out of 12. You maintain healthy work-life boundaries and recovery reserves.`;
-    } else if (score < 8) {
-      band = "Moderate Burnout";
-      severity = "moderate";
-      description = `Your self-reflection score is ${score} out of 12. Early signs of emotional detachment and energy depletion are present. Protect non-working hours.`;
-    } else {
-      band = "Severe Exhaustion";
-      severity = "severe";
-      description = `Your self-reflection score is ${score} out of 12. Significant cognitive exhaustion and detachment detected. Restorative breaks and professional support are advised.`;
-    }
-  } else {
-    title = "Counsellor Match Screening";
-    band = "Ready to Connect";
-    severity = "low";
-    description = "Your preferences and therapeutic goals have been registered to connect you with verified clinical experts.";
-  }
-
-  const safetyGuidance = {
-    disclaimer: "This self-assessment is an educational screening tool for self-awareness and care navigation. It does not constitute a formal psychiatric or medical diagnosis.",
-    helplines: [
-      { name: "Tele-MANAS (Govt of India)", number: "14416 / 1800-891-4416", available: "24/7 Free & Confidential" },
-      { name: "KIRAN Mental Health Helpline", number: "1800-599-0019", available: "24/7 Toll-Free" }
-    ],
-    recommendedAction: severity === "severe"
-      ? "Given your elevated score, we strongly encourage reaching out to a licensed psychologist or crisis helpline."
-      : "You can track your mood changes over time or discuss these reflections with a verified counsellor."
-  };
-
-  return { score, band, title, severity, description, safetyGuidance };
+  const result = validateAndEvaluateScreening(type, { responses, score: clientScore });
+  return result;
 }
 
 function generateClinicalNarrative(type, score, responses = {}) {
@@ -123,9 +33,10 @@ function generateClinicalNarrative(type, score, responses = {}) {
 export async function createScreening({ body, user }) {
   const { screeningType } = body || {};
   if (!screeningType || !BASIC_SCREENING_TYPES.includes(screeningType)) {
-    return badRequest("Invalid or missing screeningType. Must be 'low_mood', 'anxiety', 'burnout', or 'counsellor_match'.");
+    return badRequest(`Invalid or missing screeningType. Must be one of: ${BASIC_SCREENING_TYPES.join(", ")}.`);
   }
 
+  const questionnaire = QUESTIONNAIRES[screeningType];
   const screeningId = createId("scr");
 
   // Basic screenings are 100% free (₹0) — no wallet balance required, zero debit
@@ -136,6 +47,7 @@ export async function createScreening({ body, user }) {
     status: "started",
     score: null,
     responsesJson: {
+      questionnaireVersion: questionnaire.version,
       responses: {},
       isFree: true,
       hasPaidInterpretation: false
@@ -157,13 +69,18 @@ export async function completeScreening({ params, body, user }) {
     return badRequest("This screening session has already been completed.");
   }
 
-  const responses = body.responses || {};
-  const evaluation = evaluateScreening(screening.screeningType, responses, body.score);
+  // Calculate screening results strictly on the backend (MH-36)
+  // Rejects empty answers, invalid values, and fabricated scores (e.g. -999)
+  const evaluation = validateAndEvaluateScreening(screening.screeningType, body || {});
+  if (!evaluation.isValid) {
+    return badRequest(evaluation.error);
+  }
 
   const existingJson = typeof screening.responsesJson === "object" && screening.responsesJson ? screening.responsesJson : {};
   const responsesJson = {
     ...existingJson,
-    responses,
+    questionnaireVersion: evaluation.questionnaireVersion,
+    responses: evaluation.validatedAnswers,
     score: evaluation.score,
     band: evaluation.band,
     severity: evaluation.severity,
@@ -191,6 +108,7 @@ export async function completeScreening({ params, body, user }) {
     interpretation: null
   });
 }
+
 
 export async function requestInterpretation({ params, user }) {
   const screening = await repositories.screenings.findById(params.id);

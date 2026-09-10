@@ -915,6 +915,11 @@ export const api = {
     throw new Error(remote.error?.message || "Payment failed");
   },
 
+  async getQuestionnaires() {
+    const remote = await request("/screenings/questionnaires");
+    return { success: remote.ok, data: remote.data, error: remote.error };
+  },
+
   async createScreening(screeningType) {
     const remote = await request("/screenings", {
       method: "POST",
