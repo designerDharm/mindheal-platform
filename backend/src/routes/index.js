@@ -78,6 +78,7 @@ export const routes = [
   route("POST", `${p}/analysis/reports/:id/unlock`, aiController.unlockReport, ["user"]),
   route("POST", `${p}/screenings`, screeningController.createScreening, ["user"]),
   route("POST", `${p}/screenings/:id/complete`, screeningController.completeScreening, ["user"]),
+  route("POST", `${p}/screenings/:id/interpret`, screeningController.requestInterpretation, ["user"]),
   route("GET", `${p}/screenings/me`, screeningController.listMyScreenings, ["user"]),
 
   route("GET", `${p}/wallet/balance`, walletController.balance, ["user", "counsellor", "admin"]),

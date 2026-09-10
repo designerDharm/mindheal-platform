@@ -294,28 +294,36 @@ function renderTabContent(tab, state) {
 
       if (completed.type === 'low_mood') {
         title = "Low-Mood & Energy Result";
-        badge = completed.score < 5 ? "Minimal / Mild" : completed.score < 10 ? "Moderate" : "Severe";
-        color = completed.score < 5 ? "success" : completed.score < 10 ? "warning" : "error";
-        desc = `Your self-reflection score is ${completed.score} out of 18. This indicates a ${badge.toLowerCase()} pattern. Reflect on your daily energy cycles and consider setting micro-goals to support focus.`;
+        badge = completed.band || (completed.score < 5 ? "Minimal / Mild" : completed.score < 15 ? "Moderate" : "Severe");
+        color = completed.severity === "severe" || completed.score >= 15 ? "error" : (completed.severity === "moderate" || completed.score >= 10 ? "warning" : "success");
+        desc = completed.description || `Your self-reflection score is ${completed.score} out of 18. This indicates a ${badge.toLowerCase()} pattern. Reflect on your daily energy cycles and consider setting micro-goals to support focus.`;
       } else if (completed.type === 'anxiety') {
         title = "Anxiety & Overthinking Result";
-        badge = completed.score < 5 ? "Minimal / Mild" : completed.score < 10 ? "Moderate" : "Severe";
-        color = completed.score < 5 ? "success" : completed.score < 10 ? "warning" : "error";
-        desc = `Your self-reflection score is ${completed.score} out of 18. This indicates a ${badge.toLowerCase()} worrying level. Worry loops can be interrupted with grounding exercises and breath focus.`;
+        badge = completed.band || (completed.score < 5 ? "Minimal / Mild" : completed.score < 15 ? "Moderate" : "Severe");
+        color = completed.severity === "severe" || completed.score >= 15 ? "error" : (completed.severity === "moderate" || completed.score >= 10 ? "warning" : "success");
+        desc = completed.description || `Your self-reflection score is ${completed.score} out of 18. This indicates a ${badge.toLowerCase()} worrying level. Worry loops can be interrupted with grounding exercises and breath focus.`;
       } else if (completed.type === 'burnout') {
         title = "Burnout & Exhaustion Result";
-        badge = completed.score < 4 ? "Healthy / Low Risk" : completed.score < 8 ? "Moderate Burnout" : "Severe Exhaustion";
-        color = completed.score < 4 ? "success" : completed.score < 8 ? "warning" : "error";
-        desc = `Your self-reflection score is ${completed.score} out of 12. This indicates a ${badge.toLowerCase()} state. Recovery gaps and work detachment strategies can be explored to restore emotional energy.`;
+        badge = completed.band || (completed.score < 4 ? "Healthy / Low Risk" : completed.score < 8 ? "Moderate Burnout" : "Severe Exhaustion");
+        color = completed.severity === "severe" || completed.score >= 8 ? "error" : (completed.severity === "moderate" || completed.score >= 4 ? "warning" : "success");
+        desc = completed.description || `Your self-reflection score is ${completed.score} out of 12. This indicates a ${badge.toLowerCase()} state. Recovery gaps and work detachment strategies can be explored to restore emotional energy.`;
       } else {
         title = "Therapy Match Complete";
-        badge = "Ready to Connect";
+        badge = completed.band || "Ready to Connect";
         color = "success";
-        desc = "We have compiled your goals and preferences. Based on your input, we recommend verified clinical counsellors who specialize in anxiety, burnout management, and language alignment.";
+        desc = completed.description || "We have compiled your goals and preferences. Based on your input, we recommend verified clinical counsellors who specialize in anxiety, burnout management, and language alignment.";
       }
 
+      const safety = completed.safetyGuidance || {
+        disclaimer: "This self-assessment is an educational screening tool for self-awareness and care navigation. It does not constitute a formal psychiatric diagnosis.",
+        helplines: [
+          { name: "Tele-MANAS", number: "14416 / 1800-891-4416" },
+          { name: "KIRAN Helpline", number: "1800-599-0019" }
+        ]
+      };
+
       return html`
-        <div style="max-width:600px;margin:20px auto;padding:40px;background:white;border-radius:24px;box-shadow:0 10px 30px rgba(0,0,0,0.05);border:1px solid var(--color-border);text-align:center;display:flex;flex-direction:column;align-items:center;gap:24px;">
+        <div style="max-width:640px;margin:20px auto;padding:36px;background:white;border-radius:24px;box-shadow:0 10px 30px rgba(0,0,0,0.05);border:1px solid var(--color-border);text-align:center;display:flex;flex-direction:column;align-items:center;gap:20px;">
           <div style="width:64px;height:64px;border-radius:32px;background:var(--color-bg);display:flex;align-items:center;justify-content:center;color:var(--color-coral);">
             <i class="ph-bold ph-check-circle" style="font-size:36px;"></i>
           </div>
@@ -323,8 +331,37 @@ function renderTabContent(tab, state) {
             <h2 style="font-family:var(--font-serif);font-size:28px;margin:0 0 8px 0;color:var(--color-charcoal);">${title}</h2>
             <span class="status-pill ${color}" style="font-size:13px;font-weight:700;padding:6px 14px;border-radius:20px;">${badge}</span>
           </div>
-          <p style="font-size:15px;color:var(--color-text-muted);line-height:1.6;margin:0;max-width:480px;">${desc}</p>
+          <p style="font-size:15px;color:var(--color-text-muted);line-height:1.6;margin:0;max-width:500px;">${desc}</p>
           
+          <!-- Deterministic Free Safety Guidance -->
+          <div style="background:#FFF9F7;border:1px solid #FCDFD7;border-radius:14px;padding:16px;text-align:left;width:100%;font-size:13px;color:#6C271E;line-height:1.5;">
+            <div style="font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+              <i class="ph-bold ph-shield-check" style="color:var(--color-coral);font-size:16px;"></i> Safety & Care Navigation
+            </div>
+            <p style="margin:0 0 6px 0;font-size:12px;color:#853B31;">${safety.disclaimer}</p>
+            <div style="font-size:12px;font-weight:600;">
+              24/7 Helplines: Tele-MANAS: <strong>14416</strong> | KIRAN: <strong>1800-599-0019</strong> (Free & Confidential)
+            </div>
+          </div>
+
+          <!-- Optional Paid In-Depth Clinical Interpretation -->
+          ${completed.hasPaidInterpretation && completed.interpretation ? `
+            <div style="background:var(--color-bg);border:1px solid var(--color-border);border-radius:14px;padding:18px;text-align:left;width:100%;">
+              <div style="font-weight:700;color:var(--color-charcoal);margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+                <i class="ph-bold ph-file-text" style="color:var(--color-coral);"></i> Unlocked Clinical Interpretation
+              </div>
+              <p style="margin:0;font-size:13px;color:var(--color-charcoal);line-height:1.6;">${escapeHtml(completed.interpretation)}</p>
+            </div>
+          ` : `
+            <div style="background:#FAF8F5;border:1px dashed var(--color-coral);border-radius:16px;padding:20px;text-align:left;width:100%;display:flex;justify-content:space-between;align-items:center;gap:16px;">
+              <div>
+                <h4 style="margin:0 0 4px 0;font-size:15px;color:var(--color-charcoal);">Optional In-Depth Clinical Interpretation</h4>
+                <p style="margin:0;font-size:13px;color:var(--color-text-muted);">Unlock comprehensive narrative breakdown and customized CBT intervention recommendations.</p>
+              </div>
+              <button class="btn primary" onclick="window.purchaseScreeningInterpretation('${completed.id}')" style="white-space:nowrap;background:var(--color-coral);border-color:var(--color-coral);color:white;font-weight:600;font-size:13px;">Unlock (₹49)</button>
+            </div>
+          `}
+
           <div style="display:flex;gap:16px;width:100%;margin-top:8px;">
             <button class="btn primary" onclick="window.location.hash='#/panel/user?section=counsellors'" style="flex:1;">Match with Counsellors</button>
             <button class="btn secondary" onclick="window.clearScreeningResult()" style="flex:1;">Back to Insight Lab</button>
@@ -338,7 +375,7 @@ function renderTabContent(tab, state) {
         <div class="dashboard-card" style="padding:24px;background:white;border-radius:16px;display:flex;flex-direction:column;gap:12px;">
           <div style="display:flex;justify-content:space-between;">
             <span class="status-pill success">Deterministic Screening</span>
-            <span style="font-size:12px;color:var(--color-coral);font-weight:700;"><i class="ph-bold ph-lightning"></i> 3 Credits</span>
+            <span class="status-pill success" style="font-size:11px;font-weight:700;"><i class="ph-bold ph-check"></i> FREE</span>
           </div>
           <h3 style="font-family:var(--font-serif);font-size:20px;margin:0;">Low-Mood & Energy Screen</h3>
           <p style="font-size:13px;color:var(--color-text-muted);margin:0;">Validated symptom check for persistent low energy and mood patterns.</p>
@@ -348,7 +385,7 @@ function renderTabContent(tab, state) {
         <div class="dashboard-card" style="padding:24px;background:white;border-radius:16px;display:flex;flex-direction:column;gap:12px;">
           <div style="display:flex;justify-content:space-between;">
             <span class="status-pill info">Anxiety Check</span>
-            <span style="font-size:12px;color:var(--color-coral);font-weight:700;"><i class="ph-bold ph-lightning"></i> 3 Credits</span>
+            <span class="status-pill success" style="font-size:11px;font-weight:700;"><i class="ph-bold ph-check"></i> FREE</span>
           </div>
           <h3 style="font-family:var(--font-serif);font-size:20px;margin:0;">Anxiety & Overthinking Check</h3>
           <p style="font-size:13px;color:var(--color-text-muted);margin:0;">Evaluate restlessness, worry loops, and functional impact.</p>
@@ -358,7 +395,7 @@ function renderTabContent(tab, state) {
         <div class="dashboard-card" style="padding:24px;background:white;border-radius:16px;display:flex;flex-direction:column;gap:12px;">
           <div style="display:flex;justify-content:space-between;">
             <span class="status-pill warning">Work & Life</span>
-            <span style="font-size:12px;color:var(--color-coral);font-weight:700;"><i class="ph-bold ph-lightning"></i> 2 Credits</span>
+            <span class="status-pill success" style="font-size:11px;font-weight:700;"><i class="ph-bold ph-check"></i> FREE</span>
           </div>
           <h3 style="font-family:var(--font-serif);font-size:20px;margin:0;">Burnout & Exhaustion Reflection</h3>
           <p style="font-size:13px;color:var(--color-text-muted);margin:0;">Reflect on work detachment, emotional exhaustion, and recovery gaps.</p>
@@ -368,7 +405,7 @@ function renderTabContent(tab, state) {
         <div class="dashboard-card" style="padding:24px;background:white;border-radius:16px;display:flex;flex-direction:column;gap:12px;">
           <div style="display:flex;justify-content:space-between;">
             <span class="status-pill success">Match Engine</span>
-            <span style="font-size:12px;color:var(--color-coral);font-weight:700;"><i class="ph-bold ph-lightning"></i> FREE</span>
+            <span class="status-pill success" style="font-size:11px;font-weight:700;"><i class="ph-bold ph-check"></i> FREE</span>
           </div>
           <h3 style="font-family:var(--font-serif);font-size:20px;margin:0;">Therapy Readiness & Match</h3>
           <p style="font-size:13px;color:var(--color-text-muted);margin:0;">Match transparently with verified clinical experts based on your goals.</p>
@@ -1377,21 +1414,7 @@ window.startScreeningSession = async function(type) {
   const state = window.currentAppState;
   if (!state) return;
 
-  const prices = { low_mood: 3, anxiety: 3, burnout: 2, counsellor_match: 0 };
-  const cost = prices[type];
-
-  if (cost > 0) {
-    const balanceCredits = (state.walletBalance || 0) / 100;
-    if (balanceCredits < cost) {
-      toast(`Insufficient balance. You need ${cost} credits, but only have ${balanceCredits} credits.`);
-      // Redirect to wallet
-      setTimeout(() => {
-        window.location.hash = '#/panel/user?section=wallet';
-      }, 1500);
-      return;
-    }
-  }
-
+  // Basic clinical self-assessments are 100% free — zero balance gate!
   try {
     const res = await api.createScreening(type);
     if (res.success && res.data) {
@@ -1429,10 +1452,11 @@ window.selectScreeningAnswer = async function(val) {
     // Complete screening session
     try {
       const res = await api.completeScreening(active.id, active.score, active.responses);
-      if (res.success) {
+      if (res.success && res.data) {
         state.completedScreeningResult = {
+          id: active.id,
           type: active.type,
-          score: active.score
+          ...res.data
         };
         delete state.activeScreening;
         toast("Screening completed!");
@@ -1453,6 +1477,38 @@ window.selectScreeningAnswer = async function(val) {
   }
   
   if (typeof window.triggerAppRender === "function") window.triggerAppRender();
+};
+
+window.purchaseScreeningInterpretation = async function(id) {
+  const state = window.currentAppState;
+  if (!id) return;
+
+  try {
+    toast("Unlocking clinical interpretation report...");
+    const res = await api.requestScreeningInterpretation(id);
+    if (res.success && res.data) {
+      if (state && state.completedScreeningResult) {
+        state.completedScreeningResult.hasPaidInterpretation = true;
+        state.completedScreeningResult.interpretation = res.data.interpretation;
+      }
+      toast("Clinical interpretation report unlocked!", "success");
+
+      const balRes = await api.getWalletBalance();
+      if (balRes.success && balRes.data && state) {
+        state.walletBalance = balRes.data.balancePaise || balRes.data.balance || 0;
+      }
+      if (typeof window.triggerAppRender === "function") window.triggerAppRender();
+    } else {
+      toast(res.error?.message || "Failed to unlock clinical interpretation.", "error");
+      if (res.error?.code === "INSUFFICIENT_BALANCE" || /insufficient/i.test(res.error?.message || "")) {
+        setTimeout(() => {
+          window.location.hash = '#/panel/user?section=wallet';
+        }, 1500);
+      }
+    }
+  } catch (err) {
+    toast(err.message || "Failed to request clinical interpretation.", "error");
+  }
 };
 
 window.exitScreeningSession = function() {

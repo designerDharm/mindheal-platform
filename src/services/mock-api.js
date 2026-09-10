@@ -936,6 +936,13 @@ export const api = {
     return { success: remote.ok, data: remote.data, error: remote.error };
   },
 
+  async requestScreeningInterpretation(id) {
+    const remote = await request(`/screenings/${id}/interpret`, {
+      method: "POST"
+    });
+    return { success: remote.ok, data: remote.data, error: remote.error };
+  },
+
   async getWalletBalance() {
     const remote = await request("/wallet/balance");
     return { success: remote.ok, data: remote.data, error: remote.error };

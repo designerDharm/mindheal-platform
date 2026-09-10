@@ -437,23 +437,23 @@
 
 #### MH-37: Basic screening requires payment despite free-access rule
 - **Priority:** P1 (High)
-- **Status:** `Open`
-- **Affected Files:** `backend/src/controllers/screening.controller.js`, `src/features/insight-lab.js`
+- **Status:** `Staging verified`
+- **Affected Files:** `backend/src/controllers/screening.controller.js`, `src/features/insight-lab.js`, `backend/src/routes/index.js`, `src/services/mock-api.js`
 - **Reproduction Steps:** New user with zero balance attempts standard self-assessment screening.
-- **Expected Result:** Basic screening completes for free (₹0).
+- **Expected Result:** Basic screening completes for free (₹0) with deterministic scoring and safety guidance; optional clinical narrative report is decoupled as a separate ₹49 purchase.
 - **Actual Result (Before Fix):** Blocked with payment required error.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Fix Commit:** `fix(screening): make basic screenings free and isolate paid interpretation (MH-37)`
+- **Verification Evidence:** `backend/tests/screening.test.js` passes 6/6 tests: zero-balance user starts and completes screening with ₹0 debit, receives clinical scoring and Tele-MANAS/KIRAN helplines, and optional interpretation is purchased separately with wallet debit.
 
 #### MH-38: Screening failure can debit wallet without creating screening
 - **Priority:** P1 (High)
-- **Status:** `Open`
+- **Status:** `Staging verified`
 - **Affected Files:** `backend/src/controllers/screening.controller.js`
 - **Reproduction Steps:** Inject failure during screening creation after debit.
-- **Expected Result:** Atomic rollback or refund.
+- **Expected Result:** Atomic rollback or refund, zero debit for basic screenings, and refund safeguard on interpretation failure.
 - **Actual Result (Before Fix):** Wallet remained debited with no screening record created.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Fix Commit:** `fix(screening): make basic screenings free and isolate paid interpretation (MH-37)`
+- **Verification Evidence:** Basic screenings are ₹0 (no debit ever executed). For optional interpretation purchases, update errors trigger immediate automatic credit refunds with dedicated idempotency keys.
 
 ---
 
