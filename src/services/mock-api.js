@@ -425,6 +425,7 @@ export const api = {
       backendStatus: backendStatus,
       users: users.ok && Array.isArray(users.data) ? users.data : [],
       counsellors: remoteCounsellors.ok && Array.isArray(remoteCounsellors.data) ? remoteCounsellors.data : [],
+      counsellorsOutage: !remoteCounsellors.ok || isOutage,
       counsellorApplications: counsellorData.ok && Array.isArray(counsellorData.data?.applications) ? counsellorData.data.applications : [],
       servicesCatalog: serviceCatalog.ok && Array.isArray(serviceCatalog.data) ? serviceCatalog.data : [],
       apiConfigurations: apiConfigurations.ok && Array.isArray(apiConfigurations.data) ? apiConfigurations.data : [],

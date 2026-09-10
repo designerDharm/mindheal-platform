@@ -600,15 +600,27 @@
   - Automated test suite `tests/global-fetch-outage.test.js` verified 7/7 tests passing (public endpoint isolation, admin panel scoping, 503 outage session preservation, offline/network drop resiliency, genuine 401 expiration handling, request timeout aborts, and UI wiring).
   - Clean run of full test suite `npm test` (39/39 passed) and `npm run check` (0 errors).
 
-#### MH-25: Public provider listings use seeded static content
+#### MH-25: Public provider listings use seeded static content & misleading sample claims
 - **Priority:** P2 (Medium)
-- **Status:** `Open`
-- **Affected Files:** `src/main.js`, `src/data/mindheal-data.js`
-- **Reproduction Steps:** Add/modify counsellor in admin/database; visit public directory.
-- **Expected Result:** Live database counsellors rendered dynamically.
-- **Actual Result (Before Fix):** Rendered hardcoded static array from 2024.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Status:** `Staging verified`
+- **Affected Files:** `src/main.js`, `src/services/mock-api.js`, `tests/provider-records.test.js`
+- **Reproduction Steps:** Induce provider API outage or view public directory with zero verified practitioners; inspect homepage preview cards and trust metrics.
+- **Expected Result:**
+  - When backend is offline/outage, render prominent outage banner with "Retry Connection" button and emergency crisis helplines (Tele-MANAS, AASRA); sample counsellors must NEVER appear available for real appointments.
+  - When 0 verified clinicians exist, render clean empty state guiding users to self-help CBT tools rather than falling back to hardcoded mock counsellors.
+  - Homepage preview cards must be explicitly badged `DEMONSTRATION PROFILE` with booking button linking to verified directory (`#/counsellors`).
+  - Unsubstantiated claims ("HIPAA Compliant", "+50k Users", "500+ Experts", "2M+ Messages") replaced with substantiated statutory and architectural facts (DPDP Act 2023, RCI & NMC verification, 256-bit TLS/AES encryption, Tele-MANAS escalation).
+  - Admin and User panels strictly display authentic database records without hardcoded provider fallback.
+- **Actual Result (Before Fix):** Directory silently fell back to hardcoded mock counsellors (`Dr. Priya Mehta`, etc.) with live "Request Session" booking buttons during outages and empty states; trust strip claimed US-only HIPAA compliance.
+- **Fix Commit:** `fix(providers): replace misleading sample content with verified records and truthful states (MH-25)`
+- **Verification Evidence:**
+  - Updated `src/services/mock-api.js` to track `counsellorsOutage` flag.
+  - Updated `publicCounsellorsPage` in `src/main.js` to render truthful outage and empty states without sample booking buttons.
+  - Updated `userPanel` and `adminPanel` to strictly map real `data.counsellors` without sample array fallback.
+  - Added `DEMONSTRATION PROFILE` badges to homepage preview cards and linked action to `#/counsellors`.
+  - Replaced unsubstantiated metrics in `sectionHero`, `sectionTrustStrip`, and `sectionTestimonials` with substantiated DPDP Act 2023, RCI & NMC verification, AES-256 encryption, and Tele-MANAS crisis integration.
+  - Added comprehensive test suite `tests/provider-records.test.js` (6/6 passing subtests).
+  - Full test suite `npm test` passing cleanly (92/92 tests passing).
 
 #### MH-26: Service filter state leaks and hides homepage bento cards
 - **Priority:** P2 (Medium)

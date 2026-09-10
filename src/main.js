@@ -772,7 +772,75 @@ async function resolvePage(path) {
 }
 
 function publicCounsellorsPage(data) {
-  const publicCounsellors = data?.counsellors?.length ? data.counsellors : counsellors;
+  const isOutage = Boolean(data?.counsellorsOutage || data?.backendStatus?.isOutage);
+  const publicCounsellors = Array.isArray(data?.counsellors)
+    ? data.counsellors.filter((c) => c && (c.verificationStatus === "approved" || c.status === "approved" || c.status === "Online" || c.status === "Busy" || c.status === "Offline" || !c.verificationStatus))
+    : [];
+
+  if (isOutage) {
+    return html`
+      <section class="bg-charcoal" style="padding:160px 0 60px 0;text-align:center;">
+        <div class="container reveal-up">
+          <span class="status-pill danger" style="margin-bottom:16px;display:inline-block;font-weight:700;">SERVICE STATUS • TEMPORARILY OFFLINE</span>
+          <h1 style="font-family:var(--font-serif);font-size:48px;color:var(--color-cream);margin-bottom:24px;">Provider Directory Temporarily Unavailable</h1>
+          <p style="font-size:18px;color:rgba(255,255,255,0.75);max-width:760px;margin:0 auto 28px auto;line-height:1.6;">
+            We are currently experiencing connectivity issues with the clinical provider database. Real-time availability and appointment booking are temporarily paused to prevent booking discrepancies.
+          </p>
+          <button class="btn primary" data-action="retry-fetch" style="margin:0 auto;display:inline-flex;align-items:center;gap:8px;">
+            <i class="ph-bold ph-arrows-clockwise"></i> Retry Connection
+          </button>
+        </div>
+      </section>
+      <section class="bg-cream" style="padding:60px 0 80px 0;">
+        <div class="container" style="max-width:800px;margin:0 auto;">
+          <div style="background:white;border-radius:20px;padding:36px;border:1px solid var(--color-border);text-align:center;">
+            <div style="width:64px;height:64px;border-radius:50%;background:rgba(235,94,40,0.1);color:var(--color-coral);display:flex;align-items:center;justify-content:center;margin:0 auto 20px auto;font-size:32px;">
+              <i class="ph-bold ph-phone-call"></i>
+            </div>
+            <h3 style="font-family:var(--font-serif);font-size:24px;color:var(--color-charcoal);margin-bottom:12px;">Need Immediate Crisis Support?</h3>
+            <p style="font-size:15px;color:var(--color-text-muted);line-height:1.6;margin-bottom:24px;">
+              If you or someone you know is in acute distress or needs immediate mental health care, please do not wait for an online appointment. Reach out to verified 24/7 national helplines immediately.
+            </p>
+            <div style="display:flex;justify-content:center;gap:16px;flex-wrap:wrap;">
+              <a href="tel:14416" class="btn primary" style="background:var(--color-coral);"><i class="ph-bold ph-phone" style="margin-right:6px;"></i> Tele-MANAS: 14416</a>
+              <a href="tel:9820466726" class="btn secondary"><i class="ph-bold ph-phone" style="margin-right:6px;"></i> AASRA: 9820466726</a>
+              <a href="tel:112" class="btn secondary"><i class="ph-bold ph-shield" style="margin-right:6px;"></i> Emergency: 112</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  if (publicCounsellors.length === 0) {
+    return html`
+      <section class="bg-charcoal" style="padding:160px 0 60px 0;text-align:center;">
+        <div class="container reveal-up">
+          <span class="status-pill warning" style="margin-bottom:16px;display:inline-block;font-weight:700;">DIRECTORY UPDATE</span>
+          <h1 style="font-family:var(--font-serif);font-size:48px;color:var(--color-cream);margin-bottom:24px;">Find Human Counsellors</h1>
+          <p style="font-size:20px;color:rgba(255,255,255,0.7);max-width:800px;margin:0 auto;">Browse our directory of verified RCI clinical psychologists and therapists.</p>
+        </div>
+      </section>
+      <section class="bg-cream" style="padding:80px 0;">
+        <div class="container" style="max-width:800px;margin:0 auto;text-align:center;">
+          <div style="background:white;border-radius:24px;padding:48px;border:1px solid var(--color-border);box-shadow:0 4px 20px rgba(0,0,0,0.03);">
+            <div style="width:72px;height:72px;border-radius:50%;background:var(--color-cream);color:var(--color-charcoal);display:flex;align-items:center;justify-content:center;margin:0 auto 24px auto;font-size:36px;">
+              <i class="ph-bold ph-users"></i>
+            </div>
+            <h2 style="font-family:var(--font-serif);font-size:28px;color:var(--color-charcoal);margin-bottom:16px;">No Verified Practitioners Currently Listed</h2>
+            <p style="font-size:16px;color:var(--color-text-muted);line-height:1.6;max-width:600px;margin:0 auto 32px auto;">
+              Our clinical compliance board is actively reviewing credentials and onboarding newly registered psychologists. Real-time booking will open as soon as clinician verification is confirmed.
+            </p>
+            <div style="display:flex;justify-content:center;gap:16px;flex-wrap:wrap;">
+              <a href="#/services" class="btn primary">Explore Self-Help CBT Tools</a>
+              <a href="#/contact" class="btn secondary">Contact Clinical Admissions</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
   return html`
     <section class="bg-charcoal" style="padding:160px 0 80px 0;text-align:center;">
       <div class="container reveal-up">
@@ -1162,19 +1230,20 @@ function sectionHero() {
           <!-- Desktop stats (shown above image on desktop, hidden on mobile) -->
           <div class="hero-stats hero-stats-desktop" style="margin-top:64px;display:flex;gap:32px;align-items:center;">
             <div style="display:flex;align-items:center;gap:16px;">
-              <div style="display:flex;">
-                <img src="https://i.pravatar.cc/100?img=1" style="width:40px;height:40px;border-radius:50%;border:2px solid var(--color-cream);position:relative;z-index:5;" />
-                <img src="https://i.pravatar.cc/100?img=2" style="width:40px;height:40px;border-radius:50%;border:2px solid var(--color-cream);margin-left:-12px;position:relative;z-index:4;" />
-                <img src="https://i.pravatar.cc/100?img=3" style="width:40px;height:40px;border-radius:50%;border:2px solid var(--color-cream);margin-left:-12px;position:relative;z-index:3;" />
-                <img src="https://i.pravatar.cc/100?img=4" style="width:40px;height:40px;border-radius:50%;border:2px solid var(--color-cream);margin-left:-12px;position:relative;z-index:2;" />
-                <div style="width:40px;height:40px;border-radius:50%;border:2px solid var(--color-cream);margin-left:-12px;position:relative;z-index:1;background:white;color:var(--color-charcoal);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">+50k</div>
+              <div style="width:40px;height:40px;border-radius:50%;background:rgba(224,106,78,0.1);color:var(--color-coral);display:flex;align-items:center;justify-content:center;font-size:20px;">
+                <i class="ph-bold ph-shield-check"></i>
               </div>
-              <div style="font-size:14px;color:var(--color-text-muted);">${t("Active Users")}<br/>${t("Healing Daily")}</div>
+              <div style="font-size:14px;color:var(--color-text-muted);"><strong style="color:var(--color-charcoal);font-weight:700;">DPDP Act 2023</strong><br/>${t("Encrypted & Private")}</div>
             </div>
             <div style="width:1px;height:40px;background:rgba(0,0,0,0.1);"></div>
-            <div>
-              <div style="font-family:var(--font-serif);font-size:32px;color:var(--color-coral);line-height:1;">500+</div>
-              <div style="font-size:14px;color:var(--color-text-muted);margin-top:4px;">${t("Verified Experts")}</div>
+            <div style="display:flex;align-items:center;gap:16px;">
+              <div style="width:40px;height:40px;border-radius:50%;background:rgba(224,106,78,0.1);color:var(--color-coral);display:flex;align-items:center;justify-content:center;font-size:20px;">
+                <i class="ph-bold ph-identification-badge"></i>
+              </div>
+              <div>
+                <div style="font-family:var(--font-serif);font-size:20px;color:var(--color-coral);line-height:1.2;font-weight:700;">RCI & NMC</div>
+                <div style="font-size:13px;color:var(--color-text-muted);margin-top:2px;">${t("Verified Experts")}</div>
+              </div>
             </div>
           </div>
 
@@ -1187,17 +1256,12 @@ function sectionHero() {
           <div class="hero-stats hero-stats-mobile">
             <div class="hero-stats-mobile-inner">
               <div class="hero-stat-item">
-                <div style="display:flex;">
-                  <img src="https://i.pravatar.cc/100?img=1" style="width:32px;height:32px;border-radius:50%;border:2px solid var(--color-cream);position:relative;z-index:5;" />
-                  <img src="https://i.pravatar.cc/100?img=2" style="width:32px;height:32px;border-radius:50%;border:2px solid var(--color-cream);margin-left:-8px;position:relative;z-index:4;" />
-                  <img src="https://i.pravatar.cc/100?img=3" style="width:32px;height:32px;border-radius:50%;border:2px solid var(--color-cream);margin-left:-8px;position:relative;z-index:3;" />
-                  <div style="width:32px;height:32px;border-radius:50%;border:2px solid var(--color-cream);margin-left:-8px;position:relative;z-index:1;background:white;color:var(--color-charcoal);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;">50k</div>
-                </div>
-                <div style="font-size:12px;color:var(--color-text-muted);line-height:1.4;">${t("Active Users")}<br/>${t("Healing Daily")}</div>
+                <div style="font-family:var(--font-serif);font-size:18px;color:var(--color-coral);line-height:1.2;font-weight:700;">DPDP Act</div>
+                <div style="font-size:12px;color:var(--color-text-muted);line-height:1.4;">${t("Encrypted & Private")}</div>
               </div>
               <div class="hero-stat-divider"></div>
               <div class="hero-stat-item">
-                <div style="font-family:var(--font-serif);font-size:26px;color:var(--color-coral);line-height:1;font-weight:700;">500+</div>
+                <div style="font-family:var(--font-serif);font-size:18px;color:var(--color-coral);line-height:1.2;font-weight:700;">RCI & NMC</div>
                 <div style="font-size:12px;color:var(--color-text-muted);line-height:1.4;">${t("Verified Experts")}</div>
               </div>
             </div>
@@ -1225,11 +1289,11 @@ function sectionTrustStrip() {
     <div class="marquee-container">
       <div class="marquee-content">
         ${[...Array(4)].map(() => `
-          <span style="color:rgba(255,255,255,0.6);font-family:var(--font-serif);font-size:18px;font-style:italic;margin-right:64px;"><i class="ph-fill ph-check-circle" style="color:var(--color-coral);margin-right:8px;"></i> HIPAA Compliant</span>
-          <span style="color:rgba(255,255,255,0.6);font-family:var(--font-serif);font-size:18px;font-style:italic;margin-right:64px;"><i class="ph-fill ph-check-circle" style="color:var(--color-coral);margin-right:8px;"></i> DPDP Act Ready</span>
-          <span style="color:rgba(255,255,255,0.6);font-family:var(--font-serif);font-size:18px;font-style:italic;margin-right:64px;"><i class="ph-fill ph-check-circle" style="color:var(--color-coral);margin-right:8px;"></i> 256-bit Encryption</span>
-          <span style="color:rgba(255,255,255,0.6);font-family:var(--font-serif);font-size:18px;font-style:italic;margin-right:64px;"><i class="ph-fill ph-check-circle" style="color:var(--color-coral);margin-right:8px;"></i> Verified RCI Experts</span>
-          <span style="color:rgba(255,255,255,0.6);font-family:var(--font-serif);font-size:18px;font-style:italic;margin-right:64px;"><i class="ph-fill ph-check-circle" style="color:var(--color-coral);margin-right:8px;"></i> 100% Confidential</span>
+          <span style="color:rgba(255,255,255,0.6);font-family:var(--font-serif);font-size:18px;font-style:italic;margin-right:64px;"><i class="ph-fill ph-check-circle" style="color:var(--color-coral);margin-right:8px;"></i> DPDP Act 2023 Compliant</span>
+          <span style="color:rgba(255,255,255,0.6);font-family:var(--font-serif);font-size:18px;font-style:italic;margin-right:64px;"><i class="ph-fill ph-check-circle" style="color:var(--color-coral);margin-right:8px;"></i> RCI & NMC Verified Experts</span>
+          <span style="color:rgba(255,255,255,0.6);font-family:var(--font-serif);font-size:18px;font-style:italic;margin-right:64px;"><i class="ph-fill ph-check-circle" style="color:var(--color-coral);margin-right:8px;"></i> 256-bit TLS & AES Encryption</span>
+          <span style="color:rgba(255,255,255,0.6);font-family:var(--font-serif);font-size:18px;font-style:italic;margin-right:64px;"><i class="ph-fill ph-check-circle" style="color:var(--color-coral);margin-right:8px;"></i> Tele-MANAS Crisis Escalation</span>
+          <span style="color:rgba(255,255,255,0.6);font-family:var(--font-serif);font-size:18px;font-style:italic;margin-right:64px;"><i class="ph-fill ph-check-circle" style="color:var(--color-coral);margin-right:8px;"></i> 100% Confidential (Zero Ad Trackers)</span>
         `).join('')}
       </div>
     </div>
@@ -1891,8 +1955,11 @@ function sectionCounsellors() {
   return html`
     <section class="bg-white" style="padding:160px 0;">
       <div class="container text-center mb-64 reveal-up">
-        <span style="color:var(--color-coral);font-weight:700;letter-spacing:0.1em;text-transform:uppercase;">${t("The Top 1%")}</span>
-        <h2 style="font-family:var(--font-serif);font-size:48px;color:var(--color-charcoal);margin-top:16px;margin-bottom:32px;">${t("Meet Your Match.")}</h2>
+        <span style="color:var(--color-coral);font-weight:700;letter-spacing:0.1em;text-transform:uppercase;">${t("Clinical Directory Preview")}</span>
+        <h2 style="font-family:var(--font-serif);font-size:48px;color:var(--color-charcoal);margin-top:16px;margin-bottom:16px;">${t("Meet Your Match.")}</h2>
+        <p style="font-size:16px;color:var(--color-text-muted);max-width:640px;margin:0 auto 32px auto;line-height:1.6;">
+          ${t("Illustrative clinician profiles demonstrating specialties and credential tiers. Browse our verified registry to view live practitioners.")}
+        </p>
         <div class="filter-pills">
           <span class="filter-pill ${filter === 'all' ? 'active' : ''}" onclick="window.filterCounsellors('all')" data-filter="all" style="cursor:pointer;">${t("All Experts")}</span>
           <span class="filter-pill ${filter === 'clinical' ? 'active' : ''}" onclick="window.filterCounsellors('clinical')" data-filter="clinical" style="cursor:pointer;">${t("Clinical Psychologists")}</span>
@@ -1909,14 +1976,14 @@ function sectionCounsellors() {
           {cat: "child", n: "Dr. Kabir Singh", t: "CHILD PSYCHOLOGIST", e: "15+ Years Exp", l: "English, Hindi, Arabic", r: "4.7", rv: "340", p: "1500", img: "https://i.pravatar.cc/300?img=68"}
         ].map((doc, i) => `
           <div data-category="${doc.cat}" class="counsellor-profile hover-lift reveal-up delay-${i*100}" style="text-align:center;padding:32px;background:var(--color-cream);border-radius:24px;border:1px solid var(--color-border);position:relative;${filter !== 'all' && filter !== doc.cat ? 'display:none;' : ''}">
-            <div style="position:absolute;top:16px;right:16px;background:white;padding:4px 8px;border-radius:8px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:4px;box-shadow:0 4px 12px rgba(0,0,0,0.05);"><i class="ph-fill ph-star" style="color:#FFBD2E;"></i> ${doc.r}</div>
+            <span class="status-pill warning" style="font-size:10px;padding:2px 8px;margin-bottom:12px;display:inline-block;letter-spacing:0.05em;font-weight:700;">DEMONSTRATION PROFILE</span>
             <img src="${doc.img}" style="width:120px;height:120px;border-radius:50%;object-fit:cover;margin:0 auto 24px auto;border:4px solid white;box-shadow:0 12px 24px rgba(0,0,0,0.1);" />
             <h3 style="font-family:var(--font-serif);font-size:20px;color:var(--color-charcoal);margin-bottom:8px;">${doc.n}</h3>
             <div style="font-size:12px;color:var(--color-coral);font-weight:700;margin-bottom:16px;letter-spacing:0.05em;">${t(doc.t)}</div>
             <div style="display:flex;justify-content:center;gap:16px;font-size:14px;color:var(--color-text-muted);margin-bottom:24px;">
               <span><i class="ph-bold ph-briefcase"></i> ${t(doc.e)}</span>
             </div>
-            <button class="btn" style="width:100%;background:white;color:var(--color-charcoal);border:1px solid rgba(0,0,0,0.1);">${t("Book")} ₹${doc.p}</button>
+            <a href="#/counsellors" class="btn" style="display:inline-block;width:100%;background:white;color:var(--color-charcoal);border:1px solid rgba(0,0,0,0.1);text-decoration:none;text-align:center;box-sizing:border-box;">${t("Browse Verified Directory")}</a>
           </div>
         `).join('')}
       </div>
@@ -1932,39 +1999,40 @@ function sectionTestimonials() {
       <div style="position:absolute;bottom:-20%;right:-10%;width:60vw;height:120%;background:radial-gradient(circle, rgba(255,189,46,0.1) 0%, transparent 70%);filter:blur(80px);animation:float2 20s ease-in-out infinite alternate;z-index:0;"></div>
       
       <div class="container text-center mb-64 reveal-up" style="position:relative;z-index:1;">
-        <h2 style="font-family:var(--font-serif);font-size:48px;color:white;margin-bottom:64px;">${t("Real People. Real Healing.")}</h2>
+        <span class="status-pill info" style="margin-bottom:16px;display:inline-block;letter-spacing:0.05em;font-size:11px;background:rgba(255,255,255,0.1);color:white;border:1px solid rgba(255,255,255,0.2);">ILLUSTRATIVE CLIENT EXPERIENCES • CLINICAL DEMONSTRATION</span>
+        <h2 style="font-family:var(--font-serif);font-size:48px;color:white;margin-bottom:64px;">${t("Evidence-Based Care. Grounded in Ethics.")}</h2>
         <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:32px;margin-bottom:80px;">
           <!-- Stat 1 -->
           <div style="position:relative;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);padding:48px 40px;border-radius:32px;backdrop-filter:blur(24px);overflow:hidden;text-align:left;transition:all 0.4s cubic-bezier(0.4, 0, 0.2, 1);box-shadow:inset 0 1px 1px rgba(255,255,255,0.1), 0 24px 48px rgba(0,0,0,0.2);" class="hover-lift hover-glow">
-            <i class="ph-fill ph-star" style="position:absolute;right:-10%;bottom:-20%;font-size:200px;color:var(--color-coral);opacity:0.04;transform:rotate(-15deg);transition:all 0.5s ease;z-index:0;" class="bg-icon"></i>
+            <i class="ph-fill ph-seal-check" style="position:absolute;right:-10%;bottom:-20%;font-size:200px;color:var(--color-coral);opacity:0.04;transform:rotate(-15deg);transition:all 0.5s ease;z-index:0;" class="bg-icon"></i>
             <div style="position:relative;z-index:1;">
               <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
-                <div style="width:48px;height:48px;border-radius:50%;background:rgba(235,94,40,0.1);display:flex;align-items:center;justify-content:center;color:var(--color-coral);"><i class="ph-bold ph-star" style="font-size:24px;"></i></div>
+                <div style="width:48px;height:48px;border-radius:50%;background:rgba(235,94,40,0.1);display:flex;align-items:center;justify-content:center;color:var(--color-coral);"><i class="ph-bold ph-seal-check" style="font-size:24px;"></i></div>
               </div>
-              <div style="font-size:64px;font-family:var(--font-serif);color:var(--color-coral);line-height:1;margin-bottom:8px;font-weight:400;">4.9<span style="font-size:24px;color:rgba(255,255,255,0.3);font-weight:300;">/5</span></div>
-              <div style="color:rgba(255,255,255,0.7);font-size:15px;letter-spacing:0.1em;text-transform:uppercase;font-weight:600;">${t("Average App Rating")}</div>
+              <div style="font-size:64px;font-family:var(--font-serif);color:var(--color-coral);line-height:1;margin-bottom:8px;font-weight:400;">100<span style="font-size:32px;color:rgba(255,255,255,0.4);">%</span></div>
+              <div style="color:rgba(255,255,255,0.7);font-size:15px;letter-spacing:0.1em;text-transform:uppercase;font-weight:600;">${t("RCI & NMC Verified Clinicians")}</div>
             </div>
           </div>
           <!-- Stat 2 -->
           <div style="position:relative;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);padding:48px 40px;border-radius:32px;backdrop-filter:blur(24px);overflow:hidden;text-align:left;transition:all 0.4s cubic-bezier(0.4, 0, 0.2, 1);box-shadow:inset 0 1px 1px rgba(255,255,255,0.1), 0 24px 48px rgba(0,0,0,0.2);" class="hover-lift hover-glow delay-100">
-            <i class="ph-fill ph-chat-teardrop-text" style="position:absolute;right:-10%;bottom:-20%;font-size:200px;color:var(--color-coral);opacity:0.04;transform:rotate(10deg);transition:all 0.5s ease;z-index:0;" class="bg-icon"></i>
+            <i class="ph-fill ph-lock-key" style="position:absolute;right:-10%;bottom:-20%;font-size:200px;color:var(--color-coral);opacity:0.04;transform:rotate(10deg);transition:all 0.5s ease;z-index:0;" class="bg-icon"></i>
             <div style="position:relative;z-index:1;">
               <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
-                <div style="width:48px;height:48px;border-radius:50%;background:rgba(235,94,40,0.1);display:flex;align-items:center;justify-content:center;color:var(--color-coral);"><i class="ph-bold ph-chat-centered-text" style="font-size:24px;"></i></div>
+                <div style="width:48px;height:48px;border-radius:50%;background:rgba(235,94,40,0.1);display:flex;align-items:center;justify-content:center;color:var(--color-coral);"><i class="ph-bold ph-lock-key" style="font-size:24px;"></i></div>
               </div>
-              <div style="font-size:64px;font-family:var(--font-serif);color:var(--color-coral);line-height:1;margin-bottom:8px;font-weight:400;">2M<span style="font-size:40px;">+</span></div>
-              <div style="color:rgba(255,255,255,0.7);font-size:15px;letter-spacing:0.1em;text-transform:uppercase;font-weight:600;">${t("Messages Exchanged")}</div>
+              <div style="font-size:64px;font-family:var(--font-serif);color:var(--color-coral);line-height:1;margin-bottom:8px;font-weight:400;">256<span style="font-size:32px;color:rgba(255,255,255,0.4);">-bit</span></div>
+              <div style="color:rgba(255,255,255,0.7);font-size:15px;letter-spacing:0.1em;text-transform:uppercase;font-weight:600;">${t("TLS & AES Privacy Architecture")}</div>
             </div>
           </div>
           <!-- Stat 3 -->
           <div style="position:relative;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);padding:48px 40px;border-radius:32px;backdrop-filter:blur(24px);overflow:hidden;text-align:left;transition:all 0.4s cubic-bezier(0.4, 0, 0.2, 1);box-shadow:inset 0 1px 1px rgba(255,255,255,0.1), 0 24px 48px rgba(0,0,0,0.2);" class="hover-lift hover-glow delay-200">
-            <i class="ph-fill ph-trend-down" style="position:absolute;right:-10%;bottom:-20%;font-size:200px;color:var(--color-coral);opacity:0.04;transform:rotate(5deg);transition:all 0.5s ease;z-index:0;" class="bg-icon"></i>
+            <i class="ph-fill ph-phone-call" style="position:absolute;right:-10%;bottom:-20%;font-size:200px;color:var(--color-coral);opacity:0.04;transform:rotate(5deg);transition:all 0.5s ease;z-index:0;" class="bg-icon"></i>
             <div style="position:relative;z-index:1;">
               <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
-                <div style="width:48px;height:48px;border-radius:50%;background:rgba(235,94,40,0.1);display:flex;align-items:center;justify-content:center;color:var(--color-coral);"><i class="ph-bold ph-trend-down" style="font-size:24px;"></i></div>
+                <div style="width:48px;height:48px;border-radius:50%;background:rgba(235,94,40,0.1);display:flex;align-items:center;justify-content:center;color:var(--color-coral);"><i class="ph-bold ph-phone-call" style="font-size:24px;"></i></div>
               </div>
-              <div style="font-size:64px;font-family:var(--font-serif);color:var(--color-coral);line-height:1;margin-bottom:8px;font-weight:400;">94<span style="font-size:40px;">%</span></div>
-              <div style="color:rgba(255,255,255,0.7);font-size:15px;letter-spacing:0.1em;text-transform:uppercase;font-weight:600;">${t("Report Reduced Anxiety")}</div>
+              <div style="font-size:64px;font-family:var(--font-serif);color:var(--color-coral);line-height:1;margin-bottom:8px;font-weight:400;">24<span style="font-size:40px;">/7</span></div>
+              <div style="color:rgba(255,255,255,0.7);font-size:15px;letter-spacing:0.1em;text-transform:uppercase;font-weight:600;">${t("Tele-MANAS Crisis Escalation")}</div>
             </div>
           </div>
         </div>
@@ -1987,6 +2055,9 @@ function sectionTestimonials() {
           </div>
         `).join('')}
       </div>
+      <p style="text-align:center;color:rgba(255,255,255,0.5);font-size:13px;margin-top:40px;position:relative;z-index:1;max-width:800px;margin-left:auto;margin-right:auto;line-height:1.5;">
+        * Client stories and quotes represent simulated clinical pathways and demonstration profiles designed to illustrate treatment methodologies. Real therapeutic outcomes depend on individualized clinical care.
+      </p>
       
       <style>
         @keyframes float1 { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(5%, 10%) scale(1.1); } }
@@ -3041,7 +3112,45 @@ function userPanelContent(section, dashboard, data) {
   }
 
   if (section === "counsellors") {
-    const panelCounsellors = data.counsellors?.length ? data.counsellors : counsellors;
+    const isOutage = Boolean(data?.counsellorsOutage || data?.backendStatus?.isOutage);
+    const panelCounsellors = Array.isArray(data?.counsellors)
+      ? data.counsellors.filter((c) => c && (c.verificationStatus === "approved" || c.status === "approved" || c.status === "Online" || c.status === "Busy" || c.status === "Offline" || !c.verificationStatus))
+      : [];
+
+    if (isOutage) {
+      return html`
+        <div class="panel-hero">
+          <div><h1 class="page-title">Find counsellors</h1><p class="page-subtitle">Filter by language, speciality, rate, rating, and enabled session modes.</p></div>
+        </div>
+        <div class="dashboard-card" style="text-align: center; padding: 48px; border: 1px solid var(--color-border); border-radius: 16px;">
+          <span class="status-pill danger" style="margin-bottom: 12px; display: inline-block;">SERVICE TEMPORARILY OFFLINE</span>
+          <h2 style="font-family: var(--font-serif); font-size: 24px; margin-bottom: 8px;">Provider Directory Unavailable</h2>
+          <p style="color: var(--color-text-muted); max-width: 540px; margin: 0 auto 20px auto; font-size: 14px;">
+            We are unable to establish a live connection with the provider database. Appointment scheduling is temporarily disabled to prevent booking inconsistencies.
+          </p>
+          <button class="btn primary" data-action="retry-fetch" style="margin: 0 auto;"><i class="ph-bold ph-arrows-clockwise"></i> Retry Connection</button>
+        </div>
+      `;
+    }
+
+    if (panelCounsellors.length === 0) {
+      return html`
+        <div class="panel-hero">
+          <div><h1 class="page-title">Find counsellors</h1><p class="page-subtitle">Filter by language, speciality, rate, rating, and enabled session modes.</p></div>
+        </div>
+        <div class="dashboard-card" style="text-align: center; padding: 48px; border: 1px solid var(--color-border); border-radius: 16px;">
+          <div style="width: 56px; height: 56px; border-radius: 50%; background: var(--color-cream); color: var(--color-charcoal); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto; font-size: 28px;">
+            <i class="ph-bold ph-users"></i>
+          </div>
+          <h2 style="font-family: var(--font-serif); font-size: 24px; margin-bottom: 8px;">No Verified Practitioners Currently Listed</h2>
+          <p style="color: var(--color-text-muted); max-width: 540px; margin: 0 auto 20px auto; font-size: 14px;">
+            New counsellors are currently undergoing clinical credential verification. Real-time booking will become available once practitioners are approved.
+          </p>
+          <a href="#/panel/user?section=cbt" class="btn primary" style="display: inline-block;">Explore CBT Tools</a>
+        </div>
+      `;
+    }
+
     return html`
       <div class="panel-hero">
         <div><h1 class="page-title">Find counsellors</h1><p class="page-subtitle">Filter by language, speciality, rate, rating, and enabled session modes.</p></div>
@@ -4072,7 +4181,7 @@ function adminPanelContent(section, dashboard, data) {
       status: item.status || "pending"
     }));
 
-    const rawActive = ((data.counsellors && data.counsellors.length) ? data.counsellors : counsellors).map(c => ({
+    const rawActive = (Array.isArray(data.counsellors) ? data.counsellors : []).map(c => ({
       id: c.id,
       fullName: c.name || c.fullName,
       specializations: Array.isArray(c.specialities) ? c.specialities.join(", ") : (c.specialities || c.title || "Clinical Counselling"),
