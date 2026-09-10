@@ -12,19 +12,23 @@ export async function chat({ body, user }) {
   }
   const missing = requireFields(body, ["message"]);
   if (missing) return badRequest("Message is required.", missing);
-  const result = await aiService.chatResponse({ message: body.message, userId: user?.id, languageCode: body.languageCode || "en" });
-  if (result.safety?.riskLevel === "high") {
-    await repositories.crisisEvents.create({
-      id: createId("cri"),
-      userId: user?.id || null,
-      source: "ai_chat",
-      riskLevel: result.safety.riskLevel,
-      detectedTextHash: hashValue(body.message),
-      actionTaken: result.safety.action,
-      createdAt: new Date().toISOString()
-    });
+  try {
+    const result = await aiService.chatResponse({ message: body.message, userId: user?.id, languageCode: body.languageCode || "en" });
+    if (result.safety?.riskLevel === "high") {
+      await repositories.crisisEvents.create({
+        id: createId("cri"),
+        userId: user?.id || null,
+        source: "ai_chat",
+        riskLevel: result.safety.riskLevel,
+        detectedTextHash: hashValue(body.message),
+        actionTaken: result.safety.action,
+        createdAt: new Date().toISOString()
+      });
+    }
+    return ok(result);
+  } catch (error) {
+    return badRequest(error.message || "AI chat processing failed.", { code: error.code || "AI_PROCESSING_FAILED" });
   }
-  return ok(result);
 }
 
 export async function createDreamReport({ body, user }) {
@@ -84,5 +88,10 @@ async function createReport(reportType, body, user) {
   const userId = typeof user === "object" ? user.id : user;
   const inputText = body.inputText || body.description;
   if (!inputText && !body.inputMediaUrl) return badRequest("Text or media input is required.");
-  return created(await aiService.createAnalysisReport({ userId, reportType, inputText, inputMediaUrl: body.inputMediaUrl }));
+  try {
+    const report = await aiService.createAnalysisReport({ userId, reportType, inputText, inputMediaUrl: body.inputMediaUrl });
+    return created(report);
+  } catch (error) {
+    return badRequest(error.message || "AI analysis failed.", { code: error.code || "AI_ANALYSIS_FAILED" });
+  }
 }

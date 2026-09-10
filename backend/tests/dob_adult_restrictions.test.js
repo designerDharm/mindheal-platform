@@ -10,6 +10,13 @@ import { repositories } from "../src/repositories/index.js";
 import { signAccessToken } from "../src/utils/security.js";
 
 test("MH-09: Date of Birth and Adult Restrictions Suite", async (t) => {
+  const prevGeminiKey = process.env.GEMINI_API_KEY;
+  process.env.GEMINI_API_KEY = "mock_gemini_key";
+  t.after(() => {
+    if (prevGeminiKey !== undefined) process.env.GEMINI_API_KEY = prevGeminiKey;
+    else delete process.env.GEMINI_API_KEY;
+  });
+
   const now = new Date();
   const yyyy = now.getUTCFullYear();
   const mm = String(now.getUTCMonth() + 1).padStart(2, "0");

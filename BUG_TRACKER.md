@@ -697,13 +697,13 @@
 
 #### MH-24: AI failure fallback and media processing
 - **Priority:** P1 (High)
-- **Status:** `Open`
-- **Affected Files:** `backend/src/services/ai.service.js`
-- **Reproduction Steps:** Invoke AI service with invalid key or invalid image buffer.
-- **Expected Result:** Structured error response and wallet credit refund.
-- **Actual Result (Before Fix):** Returned synthetic mock text.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Status:** `Staging verified`
+- **Affected Files:** `backend/src/services/ai.service.js`, `backend/src/controllers/ai.controller.js`
+- **Reproduction Steps:** Invoke AI service with missing configuration, provider timeout, malformed output, or invalid uploaded media URL/data URI.
+- **Expected Result:** Truthful structured errors (`AI_CONFIG_MISSING`, `AI_TIMEOUT`, `AI_MALFORMED_OUTPUT`, `AI_INVALID_MEDIA`, `AI_MEDIA_FETCH_FAILED`), no fake report records persisted in database, and reserved wallet credits refunded with 0 charges.
+- **Actual Result (Before Fix):** Returned synthetic mock text (e.g. `[MOCK GEMINI] Gemini API key missing...`), persisted fake reports as successful analysis, and unlocked reports with debited charges despite failure.
+- **Fix Commit:** `fix(ai): enforce truthful errors, media processing, and transactional charge handling (MH-24)`
+- **Verification Evidence:** `backend/tests/ai.service.test.js` (18/18 passed) and `backend/tests/ai.controller.test.js` (7/7 passed). Tested missing configuration, provider timeout, malformed output, valid/invalid data URIs and HTTP media, multimodal image transmission, failed report creation rejection without database persistence, and wallet credit release upon unlock failure.
 
 #### MH-32: Test suite timers and assertion gates
 - **Priority:** P1 (High)

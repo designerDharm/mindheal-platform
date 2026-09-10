@@ -37,6 +37,8 @@ test("ai controller", async (t) => {
 
   await t.test("does not log low-risk AI chat messages", async () => {
     const originalCrisisEvents = repositories.crisisEvents;
+    const prevKey = process.env.GEMINI_API_KEY;
+    process.env.GEMINI_API_KEY = "mock_gemini_key";
     let logged = false;
     repositories.crisisEvents = {
       create: async () => {
@@ -55,6 +57,8 @@ test("ai controller", async (t) => {
       assert.strictEqual(logged, false);
     } finally {
       repositories.crisisEvents = originalCrisisEvents;
+      if (prevKey !== undefined) process.env.GEMINI_API_KEY = prevKey;
+      else delete process.env.GEMINI_API_KEY;
     }
   });
 
@@ -121,5 +125,58 @@ test("ai controller", async (t) => {
       store.wallets.length = originalWalletsLength;
       store.ledgerEntries.length = originalLedgerLength;
     }
+  });
+
+  await t.test("chat returns 400 with truthful error when AI config is missing", async () => {
+    const prevKey = process.env.GEMINI_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+
+    try {
+      const response = await chat({
+        body: { message: "Hello AI" },
+        user: { id: "usr_truth_test", dateOfBirth: "1990-01-01" }
+      });
+
+      assert.strictEqual(response.status, 400);
+      assert.match(response.body.error.message, /API key missing/i);
+    } finally {
+      if (prevKey !== undefined) process.env.GEMINI_API_KEY = prevKey;
+      else delete process.env.GEMINI_API_KEY;
+    }
+  });
+
+  await t.test("createDreamReport returns 400 and does not persist report when AI fails", async () => {
+    const { createDreamReport } = await import("../src/controllers/ai.controller.js");
+    const prevKey = process.env.GEMINI_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+    const initialReportCount = store.analysisReports.length;
+
+    try {
+      const response = await createDreamReport({
+        body: { inputText: "I had a dream about flying" },
+        user: { id: "usr_dream_fail", dateOfBirth: "1990-01-01" }
+      });
+
+      assert.strictEqual(response.status, 400);
+      assert.match(response.body.error.message, /API key missing/i);
+      assert.strictEqual(store.analysisReports.length, initialReportCount);
+    } finally {
+      if (prevKey !== undefined) process.env.GEMINI_API_KEY = prevKey;
+      else delete process.env.GEMINI_API_KEY;
+    }
+  });
+
+  await t.test("createDreamReport rejects invalid media and does not persist report", async () => {
+    const { createDreamReport } = await import("../src/controllers/ai.controller.js");
+    const initialReportCount = store.analysisReports.length;
+
+    const response = await createDreamReport({
+      body: { inputText: "Dream text", inputMediaUrl: "data:invalid/mime;base64,123" },
+      user: { id: "usr_dream_fail", dateOfBirth: "1990-01-01" }
+    });
+
+    assert.strictEqual(response.status, 400);
+    assert.match(response.body.error.message, /Unsupported media type/i);
+    assert.strictEqual(store.analysisReports.length, initialReportCount);
   });
 });
