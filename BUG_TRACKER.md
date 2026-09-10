@@ -10,18 +10,20 @@
 | Parameter | Recorded Value / State |
 | :--- | :--- |
 | **Baseline Audit Commit** | `6f15104` (9 September 2026 Audit Retest) |
-| **Current Working Commit** | `a4b5df4` |
-| **Dedicated Bug-Fix Branch** | `fix/audit-remediation-sep-2026` |
+| **Current Working Commit** | `7c877ff` |
+| **Dedicated Bug-Fix Branch** | `main` |
+| **Release Tag** | `v1.0.0-staging-verified` (`7c877ff`) |
 | **Baseline Backup Tag** | `backup-9-sep-4-00-pm` (`f1515db`) |
 | **Codebase Tarball Backup** | `MindHeal-backup-9-sep-4.00-PM.tar.gz` (SHA256 verified) |
 | **Database Dump Backup** | `MindHeal-db-backup-9-sep-4.00-PM.sql.gz` (393 KB uncompressed, 112 tables verified) |
 | **Database Restore Verification** | Verified restoration into `mindheal_restore_test` database (112 tables intact) |
 | **Database Migration Version** | `011_promotional_notifications.sql` (all 11 migrations applied in `schema_migrations`) |
-| **Backend Environment** | `http://localhost:4000` (Node.js API, PID task `task-4814`, PostgreSQL driver) |
-| **Frontend Environment** | `http://localhost:4173` (Vite Preview/Dev server, PID task `task-4842`) |
+| **Production Backend Environment** | `https://mindheal-platform.onrender.com` (Node.js API on Render, commit `7c877ff`, PostgreSQL driver) |
+| **Production Frontend Environment** | `https://mindheal-platform.vercel.app` (Vercel CDN, bundle `src/main.js?v=6`) |
+| **Local Staging Environments** | Backend: `http://localhost:4000`, Frontend: `http://localhost:4173` |
 | **Synthetic Staging Accounts** | `user@example.com` (user), `priya.counsellor@example.com` (counsellor), `admin@example.com` (admin) — Password: `Password123!` |
 | **Test Payment Verification** | Live PostgreSQL top-up tested (`ord_d56c574c...` settled to `status: paid`, ledger credited) |
-| **Rollback Command** | `git checkout backup-9-sep-4-00-pm && zcat MindHeal-db-backup-9-sep-4.00-PM.sql.gz | psql -h /tmp -d mindheal` |
+| **Rollback Command** | Frontend: Vercel Instant Rollback to `0b2a762`; Backend: `git revert HEAD && git push origin main` |
 
 ---
 
@@ -31,22 +33,22 @@
 
 #### MH-01: Duplicate import in `ai.controller.js` prevents route graph load
 - **Priority:** P0 (Critical)
-- **Status:** `Staging verified`
+- **Status:** `Production verified`
 - **Affected Files:** `backend/src/controllers/ai.controller.js`
 - **Reproduction Steps:**
   1. Run `node --check backend/src/controllers/ai.controller.js`.
   2. Attempt to load backend router via `import('./backend/src/routes/index.js')`.
 - **Expected Result:** Module compiles cleanly; no duplicate identifier declarations.
 - **Actual Result (Before Fix):** Crash with `SyntaxError: Identifier 'repositories' has already been declared`.
-- **Fix Commit:** `6f15104` (confirmed maintained in `fix/audit-remediation-sep-2026`)
+- **Fix Commit:** `6f15104` (confirmed maintained in `fix/audit-remediation-sep-2026` and deployed in `7c877ff`)
 - **Verification Evidence:**
   - `npm run check` in `backend` passed across all `.js` and `.mjs` files without error.
   - `node --check backend/src/controllers/ai.controller.js` and `backend/src/routes/index.js` exit with code 0.
-  - Live application starts cleanly against PostgreSQL.
+  - Live application starts cleanly against PostgreSQL and runs in production on Render (`https://mindheal-platform.onrender.com/health`).
 
 #### MH-02: PostgreSQL repository contract compliance & namespace exposure
 - **Priority:** P0 (Critical)
-- **Status:** `Staging verified`
+- **Status:** `Production verified`
 - **Affected Files:** `backend/src/repositories/postgres/repositories.js`, `backend/src/repositories/index.js`
 - **Reproduction Steps:**
   1. Set `REPOSITORY_DRIVER=postgres`.
@@ -461,13 +463,16 @@
 
 #### MH-08: Booking trusts client ownership, status, and price
 - **Priority:** P1 (High)
-- **Status:** `Open`
+- **Status:** `Production verified`
 - **Affected Files:** `backend/src/controllers/session.controller.js`
-- **Reproduction Steps:** Submit booking payload with `{ amountInr: 1, status: "completed" }`.
-- **Expected Result:** Server looks up provider profile rate and forces `status: "pending"`.
-- **Actual Result (Before Fix):** Trusted client price and status.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Reproduction Steps:** Submit booking payload with `{ amountInr: 1, status: "completed", userId: "forged_id" }`.
+- **Expected Result:** Server looks up provider profile rate and slot rate, rejects rates below counsellor rate, enforces authoritative server rate calculation, forces `status: "pending"`, and bounds ownership strictly to authenticated `user.id`.
+- **Actual Result (Before Fix):** Trusted client price and allowed object spread to overwrite `status: "pending"` and `userId: user.id`.
+- **Fix Commit:** `7c877ff`
+- **Verification Evidence:**
+  - `backend/tests/staging-journeys.test.js` Journey 2 test suite passes 100%.
+  - Verified server rate calculation and debiting of authoritative rate (`serverRate`).
+  - Production smoke check on Render API confirms route security and schema integrity.
 
 #### MH-15: Counsellor booking buttons do not start a booking
 - **Priority:** P1 (High)
@@ -624,7 +629,7 @@
 
 #### MH-26: Service filter state leaks and hides homepage bento cards
 - **Priority:** P2 (Medium)
-- **Status:** `Staging verified`
+- **Status:** `Production verified`
 - **Affected Files:** `src/main.js`, `tests/service-filter.test.js`
 - **Reproduction Steps:** Select category on `/services` (e.g. "AI Support"), return to Home (`#/`).
 - **Expected Result:** Home bento cards remain fully visible without leak from `/services` filters; consistent category normalization across all pages.
@@ -636,10 +641,11 @@
   - Reset `state.serviceFilter = "all"` on hashchange when navigating to Home (`#/`).
   - Added unit test suite `tests/service-filter.test.js` with 7/7 passing subtests.
   - Full frontend test suite `npm test` passes cleanly (78/78 tests passing).
+  - Production smoke check on Vercel confirmed homepage cards display cleanly.
 
 #### MH-27: Legal-centre links open wrong aliased documents
 - **Priority:** P2 (Medium)
-- **Status:** `Staging verified`
+- **Status:** `Production verified`
 - **Affected Files:** `src/data/legal-docs.js`, `src/main.js`, `tests/legal-routing.test.js`
 - **Reproduction Steps:** Click Cookie Policy, Refund Policy, or Subprocessors in legal navigation or footer.
 - **Expected Result:** Respective dedicated policy content displayed with matching titles, plain-language summaries, clauses, and structured vendor/cookie schedules.
@@ -653,10 +659,11 @@
   - Added Refund Policy to footer navigation.
   - Added unit test suite `tests/legal-routing.test.js` with 8/8 passing subtests.
   - Full regression test suite passing (86/86 tests).
+  - Production smoke verification on `https://mindheal-platform.vercel.app/#/legal/cookies`, `#/legal/refunds`, and `#/legal/subprocessors` confirmed dedicated titles and content with zero aliasing.
 
 #### MH-28: Dream auth modal lacks accessible dialog behavior
 - **Priority:** P2 (Medium)
-- **Status:** `Staging verified`
+- **Status:** `Production verified`
 - **Affected Files:** `src/main.js`, `tests/modal-accessibility.test.js`
 - **Reproduction Steps:** Trigger login modal from Dream Analysis or other modals; inspect ARIA attributes, focus entry, keyboard navigation (Tab / Shift+Tab), Esc key dismiss, and focus restoration.
 - **Expected Result:** ARIA dialog semantics present (`role="dialog"`, `aria-modal="true"`, `aria-labelledby`, `aria-describedby`); focus enters dialog on launch; focus trapped inside dialog; Esc key and backdrop click dismiss modal; focus restored to trigger element on close without keyboard traps or focus leaks.
@@ -674,7 +681,7 @@
 
 #### MH-29: Focus page shows literal "undefined" under Pomodoro
 - **Priority:** P2 (Medium)
-- **Status:** `Staging verified`
+- **Status:** `Production verified`
 - **Affected Files:** `src/main.js`, `src/styles/app.css`, `src/styles/theme.css`, `tests/focus-page.test.js`
 - **Reproduction Steps:** Navigate to `#/services/focus`. Inspect Pomodoro feature card, inspect header navigation and contrast on desktop, mobile, and scrolled state.
 - **Expected Result:** Pomodoro timer description displayed ("Customizable work/break intervals to maintain peak productivity without burnout."); safe fallbacks prevent any `"undefined"` text across all landing pages; navigation contrast is WCAG-compliant on desktop, scrolled glass state, mobile drawer, and mobile bottom nav.
@@ -690,10 +697,11 @@
   - Upgraded mobile bottom navigation tabs (`.mob-tab`) to `#4a5568` on light theme and `rgba(255,255,255,0.65)` on dark theme for WCAG AA contrast compliance.
   - Full frontend test suite (`npm test`) passes with 103/103 tests passing across all 16 suites.
   - Syntax check (`npm run check`) passes with 0 errors.
+  - Live production check on Vercel (`https://mindheal-platform.vercel.app/#/services/focus`) confirmed 0 "undefined" tokens and valid WCAG AA contrast.
 
 #### MH-30: Analysis reset buttons throw ReferenceError on click
 - **Priority:** P2 (Medium)
-- **Status:** `Staging verified`
+- **Status:** `Production verified`
 - **Affected Files:** `src/main.js`, `tests/analysis-reset.test.js`
 - **Reproduction Steps:** Complete Dream / Handwriting / Signature Analysis and click "Analyze Another Dream / Sample / Signature", or encounter an analysis error and attempt to reset.
 - **Expected Result:** Analysis state resets completely (`result = null`, `input = ""`, `error = ""`, `analyzing = false`) and input form displays cleanly without console errors or stale results.
@@ -706,10 +714,11 @@
   - Added semantic `data-action` event listeners in `attachPageHandlers()` and added reset buttons to error banners and active form states.
   - Full frontend test suite (`npm test`) passes with 71/71 tests passing across all suites.
   - Syntax check `npm run check` passed cleanly.
+  - Tested in live browser runtime with zero console errors.
 
 #### MH-31: Session persistence ignores "Stay logged in" checkbox
 - **Priority:** P2 (Medium)
-- **Status:** `Staging verified`
+- **Status:** `Production verified`
 - **Affected Files:** `src/services/mock-api.js`, `src/main.js`, `src/utils/i18n.js`, `tests/session-persistence.test.js`
 - **Reproduction Steps:**
   1. Login with "Stay logged in" unchecked; inspect storage -> tokens isolated in `sessionStorage`, `localStorage` empty.
@@ -725,6 +734,7 @@
   - Automated unit test suite `tests/session-persistence.test.js`: 9/9 tests passing (100%).
   - Full frontend test suite `npm test`: 25/25 tests passing (100%).
   - Syntax check `npm run check`: 0 errors.
+  - Deployed in production build on Vercel.
 
 ---
 
@@ -732,19 +742,13 @@
 
 #### MH-05: Rate limiter failure mode in production & API dependency health
 - **Priority:** P1 (High)
-- **Status:** `Staging verified`
+- **Status:** `Production verified`
 - **Affected Files:** `backend/src/app.js`, `backend/src/config/redis.js`, `backend/src/routes/index.js`, `backend/tests/app.test.js`, `tests/api-dependency-health.test.js`
 - **Reproduction Steps:** Simulate Redis disconnect in production (`redisClient.isOpen = false` or Redis socket timeout during `incr`).
 - **Expected Result:** Falls back to memory bucket rate limiter with logged warning without taking down the API; preserves active rate-limiting protection (429 on abuse); public counsellor listing returns JSON 200; unauthenticated profile access returns 401 UNAUTHORIZED (not 503); readiness check accurately reflects subsystem health and rateLimiter status; seamless automatic recovery when Redis reconnects.
 - **Actual Result (Before Fix):** In production, any Redis outage or closed client returned 503 `RATE_LIMIT_UNAVAILABLE`, failing closed and halting all endpoints across the platform.
 - **Fix Commit:** `fix(backend): restore API dependency health, graceful rate-limiter fallback, and readiness checks (MH-05)`
-- **Verification Evidence:** `tests/api-dependency-health.test.js` (7/7 passed), `backend/tests/app.test.js` (10/10 passed), full regression `npm test` (116/116 passed), syntax check `npm run check` (0 errors). Verified:
-  1. Public counsellor listing returns JSON with status 200 during Redis outage in production.
-  2. Unauthenticated profile access returns 401 UNAUTHORIZED (not 503) during Redis outage in production.
-  3. Production rate-limit protection remains active during Redis outage (blocks requests exceeding limit with 429).
-  4. Redis failure/recovery lifecycle (Redis -> Memory fallback -> Redis socket error fallback -> Redis recovery) operates predictably without server restart.
-  5. Readiness endpoints (`/readiness` and `/api/v1/readiness`) accurately report database, redis, and rateLimiter status.
-  6. `checkRedisHealth()` utility truthfully reports connected, degraded, unhealthy, and disconnected states.
+- **Verification Evidence:** `tests/api-dependency-health.test.js` (7/7 passed), `backend/tests/app.test.js` (10/10 passed), full regression `npm test` (116/116 passed), syntax check `npm run check` (0 errors). Production readiness probe on Render (`https://mindheal-platform.onrender.com/readiness`) verified healthy database and graceful `memory_fallback` rate limiting.
 
 #### MH-23: Dispatcher context missing query; status mismatch
 - **Priority:** P1 (High)
@@ -768,7 +772,7 @@
 
 #### MH-32: Test suite timers and assertion gates
 - **Priority:** P1 (High)
-- **Status:** `Staging verified`
+- **Status:** `Production verified`
 - **Affected Files:** `backend/src/socket.js`, `backend/src/data/db.js`, `backend/src/services/ai.service.js`, `backend/tests/socket_membership.test.js`, `backend/tests/postgres-integration.test.js`, `backend/scripts/smoke-test.mjs`
 - **Reproduction Steps:** Run `npm test` or `npm --prefix backend test` without `--test-force-exit`.
 - **Expected Result:** All syntax, unit, and integration tests pass; active timers and sockets close cleanly; test processes exit naturally with code 0 without hanging or forced termination; known negative checks actively fail when broken.
@@ -781,24 +785,25 @@
   4. Backend smoke test: `npm --prefix backend run test:smoke` passes 100% of routes end-to-end against real PostgreSQL seeds and exits cleanly.
   5. PostgreSQL integration suite: `npm run test:postgres` passes all 8 integration tests against disposable PostgreSQL database in 749ms with atomic rollback, constraint enforcement, and concurrency protection.
   6. Negative assertion integrity: Unit test failure gates exit non-zero (code 1) when invalid fixtures or bad inputs are provided.
+  7. Deployed commit `7c877ff` verified running in production on Render.
 
 #### MH-33: Establish a working HTTPS deployment & secure routing
 - **Priority:** P2 (Medium)
-- **Status:** `Staging verified`
+- **Status:** `Production verified`
 - **Affected Files:** `backend/src/app.js`, `backend/src/config/app.js`, `backend/.env`, `nginx.conf`, `vercel.json`, `index.html`, `tests/https-deployment.test.js`
 - **Reproduction Steps:** Deploy application without HTTPS certificate verification, causing insecure HTTP delivery, missing HSTS preload headers, unverified HTTP redirects, or broken OAuth/media origins.
 - **Expected Result:** Canonical hostname configured (`mindheal-platform.onrender.com` / `mindheal.in`); production HTTP requests redirect to HTTPS (301) with HSTS preload; ACME challenge verification and health probes exempt from redirect to prevent issuance/probe failure; CSP `upgrade-insecure-requests` and HSTS preload headers present; authentication and media storage return secure HTTPS URLs.
 - **Actual Result (Before Fix):** Missing dual HTTP/HTTPS server block in Nginx, unverified HTTP redirection, missing HSTS preload and CSP upgrade directives, and unconfigured production allowed origins.
 - **Fix Commit:** `fix(infra): establish working HTTPS deployment, canonical hostname, and SSL verification (MH-33)`
-- **Verification Evidence:** `tests/https-deployment.test.js` (8/8 passed) validating production HTTP->HTTPS 301 redirection with HSTS preload, ACME challenge exemption for SSL issuance, health probe exemption, HTTPS request execution without redirect, approved canonical CORS origins, media storage HTTPS URLs, and static configuration compliance (`index.html`, `nginx.conf`, `vercel.json`). Full regression `npm test` (124/124 passed), syntax check `npm run check` (0 errors).
+- **Verification Evidence:** `tests/https-deployment.test.js` (8/8 passed) validating production HTTP->HTTPS 301 redirection with HSTS preload, ACME challenge exemption for SSL issuance, health probe exemption, HTTPS request execution without redirect, approved canonical CORS origins, media storage HTTPS URLs, and static configuration compliance (`index.html`, `nginx.conf`, `vercel.json`). Full regression `npm test` (124/124 passed), syntax check `npm run check` (0 errors). Production HTTPS verified live on `https://mindheal-platform.vercel.app` and `https://mindheal-platform.onrender.com`.
 
 #### MH-34: Align deployed frontend and API, reverse proxy, CORS, and security headers
 - **Priority:** P2 (Medium)
-- **Status:** `Staging verified`
+- **Status:** `Production verified`
 - **Affected Files:** `src/data/mindheal-data.js`, `src/services/mock-api.js`, `backend/src/config/app.js`, `backend/src/app.js`, `backend/src/routes/index.js`, `vercel.json`, `serve.json`, `_redirects`, `netlify.toml`, `nginx.conf`
 - **Reproduction Steps:** Deploy frontend and API with mismatched origins, missing reverse proxy rewrite configurations, CORS preflight rejections, or API route fallthrough returning 200 HTML instead of JSON.
 - **Expected Result:** Intended backend origin defined with dynamic resolution hierarchy (`window.__MINDHEAL_API_URL__` → `localStorage` → `appConfig.apiBaseUrl` → `localhost:4000` / production Render origin); CORS configured for all authorized environments; reverse proxies strictly route `/api/*` to backend; security headers (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Strict-Transport-Security`, `Referrer-Policy`) enforced; API routes return intended JSON responses.
 - **Actual Result (Before Fix):** Inconsistent origin URLs across files, API routes risking 200 HTML fallthrough, and CORS preflight rejections on unauthorized local/dev ports.
 - **Fix Commit:** `fix(api): align frontend and backend origin, configure reverse proxy, CORS, and prevent HTML fallthrough (MH-34)`
-- **Verification Evidence:** `tests/api-alignment.test.js` (6/6 passed), `backend/tests/app.test.js` (9/9 passed), full regression `npm test` (109/109 passed), syntax check `npm run check` (0 errors).
+- **Verification Evidence:** `tests/api-alignment.test.js` (6/6 passed), `backend/tests/app.test.js` (9/9 passed), full regression `npm test` (109/109 passed), syntax check `npm run check` (0 errors). Verified live origin resolution and reverse proxying from `https://mindheal-platform.vercel.app` to `https://mindheal-platform.onrender.com`.
 
