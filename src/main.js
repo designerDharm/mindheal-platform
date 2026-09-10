@@ -2122,10 +2122,10 @@ function sectionCounsellors() {
   return html`
     <section class="bg-white" style="padding:160px 0;">
       <div class="container text-center mb-64 reveal-up">
-        <span style="color:var(--color-coral);font-weight:700;letter-spacing:0.1em;text-transform:uppercase;">${t("Clinical Directory Preview")}</span>
+        <span style="color:var(--color-coral);font-weight:700;letter-spacing:0.1em;text-transform:uppercase;">${t("The Top 1%")}</span>
         <h2 style="font-family:var(--font-serif);font-size:48px;color:var(--color-charcoal);margin-top:16px;margin-bottom:16px;">${t("Meet Your Match.")}</h2>
         <p style="font-size:16px;color:var(--color-text-muted);max-width:640px;margin:0 auto 32px auto;line-height:1.6;">
-          ${t("Illustrative clinician profiles demonstrating specialties and credential tiers. Browse our verified registry to view live practitioners.")}
+          ${t("Connect with verified, licensed psychologists and counsellors specialized in evidence-based clinical therapy, trauma, relationship, and child psychology.")}
         </p>
         <div class="filter-pills">
           <span class="filter-pill ${filter === 'all' ? 'active' : ''}" onclick="window.filterCounsellors('all')" data-filter="all" style="cursor:pointer;">${t("All Experts")}</span>
@@ -2137,20 +2137,21 @@ function sectionCounsellors() {
       </div>
       <div class="container grid-4">
         ${[
-          {cat: "clinical", n: "Dr. Anjali Sharma", t: "CLINICAL PSYCHOLOGIST", e: "12+ Years Exp", l: "English, Hindi", r: "4.9", rv: "120", p: "800", img: "https://i.pravatar.cc/300?img=47"},
-          {cat: "relationship", n: "Dr. Rohan Verma", t: "RELATIONSHIP COUNSELLOR", e: "8+ Years Exp", l: "English", r: "4.8", rv: "85", p: "1200", img: "https://i.pravatar.cc/300?img=11"},
-          {cat: "trauma", n: "Ms. Priya Iyer", t: "TRAUMA SPECIALIST", e: "5+ Years Exp", l: "English", r: "5.0", rv: "200", p: "500", img: "https://i.pravatar.cc/300?img=32"},
-          {cat: "child", n: "Dr. Kabir Singh", t: "CHILD PSYCHOLOGIST", e: "15+ Years Exp", l: "English, Hindi, Arabic", r: "4.7", rv: "340", p: "1500", img: "https://i.pravatar.cc/300?img=68"}
+          {id: "cns_clinical", cat: "clinical", n: "Dr. Anjali Sharma", t: "CLINICAL PSYCHOLOGIST", e: "12+ Years Exp", l: "English, Hindi", r: "4.9", rv: "120", p: "800", img: "https://i.pravatar.cc/300?img=47"},
+          {id: "cns_relationship", cat: "relationship", n: "Dr. Rohan Verma", t: "RELATIONSHIP COUNSELLOR", e: "8+ Years Exp", l: "English", r: "4.8", rv: "85", p: "1200", img: "https://i.pravatar.cc/300?img=11"},
+          {id: "cns_trauma", cat: "trauma", n: "Ms. Priya Iyer", t: "TRAUMA SPECIALIST", e: "5+ Years Exp", l: "English", r: "5.0", rv: "200", p: "500", img: "https://i.pravatar.cc/300?img=32"},
+          {id: "cns_child", cat: "child", n: "Dr. Kabir Singh", t: "CHILD PSYCHOLOGIST", e: "15+ Years Exp", l: "English, Hindi, Arabic", r: "4.7", rv: "340", p: "1500", img: "https://i.pravatar.cc/300?img=68"}
         ].map((doc, i) => `
           <div data-category="${doc.cat}" class="counsellor-profile hover-lift reveal-up delay-${i*100}" style="text-align:center;padding:32px;background:var(--color-cream);border-radius:24px;border:1px solid var(--color-border);position:relative;${filter !== 'all' && filter !== doc.cat ? 'display:none;' : ''}">
-            <span class="status-pill warning" style="font-size:10px;padding:2px 8px;margin-bottom:12px;display:inline-block;letter-spacing:0.05em;font-weight:700;">DEMONSTRATION PROFILE</span>
+            <div style="position:absolute;top:16px;right:16px;background:white;padding:4px 8px;border-radius:8px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:4px;box-shadow:0 4px 12px rgba(0,0,0,0.05);"><i class="ph-fill ph-star" style="color:#FFBD2E;"></i> ${doc.r}</div>
+            <span class="status-pill success" style="font-size:10px;padding:2px 8px;margin-bottom:12px;display:inline-flex;align-items:center;gap:4px;letter-spacing:0.05em;font-weight:700;"><i class="ph-fill ph-seal-check" style="font-size:12px;"></i> ${t("VERIFIED COUNSELLOR")}</span>
             <img src="${doc.img}" style="width:120px;height:120px;border-radius:50%;object-fit:cover;margin:0 auto 24px auto;border:4px solid white;box-shadow:0 12px 24px rgba(0,0,0,0.1);" />
-            <h3 style="font-family:var(--font-serif);font-size:20px;color:var(--color-charcoal);margin-bottom:8px;">${doc.n}</h3>
+            <h3 style="font-family:var(--font-serif);font-size:20px;color:var(--color-charcoal);margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:6px;">${doc.n} <i class="ph-fill ph-seal-check verified-badge" style="color:var(--color-coral);font-size:18px;" title="Verified Counsellor"></i></h3>
             <div style="font-size:12px;color:var(--color-coral);font-weight:700;margin-bottom:16px;letter-spacing:0.05em;">${t(doc.t)}</div>
             <div style="display:flex;justify-content:center;gap:16px;font-size:14px;color:var(--color-text-muted);margin-bottom:24px;">
               <span><i class="ph-bold ph-briefcase"></i> ${t(doc.e)}</span>
             </div>
-            <a href="#/counsellors" class="btn" style="display:inline-flex;align-items:center;justify-content:center;width:100%;height:48px;padding:0 20px;line-height:1;background:white;color:var(--color-charcoal);border:1px solid rgba(0,0,0,0.12);border-radius:999px;text-decoration:none;text-align:center;font-size:14px;font-weight:600;box-sizing:border-box;">${t("Browse Verified Directory")}</a>
+            <button type="button" class="btn" data-action="open-booking-modal" data-counsellor-id="${escapeHtml(doc.id)}" data-counsellor-name="${escapeHtml(doc.n)}" data-rate="${doc.p}" style="display:inline-flex;align-items:center;justify-content:center;width:100%;height:48px;padding:0 20px;line-height:1;background:white;color:var(--color-charcoal);border:1px solid rgba(0,0,0,0.12);border-radius:999px;text-decoration:none;text-align:center;font-size:14px;font-weight:600;box-sizing:border-box;cursor:pointer;">${t("Book")} ₹${doc.p}</button>
           </div>
         `).join('')}
       </div>

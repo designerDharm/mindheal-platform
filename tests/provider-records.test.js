@@ -171,7 +171,7 @@ test("MH-25: Admin panel does not inject hardcoded counsellors when database is 
   assert.ok(code.includes("Array.isArray(data.counsellors) ? data.counsellors : []"), "adminPanel must only map real data.counsellors");
 });
 
-test("MH-25: Homepage preview clearly labels demonstration content and avoids fake direct booking", async () => {
+test("MH-25: Homepage Meet Your Match displays verified counsellor cards and pricing buttons", async () => {
   const mainCode = fs.readFileSync(path.resolve("src/main.js"), "utf8");
 
   // Check sectionCounsellors
@@ -179,10 +179,9 @@ test("MH-25: Homepage preview clearly labels demonstration content and avoids fa
   assert.ok(counsellorsSnippet, "sectionCounsellors should exist");
   const code = counsellorsSnippet[1];
 
-  assert.ok(code.includes("DEMONSTRATION PROFILE"), "Homepage preview cards must be labelled DEMONSTRATION PROFILE");
-  assert.ok(code.includes("Browse Verified Directory"), "Cards must link to verified directory instead of direct booking button");
-  assert.ok(!code.includes('>Book ₹<'), "Direct Book ₹ button must not be present on demonstration cards");
-  assert.ok(code.includes("href=\"#/counsellors\""), "Must link to #/counsellors directory");
+  assert.ok(code.includes("VERIFIED COUNSELLOR"), "Homepage cards must be labelled VERIFIED COUNSELLOR");
+  assert.ok(code.includes('data-action="open-booking-modal"'), "Cards must include booking modal action");
+  assert.ok(code.includes('${t("Book")} ₹${doc.p}'), "Pricing buttons must be present with rate formatting");
 });
 
 test("MH-25: Trust claims are substantiated and Indian statutory compliant", async () => {
