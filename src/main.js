@@ -92,7 +92,7 @@ export function saveUserData(baseKey, data, userId = null) {
   } catch {}
 }
 
-const state = {
+export const state = {
   route: parseRoute(),
   authError: "",
   navOpen: false,
@@ -129,7 +129,8 @@ const state = {
   bookingModalOpen: false,
   bookingModalTarget: null,
   bookingModalSlots: [],
-  pendingBooking: null
+  pendingBooking: null,
+  modalTriggerElement: null
 };
 
 if (typeof window !== "undefined") {
@@ -281,6 +282,148 @@ window.addEventListener("hashchange", () => {
   updateSeoMetadata(state.route.path);
   render();
 });
+
+export function getModalFocusableElements(modalEl) {
+  if (!modalEl) return [];
+  const selector = 'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  const all = Array.from(modalEl.querySelectorAll(selector));
+  return all.filter((el) => {
+    if (el.getAttribute("tabindex") === "-1" || el.disabled) return false;
+    if (typeof window !== "undefined" && window.getComputedStyle) {
+      try {
+        const style = window.getComputedStyle(el);
+        if (style.display === "none" || style.visibility === "hidden") return false;
+      } catch (_) {}
+    }
+    return true;
+  });
+}
+
+export function restoreModalFocus(triggerEl) {
+  const target = triggerEl || state.modalTriggerElement;
+  state.modalTriggerElement = null;
+  if (!target) return;
+  try {
+    if (typeof document !== "undefined" && document.contains && document.contains(target) && typeof target.focus === "function") {
+      target.focus();
+    } else if (target.id && typeof document !== "undefined" && document.getElementById) {
+      const el = document.getElementById(target.id);
+      if (el && typeof el.focus === "function") {
+        el.focus();
+      }
+    }
+  } catch (_) {}
+}
+
+export function closeAnyOpenModal() {
+  const triggerEl = state.modalTriggerElement;
+  let changed = false;
+
+  if (state.showDreamAuthModal) {
+    state.showDreamAuthModal = false;
+    changed = true;
+  }
+  if (state.bookingModalOpen) {
+    state.bookingModalOpen = false;
+    state.bookingModalTarget = null;
+    state.bookingModalSlots = [];
+    changed = true;
+  }
+  if (state.linkModal) {
+    state.linkModal = null;
+    state.linkError = "";
+    changed = true;
+  }
+  if (state.cbtDailyDiaryOpen) {
+    state.cbtDailyDiaryOpen = false;
+    changed = true;
+  }
+  if (typeof document !== "undefined" && document.getElementById && document.getElementById("promo-popup-overlay") && typeof window !== "undefined" && typeof window.dismissPromo === "function") {
+    window.dismissPromo();
+    changed = true;
+  }
+
+  if (changed && typeof render === "function") {
+    render().then(() => {
+      restoreModalFocus(triggerEl);
+    });
+  }
+}
+
+export function manageModalAccessibility() {
+  if (typeof document === "undefined" || typeof document.querySelector !== "function") return;
+  const activeModal = document.querySelector('[role="dialog"][aria-modal="true"]');
+  if (!activeModal) {
+    if (document.body && document.body.classList && typeof document.body.classList.remove === "function") {
+      document.body.classList.remove("modal-open");
+    }
+    return;
+  }
+
+  if (document.body && document.body.classList && typeof document.body.classList.add === "function") {
+    document.body.classList.add("modal-open");
+  }
+
+  // Focus entry: if focus is not currently inside activeModal, move it inside
+  const isInside = typeof activeModal.contains === "function" && document.activeElement && activeModal.contains(document.activeElement);
+  if (!isInside) {
+    const focusable = getModalFocusableElements(activeModal);
+    const preferredFocus = focusable.find(el => typeof el.matches === "function" && el.matches('input:not([type="hidden"]), select, textarea')) 
+      || focusable.find(el => typeof el.matches === "function" && el.matches('button[role="tab"][aria-selected="true"]'))
+      || focusable[0] 
+      || activeModal;
+
+    if (preferredFocus && typeof preferredFocus.focus === "function") {
+      try {
+        preferredFocus.focus();
+      } catch (_) {}
+    }
+  }
+}
+
+export function handleModalKeydown(e) {
+  if (typeof document === "undefined" || typeof document.querySelector !== "function") return;
+  const activeModal = document.querySelector('[role="dialog"][aria-modal="true"]');
+  if (!activeModal) return;
+
+  if (e.key === "Escape") {
+    e.preventDefault();
+    closeAnyOpenModal();
+    return;
+  }
+
+  if (e.key === "Tab") {
+    const focusable = getModalFocusableElements(activeModal);
+    if (focusable.length === 0) {
+      e.preventDefault();
+      if (typeof activeModal.focus === "function") activeModal.focus();
+      return;
+    }
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    if (e.shiftKey) {
+      if (document.activeElement === first || (typeof activeModal.contains === "function" && !activeModal.contains(document.activeElement))) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else {
+      if (document.activeElement === last || (typeof activeModal.contains === "function" && !activeModal.contains(document.activeElement))) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("keydown", handleModalKeydown);
+  window.closeAnyOpenModal = closeAnyOpenModal;
+  window.restoreModalFocus = restoreModalFocus;
+  window.manageModalAccessibility = manageModalAccessibility;
+  window.getModalFocusableElements = getModalFocusableElements;
+}
 
 function parseRoute() {
   const hash = window.location.hash.replace(/^#/, "") || "/";
@@ -487,6 +630,7 @@ async function render() {
 
   attachGlobalHandlers();
   attachPageHandlers();
+  manageModalAccessibility();
   initScrollObserver();
   window.scrollTo({ top: 0, behavior: "instant" });
 
@@ -3551,12 +3695,12 @@ function userPanelContent(section, dashboard, data) {
 
       <!-- DAILY DIARY OVERLAY MODAL -->
       ${state.cbtDailyDiaryOpen ? html`
-        <div style="position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 24px;">
-          <div class="dashboard-card" style="width: 100%; max-width: 600px; background: var(--color-card-elevated); border: 1px solid var(--color-border); border-radius: 24px; padding: 32px; position: relative; box-shadow: var(--shadow-3); display: flex; flex-direction: column; gap: 20px;">
-            <button data-action="close-daily-diary" style="position: absolute; top: 20px; right: 20px; background: transparent; border: none; color: var(--color-text-muted); font-size: 24px; cursor: pointer;">
-              <i class="ph ph-x"></i>
+        <div class="modal-overlay" data-modal="cbt-diary" style="position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 24px;">
+          <div role="dialog" aria-modal="true" aria-labelledby="cbt-diary-modal-title" tabindex="-1" class="dashboard-card modal-dialog-card" style="width: 100%; max-width: 600px; background: var(--color-card-elevated); border: 1px solid var(--color-border); border-radius: 24px; padding: 32px; position: relative; box-shadow: var(--shadow-3); display: flex; flex-direction: column; gap: 20px;">
+            <button type="button" data-action="close-daily-diary" aria-label="Close daily diary" style="position: absolute; top: 20px; right: 20px; background: transparent; border: none; color: var(--color-text-muted); font-size: 24px; cursor: pointer;">
+              <i class="ph ph-x" aria-hidden="true"></i>
             </button>
-            <h2 style="font-family: var(--font-serif); font-size: 24px; color: var(--color-charcoal); display: flex; align-items: center; gap: 12px; margin: 0;"><i class="ph-fill ph-book-open" style="color: #805ad5;"></i> Daily Diary</h2>
+            <h2 id="cbt-diary-modal-title" style="font-family: var(--font-serif); font-size: 24px; color: var(--color-charcoal); display: flex; align-items: center; gap: 12px; margin: 0;"><i class="ph-fill ph-book-open" style="color: #805ad5;" aria-hidden="true"></i> Daily Diary</h2>
             <p style="font-size: 14px; color: var(--color-text-muted); margin: 0;">Write down your daily log, reflection notes, and get optional AI reflection.</p>
             
             <form data-form="cbt-daily-diary" style="display: flex; flex-direction: column; gap: 16px;">
@@ -3776,16 +3920,16 @@ function renderBookingModal() {
   const initialSlot = slots[0];
 
   return html`
-    <div style="position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 24px;">
-      <div class="dashboard-card" style="width: 100%; max-width: 540px; background: var(--color-card-elevated); border: 1px solid var(--color-border); border-radius: 24px; padding: 32px; position: relative; box-shadow: var(--shadow-3); display: flex; flex-direction: column; gap: 20px;">
-        <button type="button" data-action="close-booking-modal" style="position: absolute; top: 20px; right: 20px; background: transparent; border: none; color: var(--color-text-muted); font-size: 24px; cursor: pointer;">
-          <i class="ph ph-x"></i>
+    <div class="modal-overlay" data-modal="booking" style="position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 24px;">
+      <div role="dialog" aria-modal="true" aria-labelledby="booking-modal-title" tabindex="-1" class="dashboard-card modal-dialog-card" style="width: 100%; max-width: 540px; background: var(--color-card-elevated); border: 1px solid var(--color-border); border-radius: 24px; padding: 32px; position: relative; box-shadow: var(--shadow-3); display: flex; flex-direction: column; gap: 20px;">
+        <button type="button" data-action="close-booking-modal" aria-label="Close booking modal" style="position: absolute; top: 20px; right: 20px; background: transparent; border: none; color: var(--color-text-muted); font-size: 24px; cursor: pointer;">
+          <i class="ph ph-x" aria-hidden="true"></i>
         </button>
         
         <div>
           <span style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--color-coral); letter-spacing: 0.05em;">Book Therapy Session</span>
-          <h2 style="font-family: var(--font-serif); font-size: 24px; color: var(--color-charcoal); margin: 4px 0 0 0; display: flex; align-items: center; gap: 10px;">
-            <i class="ph-fill ph-video-camera" style="color: var(--color-coral);"></i> ${escapeHtml(target.name)}
+          <h2 id="booking-modal-title" style="font-family: var(--font-serif); font-size: 24px; color: var(--color-charcoal); margin: 4px 0 0 0; display: flex; align-items: center; gap: 10px;">
+            <i class="ph-fill ph-video-camera" style="color: var(--color-coral);" aria-hidden="true"></i> ${escapeHtml(target.name)}
           </h2>
         </div>
 
@@ -3865,6 +4009,9 @@ async function openBookingForCounsellor(target) {
   state.bookingModalTarget = target;
   state.bookingModalSlots = Array.isArray(slots) ? slots.filter(s => !s.isBooked) : [];
   state.bookingModalOpen = true;
+  if (typeof document !== "undefined") {
+    state.modalTriggerElement = document.activeElement;
+  }
   await render();
 }
 window.openBookingForCounsellor = openBookingForCounsellor;
@@ -4622,6 +4769,15 @@ function panelShell(role, title, subtitle, navItems, content, backendStatus = "o
 }
 
 function attachGlobalHandlers() {
+  // Backdrop dismiss for all modal overlays
+  document.querySelectorAll(".modal-overlay").forEach((overlay) => {
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) {
+        closeAnyOpenModal();
+      }
+    });
+  });
+
   document.querySelectorAll("[data-action='toggle-menu']").forEach((button) => {
     button.addEventListener("click", () => {
       const drawer = document.getElementById("primary-menu");
@@ -4861,9 +5017,9 @@ function guardianPendingPage(user) {
 function linkGoogleAccountModal() {
   if (!state.linkModal) return "";
   return html`
-    <div class="modal-overlay" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 10000; animation: fadeIn 0.3s ease;">
-      <div class="modal-card" style="background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(24px); border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 24px; padding: 40px; width: 100%; max-width: 440px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); animation: scaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);">
-        <h2 style="font-size: 24px; font-weight: 700; color: var(--color-text); margin-bottom: 8px;">Link Google Account</h2>
+    <div class="modal-overlay" data-modal="link-google" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 10000; animation: fadeIn 0.3s ease;">
+      <div role="dialog" aria-modal="true" aria-labelledby="link-google-modal-title" tabindex="-1" class="modal-card modal-dialog-card" style="background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(24px); border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 24px; padding: 40px; width: 100%; max-width: 440px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); animation: scaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);">
+        <h2 id="link-google-modal-title" style="font-size: 24px; font-weight: 700; color: var(--color-text); margin-bottom: 8px;">Link Google Account</h2>
         <p style="color: var(--color-text-muted); font-size: 14px; line-height: 1.5; margin-bottom: 24px;">
           An account already exists for <strong>${state.linkModal.email}</strong>. Please enter your password to link your Google sign-in.
         </p>
@@ -4882,7 +5038,7 @@ function linkGoogleAccountModal() {
           </div>
 
           <div style="display: flex; gap: 12px; margin-top: 8px;">
-            <button type="button" data-action="close-link-modal" class="btn secondary" style="flex: 1; border-radius: 12px; height: 46px; border: 1px solid var(--color-border);">Cancel</button>
+            <button type="button" data-action="close-link-modal" aria-label="Cancel linking account" class="btn secondary" style="flex: 1; border-radius: 12px; height: 46px; border: 1px solid var(--color-border);">Cancel</button>
             <button type="submit" class="btn primary" style="flex: 1; border-radius: 12px; height: 46px;">Link Account</button>
           </div>
         </form>
@@ -5324,9 +5480,10 @@ function attachPageHandlers() {
   // Modal Cancel handler
   document.querySelectorAll("[data-action='close-link-modal']").forEach((btn) => {
     btn.addEventListener("click", () => {
+      const triggerEl = state.modalTriggerElement;
       state.linkModal = null;
       state.linkError = "";
-      render();
+      render().then(() => restoreModalFocus(triggerEl));
     });
   });
 
@@ -5543,8 +5700,9 @@ function attachPageHandlers() {
   // Close Dream landing page auth modal
   document.querySelectorAll("[data-action='close-dream-auth-modal']").forEach((button) => {
     button.addEventListener("click", () => {
+      const triggerEl = state.modalTriggerElement;
       state.showDreamAuthModal = false;
-      render();
+      render().then(() => restoreModalFocus(triggerEl));
     });
   });
 
@@ -5558,6 +5716,7 @@ function attachPageHandlers() {
 
       const auth = await api.getAuthProfile?.() || (await api.getState({ path: "/service-dream-analysis" })).auth;
       if (!auth) {
+        state.modalTriggerElement = form.querySelector("button[type='submit']") || document.activeElement;
         state.showDreamAuthModal = true;
         render();
         return;
@@ -5653,6 +5812,7 @@ function attachPageHandlers() {
 
       const auth = await api.getAuthProfile?.() || (await api.getState({ path: "/service-handwriting-analysis" })).auth;
       if (!auth) {
+        state.modalTriggerElement = form.querySelector("button[type='submit']") || document.activeElement;
         state.dreamAuthMode = "signup";
         state.showDreamAuthModal = true;
         render();
@@ -5712,6 +5872,7 @@ function attachPageHandlers() {
 
       const auth = await api.getAuthProfile?.() || (await api.getState({ path: "/service-signature-analysis" })).auth;
       if (!auth) {
+        state.modalTriggerElement = form.querySelector("button[type='submit']") || document.activeElement;
         state.dreamAuthMode = "signup";
         state.showDreamAuthModal = true;
         render();
@@ -5828,10 +5989,11 @@ function attachPageHandlers() {
 
   document.querySelectorAll("[data-action='close-booking-modal']").forEach((button) => {
     button.addEventListener("click", () => {
+      const triggerEl = state.modalTriggerElement;
       state.bookingModalOpen = false;
       state.bookingModalTarget = null;
       state.bookingModalSlots = [];
-      render();
+      render().then(() => restoreModalFocus(triggerEl));
     });
   });
 
@@ -6186,14 +6348,16 @@ function attachPageHandlers() {
   // Open & Close Daily Diary Modal
   document.querySelectorAll("[data-action='open-daily-diary']").forEach((button) => {
     button.addEventListener("click", () => {
+      state.modalTriggerElement = button;
       state.cbtDailyDiaryOpen = true;
       render();
     });
   });
   document.querySelectorAll("[data-action='close-daily-diary']").forEach((button) => {
     button.addEventListener("click", () => {
+      const triggerEl = state.modalTriggerElement;
       state.cbtDailyDiaryOpen = false;
-      render();
+      render().then(() => restoreModalFocus(triggerEl));
     });
   });
 
@@ -6623,37 +6787,41 @@ async function serviceDreamAnalysis() {
 
       <!-- GLASSMORPHIC AUTH MODAL overlay -->
       ${state.showDreamAuthModal ? html`
-        <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); backdrop-filter: blur(16px); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 24px;">
-          <div style="background: #18181b; border: 1px solid rgba(255,255,255,0.1); width: 100%; max-width: 480px; border-radius: 24px; padding: 40px; position: relative; box-shadow: 0 24px 60px rgba(0,0,0,0.5);">
-            <button data-action="close-dream-auth-modal" style="position: absolute; top: 20px; right: 20px; background: transparent; border: none; color: rgba(255,255,255,0.6); font-size: 24px; cursor: pointer;">
-              <i class="ph ph-x"></i>
+        <div class="modal-overlay" data-modal="dream-auth" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); backdrop-filter: blur(16px); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 24px;">
+          <div role="dialog" aria-modal="true" aria-labelledby="dream-auth-modal-title" aria-describedby="dream-auth-modal-desc" tabindex="-1" class="modal-dialog-card" style="background: #18181b; border: 1px solid rgba(255,255,255,0.1); width: 100%; max-width: 480px; border-radius: 24px; padding: 40px; position: relative; box-shadow: 0 24px 60px rgba(0,0,0,0.5);">
+            <button type="button" data-action="close-dream-auth-modal" aria-label="Close authentication dialog" style="position: absolute; top: 20px; right: 20px; background: transparent; border: none; color: rgba(255,255,255,0.6); font-size: 24px; cursor: pointer;">
+              <i class="ph ph-x" aria-hidden="true"></i>
             </button>
             
-            <div style="display: flex; gap: 16px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 16px; margin-bottom: 24px;">
-              <button data-action="dream-landing-tab-switch" data-mode="signup" style="background: transparent; border: none; font-size: 16px; font-weight: 600; color: ${state.dreamAuthMode === 'signup' ? 'var(--color-coral)' : 'rgba(255,255,255,0.6)'}; cursor: pointer; padding-bottom: 8px; border-bottom: 2px solid ${state.dreamAuthMode === 'signup' ? 'var(--color-coral)' : 'transparent'};">Create Account</button>
-              <button data-action="dream-landing-tab-switch" data-mode="login" style="background: transparent; border: none; font-size: 16px; font-weight: 600; color: ${state.dreamAuthMode === 'login' ? 'var(--color-coral)' : 'rgba(255,255,255,0.6)'}; cursor: pointer; padding-bottom: 8px; border-bottom: 2px solid ${state.dreamAuthMode === 'login' ? 'var(--color-coral)' : 'transparent'};">Login</button>
+            <h2 id="dream-auth-modal-title" style="font-family: var(--font-serif); font-size: 24px; color: white; margin: 0 0 16px 0;">
+              ${state.dreamAuthMode === 'signup' ? 'Create Account' : 'Sign In to Continue'}
+            </h2>
+
+            <div role="tablist" aria-label="Authentication Options" style="display: flex; gap: 16px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 16px; margin-bottom: 24px;">
+              <button type="button" role="tab" aria-selected="${state.dreamAuthMode === 'signup' ? 'true' : 'false'}" data-action="dream-landing-tab-switch" data-mode="signup" style="background: transparent; border: none; font-size: 16px; font-weight: 600; color: ${state.dreamAuthMode === 'signup' ? 'var(--color-coral)' : 'rgba(255,255,255,0.6)'}; cursor: pointer; padding-bottom: 8px; border-bottom: 2px solid ${state.dreamAuthMode === 'signup' ? 'var(--color-coral)' : 'transparent'};">Create Account</button>
+              <button type="button" role="tab" aria-selected="${state.dreamAuthMode === 'login' ? 'true' : 'false'}" data-action="dream-landing-tab-switch" data-mode="login" style="background: transparent; border: none; font-size: 16px; font-weight: 600; color: ${state.dreamAuthMode === 'login' ? 'var(--color-coral)' : 'rgba(255,255,255,0.6)'}; cursor: pointer; padding-bottom: 8px; border-bottom: 2px solid ${state.dreamAuthMode === 'login' ? 'var(--color-coral)' : 'transparent'};">Login</button>
             </div>
 
             <form data-form="dream-landing-auth" style="display: flex; flex-direction: column; gap: 20px;">
-              <div style="font-size: 14px; color: rgba(255,255,255,0.6); margin-bottom: 8px;">
+              <div id="dream-auth-modal-desc" style="font-size: 14px; color: rgba(255,255,255,0.6); margin-bottom: 8px;">
                 To save and review your clinical dream analysis, please log in or create an account.
               </div>
               
               ${state.dreamAuthMode === "signup" ? html`
                 <div class="field" style="display: flex; flex-direction: column; gap: 6px;">
                   <label for="modal-name" style="color: rgba(255,255,255,0.8); font-size: 13px;">Full Name</label>
-                  <input id="modal-name" name="name" style="height: 44px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0 16px; color: white; outline: none; font-size: 14px;" required />
+                  <input id="modal-name" name="name" style="height: 44px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0 16px; color: white; outline: none; font-size: 14px;" required autocomplete="name" />
                 </div>
               ` : ""}
 
               <div class="field" style="display: flex; flex-direction: column; gap: 6px;">
                 <label for="modal-email" style="color: rgba(255,255,255,0.8); font-size: 13px;">Email Address</label>
-                <input id="modal-email" name="email" type="email" style="height: 44px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0 16px; color: white; outline: none; font-size: 14px;" required />
+                <input id="modal-email" name="email" type="email" style="height: 44px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0 16px; color: white; outline: none; font-size: 14px;" required autocomplete="email" />
               </div>
 
               <div class="field" style="display: flex; flex-direction: column; gap: 6px;">
                 <label for="modal-password" style="color: rgba(255,255,255,0.8); font-size: 13px;">Password</label>
-                <input id="modal-password" name="password" type="password" style="height: 44px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0 16px; color: white; outline: none; font-size: 14px;" required />
+                <input id="modal-password" name="password" type="password" style="height: 44px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0 16px; color: white; outline: none; font-size: 14px;" required autocomplete="current-password" />
               </div>
 
               <button class="btn primary" type="submit" style="background: var(--color-coral); color: white; border: none; height: 46px; border-radius: 8px; font-weight: 600; margin-top: 10px; width: 100%;">

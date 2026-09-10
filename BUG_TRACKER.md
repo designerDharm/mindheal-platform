@@ -656,13 +656,21 @@
 
 #### MH-28: Dream auth modal lacks accessible dialog behavior
 - **Priority:** P2 (Medium)
-- **Status:** `Open`
-- **Affected Files:** `src/main.js`
-- **Reproduction Steps:** Trigger login modal from Dream Analysis; inspect ARIA attributes and test Esc key.
-- **Expected Result:** ARIA dialog tags present; Esc key closes modal; focus trapped.
-- **Actual Result (Before Fix):** Plain `<div>` without dialog roles or keyboard dismiss.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Status:** `Staging verified`
+- **Affected Files:** `src/main.js`, `tests/modal-accessibility.test.js`
+- **Reproduction Steps:** Trigger login modal from Dream Analysis or other modals; inspect ARIA attributes, focus entry, keyboard navigation (Tab / Shift+Tab), Esc key dismiss, and focus restoration.
+- **Expected Result:** ARIA dialog semantics present (`role="dialog"`, `aria-modal="true"`, `aria-labelledby`, `aria-describedby`); focus enters dialog on launch; focus trapped inside dialog; Esc key and backdrop click dismiss modal; focus restored to trigger element on close without keyboard traps or focus leaks.
+- **Actual Result (Before Fix):** Plain `<div>` without dialog roles, accessible names, keyboard dismiss, focus trap, or focus restoration; re-rendering dropped focus to `document.body`.
+- **Fix Commit:** `fix(a11y): implement accessible modal dialog semantics, focus trap, and focus restoration (MH-28)`
+- **Verification Evidence:**
+  - Automated unit test suite `tests/modal-accessibility.test.js` passing (6/6 tests).
+  - Dialog semantics (`role="dialog"`, `aria-modal="true"`, `aria-labelledby`, `aria-describedby`, `tabindex="-1"`) and accessible titles/labels applied to Dream Auth modal, Booking modal, Link Google Account modal, and CBT Daily Diary modal.
+  - Implemented modal accessibility controller (`manageModalAccessibility`, `handleModalKeydown`, `getModalFocusableElements`, `closeAnyOpenModal`, `restoreModalFocus`).
+  - Added global `Escape` key listener and Tab / Shift+Tab keyboard focus trap preventing focus leaks to background.
+  - Tracked `modalTriggerElement` on modal launch and restored focus cleanly upon modal dismissal or cancellation.
+  - Added backdrop overlay (`.modal-overlay`) click dismissal.
+  - Full regression test suite (`npm test`) passes with 98/98 tests passing across all 15 suites.
+  - Syntax check (`npm run check`) passes with 0 errors.
 
 #### MH-29: Focus page shows literal "undefined" under Pomodoro
 - **Priority:** P2 (Medium)
