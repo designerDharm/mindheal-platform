@@ -1,4 +1,4 @@
-import { createId } from "../utils/security.js";
+import { createId, hashPassword } from "../utils/security.js";
 
 export const store = {
   users: [
@@ -49,7 +49,7 @@ export const store = {
       role: "admin",
       fullName: "System Admin",
       email: "admin@example.com",
-      passwordHash: "",
+      passwordHash: hashPassword("Password123!"),
       totpSecret: "JBSWY3DPEHPK3PXP",
       isTotpEnabled: true,
       isActive: true,

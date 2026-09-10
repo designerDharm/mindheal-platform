@@ -43,6 +43,7 @@ export const routes = [
   route("POST", `${p}/auth/verify-otp`, authController.verifyOtp),
   route("POST", `${p}/auth/counsellor/register`, authController.registerCounsellor),
   route("POST", `${p}/auth/refresh`, authController.refresh),
+  route("POST", `${p}/auth/refresh-token`, authController.refresh),
   route("POST", `${p}/auth/logout`, authController.logout),
   route("POST", `${p}/auth/forgot-password`, authController.forgotPassword),
   route("POST", `${p}/auth/reset-password`, authController.resetPassword),
@@ -51,6 +52,7 @@ export const routes = [
   route("GET", `${p}/auth/metrics`, authController.getOtpMetrics, ["admin"]),
 
   route("GET", `${p}/user/me`, userController.getMe, ["user", "admin"]),
+  route("GET", `${p}/user/profile`, userController.getMe, ["user", "admin"]),
   route("PUT", `${p}/user/me`, userController.updateMe, ["user", "admin"]),
   route("POST", `${p}/user/mood/log`, userController.logMood, ["user"]),
   route("POST", `${p}/user/mood-logs`, userController.logMood, ["user"]),
@@ -89,6 +91,7 @@ export const routes = [
 
   route("GET", `${p}/wallet/balance`, walletController.balance, ["user", "counsellor", "admin"]),
   route("POST", `${p}/wallet/topup/initiate`, walletController.initiateTopup, ["user"]),
+  route("POST", `${p}/wallet/topup/order`, walletController.initiateTopup, ["user"]),
   route("POST", `${p}/wallet/topup/verify`, walletController.verifyTopup, ["user"]),
   route("GET", `${p}/wallet/transactions`, walletController.transactions, ["user", "counsellor", "admin"]),
   route("POST", `${p}/express/session/pay`, walletController.payExpressSession, ["user"]),

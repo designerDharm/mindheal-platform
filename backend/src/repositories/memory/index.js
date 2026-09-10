@@ -122,6 +122,39 @@ export const memoryRepositories = {
       const counsellor = this.findByUserId(userId);
       if (counsellor) counsellor.status = status;
       return counsellor || null;
+    },
+    create(counsellor) {
+      const record = {
+        id: counsellor.id || createId("cns"),
+        userId: counsellor.userId,
+        accountType: counsellor.accountType || "individual",
+        displayName: counsellor.displayName || counsellor.fullName || "Counsellor",
+        title: counsellor.title || null,
+        bio: counsellor.bio || null,
+        specializations: Array.isArray(counsellor.specializations) ? counsellor.specializations : [],
+        languagesSpoken: Array.isArray(counsellor.languagesSpoken) ? counsellor.languagesSpoken : ["en"],
+        experienceYears: Number(counsellor.experienceYears || 0),
+        licenseNumber: counsellor.licenseNumber || null,
+        hasPrescriptionAuth: Boolean(counsellor.hasPrescriptionAuth),
+        hourlyRateInr: Number(counsellor.hourlyRateInr || 0),
+        perMinuteRateInr: counsellor.perMinuteRateInr ? Number(counsellor.perMinuteRateInr) : null,
+        chatEnabled: counsellor.chatEnabled ?? true,
+        audioEnabled: counsellor.audioEnabled ?? false,
+        videoEnabled: counsellor.videoEnabled ?? false,
+        showOnMap: counsellor.showOnMap ?? false,
+        verificationStatus: counsellor.verificationStatus || "pending",
+        status: counsellor.status || "offline",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      store.counsellors.push(record);
+      return record;
+    },
+    update(id, patch) {
+      const counsellor = this.findById(id);
+      if (!counsellor) return null;
+      Object.assign(counsellor, patch, { updatedAt: new Date().toISOString() });
+      return counsellor;
     }
   },
 
@@ -216,6 +249,25 @@ export const memoryRepositories = {
       if (!slot) return null;
       Object.assign(slot, { isBooked: false, updatedAt: new Date().toISOString() });
       return slot;
+    },
+    create(slot) {
+      store.availabilitySlots ||= [];
+      const record = {
+        id: slot.id || createId("slot"),
+        counsellorId: slot.counsellorId,
+        date: slot.slotDate || slot.date,
+        slotDate: slot.slotDate || slot.date,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        sessionType: slot.sessionType || "video",
+        isBooked: Boolean(slot.isBooked),
+        createdAt: slot.createdAt || new Date().toISOString()
+      };
+      store.availabilitySlots.push(record);
+      return record;
+    },
+    findById(id) {
+      return (store.availabilitySlots || []).find((item) => item.id === id) || null;
     }
   },
 

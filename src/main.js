@@ -306,10 +306,33 @@ export function restoreModalFocus(triggerEl) {
   try {
     if (typeof document !== "undefined" && document.contains && document.contains(target) && typeof target.focus === "function") {
       target.focus();
-    } else if (target.id && typeof document !== "undefined" && document.getElementById) {
-      const el = document.getElementById(target.id);
-      if (el && typeof el.focus === "function") {
-        el.focus();
+      return;
+    }
+    if (typeof document !== "undefined") {
+      if (target.id && document.getElementById) {
+        const el = document.getElementById(target.id);
+        if (el && typeof el.focus === "function") { el.focus(); return; }
+      }
+      if (typeof target.getAttribute === "function") {
+        const action = target.getAttribute("data-action");
+        if (action) {
+          const el = document.querySelector(`[data-action="${action}"]`);
+          if (el && typeof el.focus === "function") { el.focus(); return; }
+        }
+        const ariaLabel = target.getAttribute("aria-label");
+        if (ariaLabel) {
+          const el = document.querySelector(`[aria-label="${ariaLabel}"]`);
+          if (el && typeof el.focus === "function") { el.focus(); return; }
+        }
+        const parentForm = target.closest && target.closest("form");
+        if (parentForm) {
+          const formAttr = parentForm.getAttribute("data-form");
+          if (formAttr) {
+            const formEl = document.querySelector(`form[data-form="${formAttr}"]`);
+            const sub = formEl?.querySelector('button[type="submit"], input[type="submit"]');
+            if (sub && typeof sub.focus === "function") { sub.focus(); return; }
+          }
+        }
       }
     }
   } catch (_) {}
@@ -1270,8 +1293,8 @@ function siteFooter() {
           <h4 style="color:white;font-weight:700;margin-bottom:24px;letter-spacing:0.05em;text-transform:uppercase;font-size:14px;">Stay Updated</h4>
           <p style="font-size:14px;margin-bottom:16px;">Subscribe to our newsletter for mental health tips.</p>
           <div style="display:flex;gap:8px;">
-            <input type="email" placeholder="Your email address" style="flex:1;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);padding:12px;border-radius:8px;color:white;outline:none;" />
-            <button style="background:var(--color-coral);color:white;border:none;padding:12px 16px;border-radius:8px;cursor:pointer;font-weight:700;"><i class="ph-bold ph-paper-plane-right"></i></button>
+            <input type="email" id="newsletter-email" name="newsletter_email" aria-label="Your email address" placeholder="Your email address" style="flex:1;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);padding:12px;border-radius:8px;color:white;outline:none;" />
+            <button aria-label="Subscribe to newsletter" style="background:var(--color-coral);color:white;border:none;padding:12px 16px;border-radius:8px;cursor:pointer;font-weight:700;"><i class="ph-bold ph-paper-plane-right"></i></button>
           </div>
         </div>
       </div>
@@ -6035,6 +6058,8 @@ function attachPageHandlers() {
   document.querySelectorAll("[data-form='booking']").forEach((form) => {
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      const submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.disabled = true;
       try {
         const payload = getFormData(form);
         if (!payload.counsellorId) {
@@ -6056,6 +6081,8 @@ function attachPageHandlers() {
         await render();
       } catch (error) {
         toast(error.message || "Booking failed.", "error");
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
       }
     });
   });
@@ -6063,6 +6090,8 @@ function attachPageHandlers() {
   document.querySelectorAll("[data-form='wallet-topup']").forEach((form) => {
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      const submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.disabled = true;
       try {
         await api.topUpWallet(getFormData(form));
         toast("Wallet top-up successful! Your balance has been updated.", "success");
@@ -6073,6 +6102,8 @@ function attachPageHandlers() {
         } else {
           toast(error.message || "Wallet top-up failed.", "error");
         }
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
       }
     });
   });
@@ -6756,7 +6787,7 @@ async function serviceDreamAnalysis() {
               ` : ""}
 
               <div style="display: flex; gap: 12px; align-items: center;">
-                <button class="btn primary submit-btn" type="submit" style="flex: 1; background: var(--color-coral); color: white; border: none; height: 50px; font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 12px;">
+                <button id="dream-analyze-submit-btn" class="btn primary submit-btn" type="submit" style="flex: 1; background: var(--color-coral); color: white; border: none; height: 50px; font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 12px;">
                   <i class="ph ph-sparkle"></i> Analyse Subconscious Dream
                 </button>
                 ${(state.dreamInput || state.dreamError) ? html`

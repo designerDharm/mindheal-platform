@@ -400,8 +400,6 @@ export async function refreshSession(refreshToken) {
   const payload = verifyRefreshToken(refreshToken);
   if (!payload) throw new Error("Invalid or expired refresh token");
 
-  await consumeRefreshToken(refreshToken);
-
   const user = await repositories.users.findById(payload.sub);
   if (!user) throw new Error("User no longer exists");
   if (user.isActive === false || user.status === "disabled" || user.status === "suspended") {
@@ -417,6 +415,8 @@ export async function refreshSession(refreshToken) {
     throw err;
   }
 
+  await consumeRefreshToken(refreshToken);
+
   return createSession(user);
 }
 
@@ -431,7 +431,14 @@ export async function revokeUserSessions(userId) {
   return true;
 }
 
+const memoryRefreshTokens = new Map();
+const memoryRevokedRefreshTokens = new Set();
+
 export async function logoutUser(refreshToken) {
+  if (refreshToken) {
+    memoryRefreshTokens.delete(refreshToken);
+    memoryRevokedRefreshTokens.add(refreshToken);
+  }
   if (redisClient.isOpen && refreshToken) {
     await redisClient.del(`refresh_token:${refreshToken}`);
   } else if (appConfig.env === "production" && refreshToken) {
@@ -441,11 +448,13 @@ export async function logoutUser(refreshToken) {
 }
 
 async function persistRefreshToken(refreshToken, userId) {
+  if (refreshToken) {
+    memoryRefreshTokens.set(refreshToken, { userId, expiresAt: Date.now() + appConfig.refreshTokenTtlSeconds * 1000 });
+  }
   if (!redisClient.isOpen) {
     if (appConfig.env === "production") {
       throw new Error("Session store is unavailable.");
     }
-    console.warn("Redis not connected. Refresh token not persisted in store.");
     return;
   }
 
@@ -453,16 +462,27 @@ async function persistRefreshToken(refreshToken, userId) {
 }
 
 async function consumeRefreshToken(refreshToken) {
+  if (memoryRevokedRefreshTokens.has(refreshToken)) {
+    throw new Error("Refresh token revoked or not found");
+  }
+
   if (!redisClient.isOpen) {
     if (appConfig.env === "production") {
       throw new Error("Session store is unavailable.");
     }
-    return;
+    if (memoryRefreshTokens.has(refreshToken)) {
+      memoryRefreshTokens.delete(refreshToken);
+      memoryRevokedRefreshTokens.add(refreshToken);
+      return;
+    }
+    throw new Error("Refresh token revoked or not found");
   }
 
   const exists = await redisClient.get(`refresh_token:${refreshToken}`);
   if (!exists) throw new Error("Refresh token revoked or not found");
   await redisClient.del(`refresh_token:${refreshToken}`);
+  memoryRefreshTokens.delete(refreshToken);
+  memoryRevokedRefreshTokens.add(refreshToken);
 }
 
 export function sanitizeUser(user) {

@@ -276,6 +276,7 @@ export function validateAndEvaluateScreening(screeningType, payload = {}) {
   const description = matchedBand.description.replace("{score}", String(serverCalculatedScore));
   const safetyGuidance = {
     ...CRISIS_SAFETY_GUIDANCE,
+    crisisAlert: itemLevelSafetyTriggered,
     hasItemLevelCrisisAlert: itemLevelSafetyTriggered,
     safetyTriggerItem,
     recommendedAction: itemLevelSafetyTriggered

@@ -23,15 +23,20 @@ export async function bookSession({ body, user }) {
     });
     if (!slot) return badRequest("Selected slot is no longer available.");
 
-    const commission = calculateCommission(Number(body.amountInr));
+    const serverRate = Number(slot.priceInr || counsellor.hourlyRateInr || counsellor.priceInr || body.amountInr);
+    if (counsellor.hourlyRateInr && Number(body.amountInr) < Number(counsellor.hourlyRateInr)) {
+      return badRequest("Booking amount cannot be less than counsellor rate.");
+    }
+    const commission = calculateCommission(serverRate);
     const session = {
+      ...body,
       id: createId("ses"),
       userId: user.id,
       counsellorUserId: counsellor.userId,
       status: "pending",
       availabilitySlotId: slot.id,
       createdAt: new Date().toISOString(),
-      ...body,
+      amountInr: serverRate,
       grossAmountInr: commission.grossAmountInr,
       platformCommissionInr: commission.platformCommissionInr,
       counsellorEarningInr: commission.counsellorEarningInr,
@@ -43,7 +48,7 @@ export async function bookSession({ body, user }) {
 
     const createdSession = await repositories.sessions.create(session);
     try {
-      await debit(user.id, Number(body.amountInr), "session_hold", { referenceType: "session", referenceId: session.id });
+      await debit(user.id, serverRate, "session_hold", { referenceType: "session", referenceId: session.id });
     } catch (error) {
       await repositories.sessions.update(session.id, {
         status: "payment_failed",

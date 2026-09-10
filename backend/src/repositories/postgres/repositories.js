@@ -12,9 +12,11 @@ function normalizeConfigKey(value = "") {
 function compactPatch(patch, fields) {
   const updates = [];
   const values = [];
+  const touchedColumns = new Set();
   let index = 1;
   for (const [jsKey, dbKey] of Object.entries(fields)) {
-    if (patch[jsKey] !== undefined) {
+    if (patch[jsKey] !== undefined && !touchedColumns.has(dbKey)) {
+      touchedColumns.add(dbKey);
       updates.push(`${dbKey} = $${index++}`);
       values.push(patch[jsKey]);
     }
@@ -523,6 +525,7 @@ function mapPeerSessionQuote(row) {
     listenerProfileId: row.listener_profile_id,
     durationMinutes: row.duration_minutes,
     grossAmountPaise: Number(row.gross_amount_paise || 0),
+    totalAmountPaise: Number(row.gross_amount_paise || 0),
     grossAmountInr: Number(row.gross_amount_paise || 0) / 100,
     commissionRateBps: row.commission_rate_bps || 1000,
     commissionAmountPaise: Number(row.commission_amount_paise || 0),
@@ -545,10 +548,13 @@ function mapPeerSession(row) {
   return {
     id: row.id,
     requestId: row.request_id,
+    peerSessionRequestId: row.request_id,
     quoteId: row.quote_id,
     requesterUserId: row.requester_user_id,
     listenerProfileId: row.listener_profile_id,
     status: row.status || "requested",
+    sessionStatus: row.status || "requested",
+    startedAt: row.session_started_at || row.created_at,
     textStartedAt: row.text_started_at,
     mediaConsentAvailableAt: row.media_consent_available_at,
     sessionStartedAt: row.session_started_at,
@@ -873,6 +879,95 @@ export const postgresRepositories = {
     async updateStatusForUser(userId, status) {
       const res = await query("UPDATE counsellors SET status = $1, updated_at = NOW() WHERE user_id = $2 RETURNING *", [status, userId]);
       return mapCounsellor(res.rows[0]);
+    },
+    async create(counsellor) {
+      const id = counsellor.id || createId("cns");
+      const specializations = Array.isArray(counsellor.specializations)
+        ? counsellor.specializations
+        : typeof counsellor.specializations === "string"
+          ? counsellor.specializations.split(",").map((s) => s.trim()).filter(Boolean)
+          : [];
+      const languagesSpoken = Array.isArray(counsellor.languagesSpoken)
+        ? counsellor.languagesSpoken
+        : typeof counsellor.languagesSpoken === "string"
+          ? counsellor.languagesSpoken.split(",").map((s) => s.trim()).filter(Boolean)
+          : ["en"];
+      const res = await query(
+        `INSERT INTO counsellors (
+          id, user_id, account_type, display_name, title, bio,
+          specializations, languages_spoken, experience_years, license_number,
+          has_prescription_auth, hourly_rate_inr, per_minute_rate_inr,
+          chat_enabled, audio_enabled, video_enabled, show_on_map,
+          verification_status, status, created_at, updated_at
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6,
+          $7, $8, $9, $10,
+          $11, $12, $13,
+          $14, $15, $16, $17,
+          $18, $19, NOW(), NOW()
+        ) RETURNING *`,
+        [
+          id,
+          counsellor.userId,
+          counsellor.accountType || "individual",
+          counsellor.displayName || counsellor.fullName || "Counsellor",
+          counsellor.title || null,
+          counsellor.bio || null,
+          specializations,
+          languagesSpoken,
+          Number(counsellor.experienceYears || 0),
+          counsellor.licenseNumber || null,
+          Boolean(counsellor.hasPrescriptionAuth),
+          Number(counsellor.hourlyRateInr || 0),
+          counsellor.perMinuteRateInr ? Number(counsellor.perMinuteRateInr) : null,
+          counsellor.chatEnabled ?? true,
+          counsellor.audioEnabled ?? false,
+          counsellor.videoEnabled ?? false,
+          counsellor.showOnMap ?? false,
+          counsellor.verificationStatus || "pending",
+          counsellor.status || "offline"
+        ]
+      );
+      return mapCounsellor(res.rows[0]);
+    },
+    async update(id, patch) {
+      const updates = [];
+      const values = [];
+      let idx = 1;
+
+      if (patch.hourlyRateInr !== undefined) {
+        updates.push(`hourly_rate_inr = $${idx++}`);
+        values.push(Number(patch.hourlyRateInr));
+      }
+      if (patch.verificationStatus !== undefined) {
+        updates.push(`verification_status = $${idx++}`);
+        values.push(patch.verificationStatus);
+      }
+      if (patch.status !== undefined) {
+        updates.push(`status = $${idx++}`);
+        values.push(patch.status);
+      }
+      if (patch.displayName !== undefined) {
+        updates.push(`display_name = $${idx++}`);
+        values.push(patch.displayName);
+      }
+      if (patch.bio !== undefined) {
+        updates.push(`bio = $${idx++}`);
+        values.push(patch.bio);
+      }
+
+      if (updates.length === 0) {
+        return this.findById(id);
+      }
+
+      updates.push("updated_at = NOW()");
+      values.push(id);
+
+      const res = await query(
+        `UPDATE counsellors SET ${updates.join(", ")} WHERE id = $${idx} RETURNING *`,
+        values
+      );
+      return mapCounsellor(res.rows[0]);
     }
   },
 
@@ -996,6 +1091,20 @@ export const postgresRepositories = {
         "UPDATE availability_slots SET is_booked = FALSE, updated_at = NOW() WHERE id = $1 RETURNING *",
         [id]
       );
+      return mapAvailabilitySlot(res.rows[0]);
+    },
+    async create(slot) {
+      const id = slot.id || createId("slot");
+      const slotDate = slot.slotDate || slot.date;
+      const res = await query(
+        `INSERT INTO availability_slots (id, counsellor_id, slot_date, start_time, end_time, session_type, is_booked, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+        [id, slot.counsellorId, slotDate, slot.startTime, slot.endTime, slot.sessionType || "video", Boolean(slot.isBooked), slot.createdAt || new Date()]
+      );
+      return mapAvailabilitySlot(res.rows[0]);
+    },
+    async findById(id) {
+      const res = await query("SELECT * FROM availability_slots WHERE id = $1 LIMIT 1", [id]);
       return mapAvailabilitySlot(res.rows[0]);
     }
   },
@@ -1580,7 +1689,15 @@ export const postgresRepositories = {
       const res = await query(
         `INSERT INTO peer_session_requests (id, requester_user_id, listener_profile_id, requested_duration_minutes, requested_mode, request_status, request_expires_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-        [request.id, request.requesterUserId, request.listenerProfileId, request.requestedDurationMinutes, request.requestedMode, request.requestStatus || "pending", request.requestExpiresAt]
+        [
+          request.id,
+          request.requesterUserId,
+          request.listenerProfileId,
+          request.requestedDurationMinutes,
+          request.requestedMode || "text",
+          request.requestStatus || "pending",
+          request.requestExpiresAt || request.expiresAt || new Date(Date.now() + 60 * 1000).toISOString()
+        ]
       );
       return mapPeerSessionRequest(res.rows[0]);
     },
@@ -1616,10 +1733,28 @@ export const postgresRepositories = {
       return mapPeerSessionQuote(res.rows[0]);
     },
     async create(quote) {
+      const grossPaise = Number(quote.grossAmountPaise ?? quote.totalAmountPaise ?? 0);
+      const commPaise = Number(quote.commissionAmountPaise ?? quote.commissionPaise ?? Math.round(grossPaise * 0.10));
+      const earPaise = Number(quote.listenerEarningPaise ?? (grossPaise - commPaise));
       const res = await query(
         `INSERT INTO peer_session_quotes (id, peer_session_request_id, requester_user_id, listener_profile_id, duration_minutes, gross_amount_paise, commission_rate_bps, commission_amount_paise, listener_earning_paise, currency, quote_version, pricing_policy_version, expires_at, status)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
-        [quote.id, quote.peerSessionRequestId || null, quote.requesterUserId, quote.listenerProfileId, quote.durationMinutes, quote.grossAmountPaise, quote.commissionRateBps || 1000, quote.commissionAmountPaise, quote.listenerEarningPaise, quote.currency || "INR", quote.quoteVersion || "v1.0", quote.pricingPolicyVersion || "v1.0", quote.expiresAt, quote.status || "pending"]
+        [
+          quote.id,
+          quote.peerSessionRequestId || null,
+          quote.requesterUserId,
+          quote.listenerProfileId,
+          quote.durationMinutes,
+          grossPaise,
+          quote.commissionRateBps || 1000,
+          commPaise,
+          earPaise,
+          quote.currency || "INR",
+          quote.quoteVersion || "v1.0",
+          quote.pricingPolicyVersion || "v1.0",
+          quote.expiresAt || new Date(Date.now() + 60 * 1000).toISOString(),
+          quote.status || "pending"
+        ]
       );
       return mapPeerSessionQuote(res.rows[0]);
     },
@@ -1644,20 +1779,34 @@ export const postgresRepositories = {
     },
     async create(session) {
       const res = await query(
-        `INSERT INTO peer_sessions (id, request_id, quote_id, requester_user_id, listener_profile_id, status, payment_state, settlement_state)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-        [session.id, session.requestId || session.peerSessionRequestId || null, session.quoteId || null, session.requesterUserId, session.listenerProfileId, session.status || session.sessionStatus || "requested", session.paymentState || "pending", session.settlementState || "unsettled"]
+        `INSERT INTO peer_sessions (id, request_id, quote_id, requester_user_id, listener_profile_id, status, session_started_at, payment_state, settlement_state)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+        [
+          session.id,
+          session.requestId || session.peerSessionRequestId || null,
+          session.quoteId || null,
+          session.requesterUserId,
+          session.listenerProfileId,
+          session.status || session.sessionStatus || "requested",
+          session.sessionStartedAt || session.startedAt || null,
+          session.paymentState || "pending",
+          session.settlementState || "unsettled"
+        ]
       );
       return mapPeerSession(res.rows[0]);
     },
     async update(id, patch) {
       const { updates, values, index } = compactPatch(patch, {
         status: "status",
+        sessionStatus: "status",
+        session_status: "status",
         textStartedAt: "text_started_at",
         mediaConsentAvailableAt: "media_consent_available_at",
         sessionStartedAt: "session_started_at",
+        startedAt: "session_started_at",
         scheduledEndAt: "scheduled_end_at",
         actualEndAt: "actual_end_at",
+        endedAt: "actual_end_at",
         endedBy: "ended_by",
         endReason: "end_reason",
         completionSource: "completion_source",

@@ -2,7 +2,7 @@ import { repositories } from "../repositories/index.js";
 import { sanitizeUser } from "../services/auth.service.js";
 import { decryptSecret, encryptSecret } from "../services/secret.service.js";
 import { badRequest, ok } from "../utils/http.js";
-import { maskSecret } from "../utils/security.js";
+import { createId, maskSecret } from "../utils/security.js";
 
 export async function users() {
   return ok((await repositories.users.list()).map(sanitizeUser));
@@ -14,6 +14,32 @@ export async function counsellors() {
 
 export async function verifyCounsellor({ params, body, user }) {
   const result = await repositories.counsellorApplications.updateVerification(params.id, body.action, body.reason || "");
+  if (result && body.action === "approve") {
+    let counsellor = await repositories.counsellors.findByUserId(result.userId);
+    if (!counsellor) {
+      const specializations = typeof result.specializations === "string"
+        ? result.specializations.split(",").map((s) => s.trim()).filter(Boolean)
+        : (result.specializations || []);
+      counsellor = await repositories.counsellors.create({
+        id: createId("cns"),
+        userId: result.userId,
+        displayName: result.fullName,
+        licenseNumber: result.licenseNumber,
+        specializations,
+        verificationStatus: "approved",
+        hourlyRateInr: 1000,
+        chatEnabled: true,
+        audioEnabled: true,
+        videoEnabled: true
+      });
+    } else {
+      await repositories.counsellors.update(counsellor.id, { verificationStatus: "approved" });
+    }
+    const existingWallet = await repositories.wallets.findByOwner(result.userId);
+    if (!existingWallet) {
+      await repositories.wallets.createForOwner("counsellor", result.userId);
+    }
+  }
   
   await repositories.auditLogs.create({
     userId: user.id,

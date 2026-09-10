@@ -70,7 +70,7 @@ export async function register({ body, headers = {}, ip }) {
     }
     return created(await authService.createSession(user));
   } catch (err) {
-    return badRequest("Registration failed", err.message);
+    return badRequest(err.message || "Registration failed");
   }
 }
 
