@@ -1,11 +1,23 @@
 import { repositories } from "../repositories/index.js";
-import { getBalance, debit } from "../services/wallet.service.js";
+import { getBalance, debit, credit } from "../services/wallet.service.js";
 import { postJournalTransaction } from "../services/double_entry.service.js";
 import { badRequest, created, forbidden, ok, notFound } from "../utils/http.js";
 import { createId } from "../utils/security.js";
 import { QUESTIONNAIRES, validateAndEvaluateScreening } from "../services/questionnaire.service.js";
 
 const BASIC_SCREENING_TYPES = Object.keys(QUESTIONNAIRES);
+
+export const screeningInterpretationHooks = {
+  afterReservation: null,
+  generateClinicalNarrative: null
+};
+
+export async function withScreeningTransaction(callback) {
+  if (repositories.transactions?.withTransaction) {
+    return await repositories.transactions.withTransaction(callback);
+  }
+  return await callback();
+}
 
 export async function listQuestionnaires() {
   return ok(QUESTIONNAIRES);
@@ -16,7 +28,7 @@ export function evaluateScreening(type, responses, clientScore = null) {
   return result;
 }
 
-function generateClinicalNarrative(type, score, responses = {}) {
+export function generateClinicalNarrative(type, score, responses = {}) {
   const count = Object.keys(responses || {}).length;
   if (type === "low_mood") {
     return `Comprehensive Clinical Narrative: Based on your PHQ-pattern responses across ${count} items (Score: ${score}/18), mood rhythms indicate cognitive fatigue and reduced emotional reward processing. Recommended interventions include Behavioral Activation, micro-pacing daily commitments, and collaborative clinical guidance.`;
@@ -110,7 +122,7 @@ export async function completeScreening({ params, body, user }) {
 }
 
 
-export async function requestInterpretation({ params, user }) {
+export async function requestInterpretation({ params, user, _hooks = {} }) {
   const screening = await repositories.screenings.findById(params.id);
   if (!screening) return notFound("Screening session not found.");
 
@@ -139,55 +151,99 @@ export async function requestInterpretation({ params, user }) {
     return badRequest("Insufficient wallet balance for clinical interpretation report.", { code: "INSUFFICIENT_BALANCE" });
   }
 
-  await debit(user.id, priceInr, "screening_interpretation_purchase", {
-    referenceType: "Screening",
-    referenceId: screening.id,
-    idempotencyKey: `interp_${screening.id}`
-  });
-
-  const journal = await postJournalTransaction({
-    journalType: "SCREENING_INTERPRETATION_PURCHASE",
-    businessReferenceType: "Screening",
-    businessReferenceId: screening.id,
-    idempotencyKey: `interp_journal_${screening.id}`,
-    description: `Purchase clinical interpretation for ${screening.screeningType} screening`,
-    entries: [
-      { accountKey: `USER_AVAILABLE_${user.id}`, entrySide: "debit", amountPaise: pricePaise },
-      { accountKey: "PLATFORM_REVENUE", entrySide: "credit", amountPaise: pricePaise }
-    ]
-  });
-  await repositories.journalTransactions.create(journal);
-
-  const interpretation = generateClinicalNarrative(screening.screeningType, screening.score, existingJson.responses);
-
-  const updatedJson = {
-    ...existingJson,
-    hasPaidInterpretation: true,
-    interpretation,
-    interpretationPurchasedAt: new Date().toISOString()
-  };
+  const holdId = createId("hld");
+  let holdPlaced = false;
 
   try {
-    const updated = await repositories.screenings.update(screening.id, {
-      responsesJson: updatedJson
-    });
-
-    return ok({
-      screening: updated,
-      hasPaidInterpretation: true,
-      interpretation
-    });
-  } catch (err) {
-    try {
-      await credit(user.id, priceInr, "screening_interpretation_purchase_refund", {
+    return await withScreeningTransaction(async () => {
+      // Step 1: Reservation (hold funds in wallet)
+      await debit(user.id, priceInr, "screening_interpretation_hold", {
         referenceType: "Screening",
         referenceId: screening.id,
-        idempotencyKey: `interp_refund_${screening.id}`
+        holdId,
+        idempotencyKey: `interp_hold_${screening.id}_${holdId}`
       });
-    } catch (refundErr) {
-      console.error("Failed to refund interpretation purchase:", refundErr);
+      holdPlaced = true;
+
+      // Failure injection hook: after reservation
+      if (screeningInterpretationHooks.afterReservation) {
+        await screeningInterpretationHooks.afterReservation({ screening, user, holdId });
+      }
+      if (_hooks.afterReservation) {
+        await _hooks.afterReservation({ screening, user, holdId });
+      }
+
+      // Step 2: Result Creation (generate clinical narrative)
+      const narrativeGenerator =
+        screeningInterpretationHooks.generateClinicalNarrative ||
+        _hooks.generateClinicalNarrative ||
+        generateClinicalNarrative;
+      const interpretation = await narrativeGenerator(
+        screening.screeningType,
+        screening.score,
+        existingJson.responses
+      );
+
+      // Step 3: Persistence (update screening record with interpretation)
+      const updatedJson = {
+        ...existingJson,
+        hasPaidInterpretation: true,
+        interpretation,
+        interpretationPurchasedAt: new Date().toISOString()
+      };
+
+      const updated = await repositories.screenings.update(screening.id, {
+        responsesJson: updatedJson
+      });
+
+      // Step 4: Settlement (Double-entry journal posting)
+      try {
+        const journal = await postJournalTransaction({
+          journalType: "SCREENING_INTERPRETATION_PURCHASE",
+          businessReferenceType: "Screening",
+          businessReferenceId: screening.id,
+          idempotencyKey: `interp_journal_${screening.id}_${holdId}`,
+          description: `Purchase clinical interpretation for ${screening.screeningType} screening`,
+          entries: [
+            { accountKey: `USER_AVAILABLE_${user.id}`, entrySide: "debit", amountPaise: pricePaise },
+            { accountKey: "PLATFORM_REVENUE", entrySide: "credit", amountPaise: pricePaise }
+          ]
+        });
+        await repositories.journalTransactions.create(journal);
+      } catch (journalErr) {
+        // Rollback persistence if settlement journal posting fails
+        await repositories.screenings.update(screening.id, {
+          responsesJson: existingJson
+        });
+        throw journalErr;
+      }
+
+      return ok({
+        screening: updated,
+        hasPaidInterpretation: true,
+        interpretation
+      });
+    });
+  } catch (err) {
+    // Compensation: If hold was placed, compensate by refunding the hold
+    if (holdPlaced) {
+      try {
+        await credit(user.id, priceInr, "screening_interpretation_hold_refund", {
+          referenceType: "Screening",
+          referenceId: screening.id,
+          holdId,
+          idempotencyKey: `interp_refund_${screening.id}_${holdId}`,
+          notes: `Automatic refund after interpretation processing failure: ${err.message}`
+        });
+      } catch (refundErr) {
+        console.error("Failed to compensate screening interpretation hold:", refundErr);
+      }
     }
-    throw err;
+
+    return badRequest(`Failed to complete clinical interpretation: ${err.message}`, {
+      code: "INTERPRETATION_FAILED",
+      compensated: holdPlaced
+    });
   }
 }
 

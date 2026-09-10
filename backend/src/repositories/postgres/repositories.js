@@ -1240,6 +1240,17 @@ export const postgresRepositories = {
   },
 
   journalTransactions: {
+    async list() {
+      const res = await query(`SELECT * FROM journal_transactions ORDER BY created_at DESC`);
+      return res.rows.map(mapJournalTransaction);
+    },
+    async findByBusinessReference(businessReferenceType, businessReferenceId) {
+      const res = await query(
+        `SELECT * FROM journal_transactions WHERE business_reference_type = $1 AND business_reference_id = $2`,
+        [businessReferenceType, businessReferenceId]
+      );
+      return res.rows.map(mapJournalTransaction);
+    },
     async create(journal) {
       const res = await query(
         `INSERT INTO journal_transactions (id, journal_type, business_reference_type, business_reference_id, idempotency_key, currency, status, description, reversal_of_journal_id, metadata, posted_at, created_at)

@@ -395,4 +395,182 @@ test("Backend Screening Scoring & Input Validation (MH-36: Versioned Definitions
   });
 });
 
+test("Transactional Screening Interpretation & Failure Compensation (MH-38: Zero Completed Charges Surviving Failures)", async (t) => {
+  const controller = await import("../src/controllers/screening.controller.js");
+  const user = {
+    id: createId("usr"),
+    name: "Transaction Failure Tester",
+    email: "tx_test@example.com",
+    role: "user"
+  };
+
+  await repositories.users.create(user);
+  await repositories.wallets.createForOwner("user", user.id);
+
+  // Seed user wallet with exactly 10,000 paise (₹100)
+  const wallet = await repositories.wallets.findByOwner(user.id);
+  await repositories.wallets.createLedgerEntry({
+    id: createId("led"),
+    walletId: wallet.id,
+    direction: "credit",
+    amountPaise: 10000,
+    entryType: "wallet_topup",
+    createdAt: new Date().toISOString()
+  });
+
+  // Verify initial balance
+  assert.strictEqual(await getBalance(user.id), 10000);
+
+  // Create and complete a baseline screening
+  const createRes = await controller.createScreening({
+    body: { screeningType: "anxiety" },
+    user
+  });
+  const screeningId = createRes.body.data.id;
+
+  const completeRes = await controller.completeScreening({
+    params: { id: screeningId },
+    body: {
+      answers: [2, 2, 2, 2, 2, 2]
+    },
+    user
+  });
+  assert.strictEqual(completeRes.status, 200);
+  assert.strictEqual(await getBalance(user.id), 10000, "Basic screening must remain free with zero debit");
+
+  await t.test("1. Failure injected AFTER RESERVATION compensates hold and leaves 0 completed charge", async () => {
+    // Inject failure right after wallet reservation
+    controller.screeningInterpretationHooks.afterReservation = async () => {
+      throw new Error("Simulated network timeout immediately after reservation hold");
+    };
+
+    try {
+      const res = await controller.requestInterpretation({
+        params: { id: screeningId },
+        user
+      });
+
+      assert.strictEqual(res.status, 400, "Request must return 400 when operation fails");
+      assert.strictEqual(res.body.success, false);
+      assert.strictEqual(res.body.error.fields.compensated, true, "Must flag hold as compensated");
+      assert.match(res.body.error.message, /network timeout/i);
+
+      // Verify balance is completely restored to 10,000 paise
+      const balanceAfter = await getBalance(user.id);
+      assert.strictEqual(balanceAfter, 10000, "User wallet balance must remain exactly 10000 paise (no completed charge)");
+
+      // Verify ledger has matching hold and refund entries
+      const entries = await repositories.wallets.ledgerEntries(wallet.id);
+      const holdEntries = entries.filter(e => e.entryType === "screening_interpretation_hold" && e.direction === "debit");
+      const refundEntries = entries.filter(e => e.entryType === "screening_interpretation_hold_refund" && e.direction === "credit");
+      assert.strictEqual(holdEntries.length, 1, "Must have recorded 1 reservation hold");
+      assert.strictEqual(refundEntries.length, 1, "Must have recorded 1 compensation refund");
+      assert.strictEqual(holdEntries[0].amountPaise, 4900);
+      assert.strictEqual(refundEntries[0].amountPaise, 4900);
+
+      // Verify screening in repository was NOT updated with paid interpretation
+      const scr = await repositories.screenings.findById(screeningId);
+      assert.strictEqual(scr.responsesJson.hasPaidInterpretation, false);
+      assert.strictEqual(scr.responsesJson.interpretation, null);
+    } finally {
+      controller.screeningInterpretationHooks.afterReservation = null;
+    }
+  });
+
+  await t.test("2. Failure injected DURING RESULT CREATION compensates hold and leaves 0 completed charge", async () => {
+    // Inject failure during narrative synthesis
+    controller.screeningInterpretationHooks.generateClinicalNarrative = async () => {
+      throw new Error("Simulated AI narrative generation engine unavailable");
+    };
+
+    try {
+      const res = await controller.requestInterpretation({
+        params: { id: screeningId },
+        user
+      });
+
+      assert.strictEqual(res.status, 400);
+      assert.strictEqual(res.body.success, false);
+      assert.strictEqual(res.body.error.fields.compensated, true);
+      assert.match(res.body.error.message, /AI narrative generation engine unavailable/i);
+
+      // Verify balance is completely restored to 10,000 paise
+      const balanceAfter = await getBalance(user.id);
+      assert.strictEqual(balanceAfter, 10000, "Wallet balance must remain 10000 paise after result creation failure");
+
+      // Verify screening state unchanged
+      const scr = await repositories.screenings.findById(screeningId);
+      assert.strictEqual(scr.responsesJson.hasPaidInterpretation, false);
+      assert.strictEqual(scr.responsesJson.interpretation, null);
+    } finally {
+      controller.screeningInterpretationHooks.generateClinicalNarrative = null;
+    }
+  });
+
+  await t.test("3. Failure injected DURING PERSISTENCE compensates hold and leaves 0 completed charge", async () => {
+    const originalUpdate = repositories.screenings.update;
+    // Inject persistence failure when attempting to save the interpretation
+    repositories.screenings.update = async (id, patch) => {
+      if (patch.responsesJson?.hasPaidInterpretation) {
+        throw new Error("Simulated database write deadlock during screening update");
+      }
+      return originalUpdate.call(repositories.screenings, id, patch);
+    };
+
+    try {
+      const res = await controller.requestInterpretation({
+        params: { id: screeningId },
+        user
+      });
+
+      assert.strictEqual(res.status, 400);
+      assert.strictEqual(res.body.success, false);
+      assert.strictEqual(res.body.error.fields.compensated, true);
+      assert.match(res.body.error.message, /database write deadlock/i);
+
+      // Verify balance is completely restored to 10,000 paise
+      const balanceAfter = await getBalance(user.id);
+      assert.strictEqual(balanceAfter, 10000, "Wallet balance must remain 10000 paise after persistence failure");
+
+      // Verify screening record in repository
+      const scr = await repositories.screenings.findById(screeningId);
+      assert.strictEqual(scr.responsesJson.hasPaidInterpretation, false);
+    } finally {
+      repositories.screenings.update = originalUpdate;
+    }
+  });
+
+  await t.test("4. Normal flow after transient failures completes settlement with exactly one charge", async () => {
+    // Now request interpretation with all systems operational
+    const res = await controller.requestInterpretation({
+      params: { id: screeningId },
+      user
+    });
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.strictEqual(res.body.data.hasPaidInterpretation, true);
+    assert.ok(res.body.data.interpretation.length > 50);
+
+    // Balance debited by exactly ₹49 = 4,900 paise. 10,000 - 4,900 = 5,100 paise
+    const balanceAfter = await getBalance(user.id);
+    assert.strictEqual(balanceAfter, 5100, "Wallet must be charged exactly once after clean execution");
+
+    // Double-entry journal transaction must exist
+    const journals = await repositories.journalTransactions.list();
+    const interpJournal = journals.find(j => j.journalType === "SCREENING_INTERPRETATION_PURCHASE" && j.businessReferenceId === screeningId);
+    assert.ok(interpJournal, "Completed settlement must post journal transaction");
+    assert.strictEqual(interpJournal.entries.length, 2);
+
+    // Idempotent repeat call does not charge again
+    const repeatRes = await controller.requestInterpretation({
+      params: { id: screeningId },
+      user
+    });
+    assert.strictEqual(repeatRes.status, 200);
+    assert.strictEqual(repeatRes.body.data.alreadyPurchased, true);
+    assert.strictEqual(await getBalance(user.id), 5100, "Repeat request must not debit again");
+  });
+});
+
 

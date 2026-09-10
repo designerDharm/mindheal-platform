@@ -126,7 +126,9 @@ const state = {
   cbtDailyDiaryOpen: false,
   selectedCountryCode: "+91",
   bookingModalOpen: false,
-  bookingModalTarget: null
+  bookingModalTarget: null,
+  bookingModalSlots: [],
+  pendingBooking: null
 };
 
 window.filterCounsellors = (category) => {
@@ -289,6 +291,8 @@ export function resetAccountState(userId = null) {
   state.authError = "";
   state.bookingModalOpen = false;
   state.bookingModalTarget = null;
+  state.bookingModalSlots = [];
+  state.pendingBooking = null;
   state.userBookings = [];
   state.counsellorBookings = [];
 
@@ -386,6 +390,7 @@ async function render() {
       ${shouldShowFooter(state.route.path) ? siteFooter() : ""}
       ${!isAuthOrPanel ? mobileBottomNav() : ""}
       ${linkGoogleAccountModal()}
+      ${renderBookingModal()}
     </div>
   `;
 
@@ -617,7 +622,7 @@ async function resolvePage(path) {
 
   if (path === "/services/courses") return servicePsychologyCourses();
 
-  if (path === "/counsellors") return publicCounsellorsPage();
+  if (path === "/counsellors") return publicCounsellorsPage(data);
   if (path === "/for-counsellors") return counsellorLandingPage();
   if (path === "/resources" || path === "/blog") return resourcesPage();
   if (path === "/resources/guides") return guidesPage();
@@ -670,7 +675,8 @@ async function resolvePage(path) {
   return notFoundPage();
 }
 
-function publicCounsellorsPage() {
+function publicCounsellorsPage(data) {
+  const publicCounsellors = data?.counsellors?.length ? data.counsellors : counsellors;
   return html`
     <section class="bg-charcoal" style="padding:160px 0 80px 0;text-align:center;">
       <div class="container reveal-up">
@@ -680,7 +686,7 @@ function publicCounsellorsPage() {
     </section>
     <section class="bg-cream" style="padding:80px 0;">
       <div class="container card-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(300px, 1fr));gap:32px;">
-        ${counsellors.map(counsellorCard).join("")}
+        ${publicCounsellors.map(counsellorCard).join("")}
       </div>
     </section>
   `;
@@ -2987,70 +2993,6 @@ function userPanelContent(section, dashboard, data) {
       <div class="service-grid" style="display:grid;width:100%;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:24px;">
         ${panelCounsellors.map(counsellorCard).join("")}
       </div>
-
-      <!-- BOOKING MODAL OVERLAY -->
-      ${state.bookingModalOpen && state.bookingModalTarget ? html`
-        <div style="position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 24px;">
-          <div class="dashboard-card" style="width: 100%; max-width: 540px; background: var(--color-card-elevated); border: 1px solid var(--color-border); border-radius: 24px; padding: 32px; position: relative; box-shadow: var(--shadow-3); display: flex; flex-direction: column; gap: 20px;">
-            <button data-action="close-booking-modal" style="position: absolute; top: 20px; right: 20px; background: transparent; border: none; color: var(--color-text-muted); font-size: 24px; cursor: pointer;">
-              <i class="ph ph-x"></i>
-            </button>
-            
-            <div>
-              <span style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--color-coral); letter-spacing: 0.05em;">Book Therapy Session</span>
-              <h2 style="font-family: var(--font-serif); font-size: 24px; color: var(--color-charcoal); margin: 4px 0 0 0; display: flex; align-items: center; gap: 10px;">
-                <i class="ph-fill ph-video-camera" style="color: var(--color-coral);"></i> ${escapeHtml(state.bookingModalTarget.name)}
-              </h2>
-            </div>
-
-            <form data-form="booking" style="display: flex; flex-direction: column; gap: 16px;">
-              <input type="hidden" name="counsellorId" value="${escapeHtml(state.bookingModalTarget.id)}" />
-              <input type="hidden" name="counsellor" value="${escapeHtml(state.bookingModalTarget.name)}" />
-              <input type="hidden" name="amount" value="${state.bookingModalTarget.rate}" />
-
-              <div class="field">
-                <label for="booking-type">Session Format</label>
-                <select id="booking-type" name="sessionType" required style="width: 100%;">
-                  <option value="Video Therapy Session">📹 1-on-1 Video Therapy Session</option>
-                  <option value="Audio Therapy Session">📞 Audio Call Session</option>
-                  <option value="Chat Therapy Session">💬 Live Chat Session</option>
-                </select>
-              </div>
-
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                <div class="field">
-                  <label for="booking-date">Preferred Date</label>
-                  <input id="booking-date" name="sessionDate" type="date" value="${new Date().toISOString().split('T')[0]}" required style="width: 100%;" />
-                </div>
-                <div class="field">
-                  <label for="booking-time">Preferred Time</label>
-                  <select id="booking-time" name="sessionTime" required style="width: 100%;">
-                    <option value="10:00 AM">10:00 AM IST</option>
-                    <option value="02:00 PM">02:00 PM IST</option>
-                    <option value="05:00 PM" selected>05:00 PM IST</option>
-                    <option value="08:00 PM">08:00 PM IST</option>
-                  </select>
-                </div>
-              </div>
-
-              <div class="field">
-                <label for="booking-notes">Primary Focus / Notes (Optional)</label>
-                <textarea id="booking-notes" name="notes" placeholder="Tell the counsellor what you would like to focus on (e.g., anxiety, relationship, stress)..." rows="3" style="width: 100%;"></textarea>
-              </div>
-
-              <div style="padding: 14px; background: rgba(224,106,78,0.06); border: 1px solid rgba(224,106,78,0.2); border-radius: 12px; display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-size: 13px; color: var(--color-charcoal); font-weight: 500;">Total Fee (Wallet Hold)</span>
-                <strong style="font-size: 18px; color: var(--color-coral);">${formatInr(state.bookingModalTarget.rate)}</strong>
-              </div>
-
-              <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 8px;">
-                <button type="button" class="btn secondary" data-action="close-booking-modal">Cancel</button>
-                <button type="submit" class="btn primary" style="background: var(--color-coral);">Confirm Booking</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      ` : ""}
     `;
   }
 
@@ -3659,6 +3601,106 @@ function userPanelContent(section, dashboard, data) {
   `;
 }
 
+function renderBookingModal() {
+  if (!state.bookingModalOpen || !state.bookingModalTarget) return "";
+  const target = state.bookingModalTarget;
+  const slots = state.bookingModalSlots || [];
+  const initialSlot = slots[0];
+
+  return html`
+    <div style="position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 24px;">
+      <div class="dashboard-card" style="width: 100%; max-width: 540px; background: var(--color-card-elevated); border: 1px solid var(--color-border); border-radius: 24px; padding: 32px; position: relative; box-shadow: var(--shadow-3); display: flex; flex-direction: column; gap: 20px;">
+        <button type="button" data-action="close-booking-modal" style="position: absolute; top: 20px; right: 20px; background: transparent; border: none; color: var(--color-text-muted); font-size: 24px; cursor: pointer;">
+          <i class="ph ph-x"></i>
+        </button>
+        
+        <div>
+          <span style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--color-coral); letter-spacing: 0.05em;">Book Therapy Session</span>
+          <h2 style="font-family: var(--font-serif); font-size: 24px; color: var(--color-charcoal); margin: 4px 0 0 0; display: flex; align-items: center; gap: 10px;">
+            <i class="ph-fill ph-video-camera" style="color: var(--color-coral);"></i> ${escapeHtml(target.name)}
+          </h2>
+        </div>
+
+        <form data-form="booking" style="display: flex; flex-direction: column; gap: 16px;">
+          <input type="hidden" name="counsellorId" value="${escapeHtml(target.id)}" />
+          <input type="hidden" name="counsellor" value="${escapeHtml(target.name)}" />
+          <input type="hidden" name="amount" value="${target.rate}" />
+
+          ${slots.length > 0 ? html`
+            <div class="field">
+              <label for="booking-slot-select">Available Slots (${slots.length} available)</label>
+              <select id="booking-slot-select" name="slotId" style="width: 100%;">
+                ${slots.map((s, idx) => html`
+                  <option value="${escapeHtml(s.id)}" data-date="${escapeHtml(s.date)}" data-start-time="${escapeHtml(s.startTime)}" data-end-time="${escapeHtml(s.endTime)}" data-session-type="${escapeHtml(s.sessionType || "video")}" ${idx === 0 ? "selected" : ""}>
+                    📅 ${escapeHtml(s.date)} · ${escapeHtml(s.startTime)} - ${escapeHtml(s.endTime)} (${escapeHtml(s.sessionType || "video")})
+                  </option>
+                `).join("")}
+              </select>
+            </div>
+          ` : ""}
+
+          <div class="field">
+            <label for="booking-type">Session Format</label>
+            <select id="booking-type" name="sessionType" required style="width: 100%;">
+              <option value="video" ${initialSlot?.sessionType === "video" || !initialSlot ? "selected" : ""}>📹 1-on-1 Video Therapy Session</option>
+              <option value="audio" ${initialSlot?.sessionType === "audio" ? "selected" : ""}>📞 Audio Call Session</option>
+              <option value="chat" ${initialSlot?.sessionType === "chat" ? "selected" : ""}>💬 Live Chat Session</option>
+            </select>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="field">
+              <label for="booking-date">Preferred Date</label>
+              <input id="booking-date" name="sessionDate" type="date" value="${initialSlot?.date || new Date().toISOString().split('T')[0]}" required style="width: 100%;" />
+            </div>
+            <div class="field">
+              <label for="booking-time">Preferred Time</label>
+              <select id="booking-time" name="sessionTime" required style="width: 100%;">
+                <option value="${initialSlot?.startTime || '10:00'}" selected>${initialSlot?.startTime ? initialSlot.startTime + ' IST' : '10:00 AM IST'}</option>
+                <option value="11:00">11:00 AM IST</option>
+                <option value="14:00">02:00 PM IST</option>
+                <option value="16:00">04:00 PM IST</option>
+                <option value="17:00">05:00 PM IST</option>
+                <option value="20:00">08:00 PM IST</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="booking-notes">Primary Focus / Notes (Optional)</label>
+            <textarea id="booking-notes" name="notes" placeholder="Tell the counsellor what you would like to focus on (e.g., anxiety, relationship, stress)..." rows="3" style="width: 100%;"></textarea>
+          </div>
+
+          <div style="padding: 14px; background: rgba(224,106,78,0.06); border: 1px solid rgba(224,106,78,0.2); border-radius: 12px; display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 13px; color: var(--color-charcoal); font-weight: 500;">Total Fee (Wallet Hold)</span>
+            <strong style="font-size: 18px; color: var(--color-coral);">${formatInr(target.rate)}</strong>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 8px;">
+            <button type="button" class="btn secondary" data-action="close-booking-modal">Cancel</button>
+            <button type="submit" class="btn primary" style="background: var(--color-coral);">Confirm Booking</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+async function openBookingForCounsellor(target) {
+  if (!target || !target.id) return;
+  let slots = [];
+  try {
+    slots = await api.getCounsellorSlots(target.id);
+  } catch (e) {
+    console.warn("Failed to load availability slots:", e.message);
+  }
+  state.bookingModalTarget = target;
+  state.bookingModalSlots = Array.isArray(slots) ? slots.filter(s => !s.isBooked) : [];
+  state.bookingModalOpen = true;
+  await render();
+}
+window.openBookingForCounsellor = openBookingForCounsellor;
+
 function counsellorCard(counsellor) {
   const name = counsellor.name || counsellor.displayName;
   const title = counsellor.title || "Verified counsellor";
@@ -3668,7 +3710,7 @@ function counsellorCard(counsellor) {
   const normalizedStatus = String(status).toLowerCase();
   const specialities = counsellor.specialities || counsellor.specializations || [];
   const languages = counsellor.languages || counsellor.languagesSpoken || [];
-  const bookingCounsellorId = counsellor.id?.startsWith("cns_") ? counsellor.id : "cns_priya";
+  const bookingCounsellorId = counsellor.id || counsellor._id || "";
   return html`
     <article class="service-card hover-lift">
       <div class="counsellor-card-header">
@@ -4865,6 +4907,24 @@ function attachPageHandlers() {
         }
         toast(`${role === "admin" ? "Admin" : role === "counsellor" ? "Counsellor" : "User"} session started.`);
         state.authError = "";
+
+        let pending = state.pendingBooking;
+        if (!pending) {
+          try {
+            const raw = sessionStorage.getItem("pending_booking");
+            if (raw) pending = JSON.parse(raw);
+          } catch (e) {}
+        }
+
+        if (pending && role === "user") {
+          state.pendingBooking = null;
+          try { sessionStorage.removeItem("pending_booking"); } catch (e) {}
+          toast(`Continuing booking with ${pending.name}...`);
+          navigate("/panel/user?section=counsellors");
+          await openBookingForCounsellor(pending);
+          return;
+        }
+
         navigate(form.dataset.panel);
       } catch (err) {
         const msg = err.message || "Invalid email, password, or role.";
@@ -4907,6 +4967,24 @@ function attachPageHandlers() {
         }
 
         toast("Verification successful! Account created.");
+
+        let pending = state.pendingBooking;
+        if (!pending) {
+          try {
+            const raw = sessionStorage.getItem("pending_booking");
+            if (raw) pending = JSON.parse(raw);
+          } catch (e) {}
+        }
+
+        if (pending && state.otpRole === "user") {
+          state.pendingBooking = null;
+          try { sessionStorage.removeItem("pending_booking"); } catch (e) {}
+          toast(`Continuing booking with ${pending.name}...`);
+          navigate("/panel/user?section=counsellors");
+          await openBookingForCounsellor(pending);
+          return;
+        }
+
         navigate(state.otpPanel);
       } catch (err) {
         toast(`Verification failed: ${err.message || "Invalid OTP code"}`, "error");
@@ -5148,6 +5226,24 @@ function attachPageHandlers() {
           if (res.status === "AUTHENTICATED") {
             toast(`Welcome! Logged in successfully via Google.`);
             state.authError = "";
+
+            let pending = state.pendingBooking;
+            if (!pending) {
+              try {
+                const raw = sessionStorage.getItem("pending_booking");
+                if (raw) pending = JSON.parse(raw);
+              } catch (e) {}
+            }
+
+            if (pending && role === "user") {
+              state.pendingBooking = null;
+              try { sessionStorage.removeItem("pending_booking"); } catch (e) {}
+              toast(`Continuing booking with ${pending.name}...`);
+              navigate("/panel/user?section=counsellors");
+              await openBookingForCounsellor(pending);
+              return;
+            }
+
             navigate(form.dataset.panel);
           } else if (res.status === "PROFILE_REQUIRED") {
             state.onboardingToken = res.onboardingToken;
@@ -5513,12 +5609,98 @@ function attachPageHandlers() {
     });
   });
 
+  document.querySelectorAll("[data-action='open-booking-modal']").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const counsellorId = button.dataset.counsellorId;
+      const counsellorName = button.dataset.counsellorName || "Counsellor";
+      const rate = Number(button.dataset.rate || 0);
+
+      if (!counsellorId) {
+        toast("Please select a valid counsellor.", "error");
+        return;
+      }
+
+      const bookingTarget = { id: counsellorId, name: counsellorName, rate };
+
+      if (!state.auth) {
+        state.pendingBooking = bookingTarget;
+        try {
+          sessionStorage.setItem("pending_booking", JSON.stringify(bookingTarget));
+        } catch (_) {}
+        toast("Please sign in or create an account to request a session with " + counsellorName + ".", "info");
+        window.location.hash = "#/auth/user-login";
+        return;
+      }
+
+      await openBookingForCounsellor(bookingTarget);
+    });
+  });
+
+  document.querySelectorAll("[data-action='close-booking-modal']").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.bookingModalOpen = false;
+      state.bookingModalTarget = null;
+      state.bookingModalSlots = [];
+      render();
+    });
+  });
+
+  const slotSelect = document.getElementById("booking-slot-select");
+  if (slotSelect) {
+    slotSelect.addEventListener("change", () => {
+      const selectedOption = slotSelect.options[slotSelect.selectedIndex];
+      if (selectedOption) {
+        const dateInput = document.getElementById("booking-date");
+        const timeInput = document.getElementById("booking-time");
+        const typeSelect = document.getElementById("booking-type");
+        if (dateInput && selectedOption.dataset.date) {
+          dateInput.value = selectedOption.dataset.date;
+        }
+        if (timeInput && selectedOption.dataset.startTime) {
+          let found = false;
+          for (let i = 0; i < timeInput.options.length; i++) {
+            if (timeInput.options[i].value === selectedOption.dataset.startTime) {
+              timeInput.selectedIndex = i;
+              found = true;
+              break;
+            }
+          }
+          if (!found) {
+            const opt = document.createElement("option");
+            opt.value = selectedOption.dataset.startTime;
+            opt.textContent = `${selectedOption.dataset.startTime} IST`;
+            opt.selected = true;
+            timeInput.insertBefore(opt, timeInput.firstChild);
+          }
+        }
+        if (typeSelect && selectedOption.dataset.sessionType) {
+          typeSelect.value = selectedOption.dataset.sessionType;
+        }
+      }
+    });
+  }
+
   document.querySelectorAll("[data-form='booking']").forEach((form) => {
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       try {
-        await api.bookSession(getFormData(form));
-        toast("Session request created! Payment hold placed from your wallet.");
+        const payload = getFormData(form);
+        if (!payload.counsellorId) {
+          throw new Error("Please select a counsellor to book a session.");
+        }
+        const sSelect = form.querySelector("#booking-slot-select");
+        if (sSelect && sSelect.selectedOptions?.[0]) {
+          const opt = sSelect.selectedOptions[0];
+          if (!payload.sessionDate && opt.dataset.date) payload.sessionDate = opt.dataset.date;
+          if (!payload.sessionTime && opt.dataset.startTime) payload.sessionTime = opt.dataset.startTime;
+          if (!payload.sessionType && opt.dataset.sessionType) payload.sessionType = opt.dataset.sessionType;
+        }
+        await api.bookSession(payload);
+        state.bookingModalOpen = false;
+        state.bookingModalTarget = null;
+        state.bookingModalSlots = [];
+        toast("Session request created! Payment hold placed from your wallet.", "success");
+        window.location.hash = "#/panel/user?section=sessions";
         await render();
       } catch (error) {
         toast(error.message || "Booking failed.", "error");

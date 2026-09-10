@@ -109,7 +109,9 @@ export const store = {
   sessions: [],
   availabilitySlots: [
     { id: "slot_cns_priya_1", counsellorId: "cns_priya", date: "2026-06-05", startTime: "16:00", endTime: "17:00", sessionType: "video", isBooked: false, createdAt: new Date().toISOString() },
-    { id: "slot_cns_priya_2", counsellorId: "cns_priya", date: "2026-06-06", startTime: "11:00", endTime: "12:00", sessionType: "video", isBooked: false, createdAt: new Date().toISOString() }
+    { id: "slot_cns_priya_2", counsellorId: "cns_priya", date: "2026-06-06", startTime: "11:00", endTime: "12:00", sessionType: "video", isBooked: false, createdAt: new Date().toISOString() },
+    { id: "slot_cns_rajesh_1", counsellorId: "cns_rajesh", date: "2026-06-05", startTime: "14:00", endTime: "15:00", sessionType: "video", isBooked: false, createdAt: new Date().toISOString() },
+    { id: "slot_cns_rajesh_2", counsellorId: "cns_rajesh", date: "2026-06-06", startTime: "10:00", endTime: "11:00", sessionType: "video", isBooked: false, createdAt: new Date().toISOString() }
   ],
   analysisReports: [],
   contacts: [],

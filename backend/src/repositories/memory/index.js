@@ -481,6 +481,14 @@ export const memoryRepositories = {
   },
 
   journalTransactions: {
+    async list() {
+      return store.journalTransactions || [];
+    },
+    async findByBusinessReference(businessReferenceType, businessReferenceId) {
+      return (store.journalTransactions || []).filter(
+        (j) => j.businessReferenceType === businessReferenceType && j.businessReferenceId === businessReferenceId
+      );
+    },
     async create(journal) {
       store.journalTransactions ||= [];
       store.doubleEntryLedger ||= [];

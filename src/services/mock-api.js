@@ -680,14 +680,49 @@ export const api = {
   },
 
   async bookSession(payload) {
-    const counsellorId = payload.counsellorId?.startsWith("cns_") ? payload.counsellorId : "cns_priya";
+    if (!payload.counsellorId) {
+      throw new Error("Please select a counsellor to book a session.");
+    }
+    const counsellorId = payload.counsellorId;
+
+    let scheduledAt = payload.scheduledAt;
+    if (!scheduledAt && payload.sessionDate) {
+      const timeStr = payload.sessionTime || "10:00";
+      let time24 = timeStr;
+      const match = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+      if (match) {
+        let hours = parseInt(match[1], 10);
+        const minutes = match[2];
+        const meridiem = (match[3] || "").toUpperCase();
+        if (meridiem === "PM" && hours < 12) hours += 12;
+        if (meridiem === "AM" && hours === 12) hours = 0;
+        time24 = `${String(hours).padStart(2, "0")}:${minutes}:00`;
+      }
+      scheduledAt = new Date(`${payload.sessionDate}T${time24}`).toISOString();
+    }
+    if (!scheduledAt || Number.isNaN(new Date(scheduledAt).getTime())) {
+      scheduledAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    }
+
+    const rawType = (payload.sessionType || "video").toLowerCase();
+    const sessionType = rawType.includes("video")
+      ? "video"
+      : rawType.includes("audio")
+      ? "audio"
+      : rawType.includes("chat")
+      ? "chat"
+      : rawType.includes("group")
+      ? "group"
+      : "video";
+
     const remote = await request("/sessions/book", {
       method: "POST",
       body: {
         counsellorId,
-        sessionType: payload.sessionType || "video",
+        slotId: payload.slotId || undefined,
+        sessionType,
         serviceType: payload.serviceType || "counselling",
-        scheduledAt: payload.scheduledAt || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        scheduledAt,
         durationMinutes: Number(payload.durationMinutes || 60),
         amountInr: Number(payload.amount || payload.amountInr || 900)
       }
@@ -836,6 +871,13 @@ export const api = {
     });
     if (remote.ok) return remote.data;
     throw new Error(remote.error?.message || "Availability update failed");
+  },
+
+  async getCounsellorSlots(counsellorId) {
+    if (!counsellorId) return [];
+    const remote = await request(`/counsellors/${encodeURIComponent(counsellorId)}/slots`);
+    if (remote.ok && Array.isArray(remote.data)) return remote.data;
+    return [];
   },
 
   async getConfig() {

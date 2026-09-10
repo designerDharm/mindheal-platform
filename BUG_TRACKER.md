@@ -471,13 +471,13 @@
 
 #### MH-15: Counsellor booking buttons do not start a booking
 - **Priority:** P1 (High)
-- **Status:** `Open`
-- **Affected Files:** `src/main.js`
-- **Reproduction Steps:** Click "Request Session" on public counsellor card.
-- **Expected Result:** Booking drawer opens with counsellor pre-selected.
-- **Actual Result (Before Fix):** No click handler; button was inactive.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Status:** `Staging verified`
+- **Affected Files:** `src/main.js`, `src/services/mock-api.js`, `tests/public-booking.test.js`, `backend/src/data/store.js`
+- **Reproduction Steps:** Click "Request Session" on public counsellor card as unauthenticated and authenticated user.
+- **Expected Result:** "Request Session" starts the booking flow for the selected counsellor. If not logged in, counsellor is preserved across login/OTP/Google authentication. Live availability slots are loaded for that provider. Submitting creates the booking with wallet hold without falling back to an arbitrary provider ID.
+- **Actual Result (Before Fix):** No click handler on "Request Session"; button was inactive; hardcoded fallback `"cns_priya"` was present in mock-api.
+- **Fix Commit:** `fix(booking): connect public booking button and preserve counsellor through auth (MH-15)`
+- **Verification Evidence:** `tests/public-booking.test.js` passes 9/9 tests verifying: (1) no hardcoded fallback provider ID in codebase, (2) `api.bookSession` rejects missing counsellor and preserves exact target, (3) `api.getCounsellorSlots` fetches `/counsellors/:id/slots`, (4) dynamic card data attributes, (5) unauthenticated preservation and redirect to login, (6) post-auth restoration across password, OTP, and Google OAuth flows, (7) modal state and slot fetching, (8) dynamic modal rendering, (9) slot sync and booking submission. Full suite `npm test` passes 65/65 tests.
 
 #### MH-19: Concurrent payment settlement duplicates wallet credits
 - **Priority:** P1 (High)
