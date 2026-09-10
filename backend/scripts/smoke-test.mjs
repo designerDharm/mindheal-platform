@@ -170,6 +170,28 @@ assert(
   "Admin API config list route failed."
 );
 
+const updatedHandwritingConfig = await request("PUT", "/api/v1/admin/api-config/Handwriting%20Analysis", {
+  token: adminLogin.body.data.accessToken,
+  body: {
+    provider: "gemini",
+    modelName: "gemini-2.5-flash",
+    apiKeyEncrypted: "handwriting_smoke_key",
+    isActive: true
+  }
+});
+assert(updatedHandwritingConfig.status === 200, "Handwriting API config update failed.");
+
+const updatedDreamConfig = await request("PUT", "/api/v1/admin/api-config/Dream%20Analysis%20PDF%20Report", {
+  token: adminLogin.body.data.accessToken,
+  body: {
+    provider: "gemini",
+    modelName: "gemini-2.5-flash",
+    apiKeyEncrypted: "dream_smoke_key",
+    isActive: true
+  }
+});
+assert(updatedDreamConfig.status === 200, "Dream API config update failed.");
+
 const counsellorOtp = await request("POST", "/api/v1/auth/send-otp", {
   body: { mobile: "+919876543210" }
 });

@@ -10,6 +10,7 @@
     "check": "find src scripts \\( -name '*.js' -o -name '*.mjs' \\) -exec node --check {} \\;",
     "test:smoke": "NODE_ENV=test npm run db:seed && NODE_ENV=test node scripts/smoke-test.mjs",
     "test": "NODE_ENV=test REPOSITORY_DRIVER=memory node --test tests/**/*.test.js",
+    "test:postgres": "NODE_ENV=test REPOSITORY_DRIVER=postgres node --test tests/postgres-integration.test.js",
     "db:migrate": "node scripts/run-migrations.mjs",
     "db:seed": "node scripts/run-migrations.mjs --seed"
   },

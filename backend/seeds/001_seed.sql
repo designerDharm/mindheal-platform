@@ -1,16 +1,16 @@
 -- Seed configurations for local development and testing
 TRUNCATE TABLE ledger_entries, wallets, sessions, availability_slots, counsellors, users, api_configurations, services_catalog CASCADE;
 
-INSERT INTO users (id, role, full_name, email, mobile, language_code, password_hash)
+INSERT INTO users (id, role, full_name, email, mobile, language_code, password_hash, date_of_birth)
 VALUES
-  ('usr_arjun', 'user', 'Arjun Kumar', 'arjun@example.com', '+919999999999', 'en', 'pbkdf2_sha256$120000$3ba64226f50db5fcf67a91863113b3df$2ce1e250c5d59182e3cafc848677e6a3b10f20e563671b32a549f46bcd4a4663'),
-  ('usr_demo_user', 'user', 'Demo User', 'user@example.com', '+919999999998', 'en', 'pbkdf2_sha256$120000$3ba64226f50db5fcf67a91863113b3df$2ce1e250c5d59182e3cafc848677e6a3b10f20e563671b32a549f46bcd4a4663'),
-  ('usr_counsellor_priya', 'counsellor', 'Dr. Priya Mehta', 'priya.counsellor@example.com', '+918888888888', 'en', 'pbkdf2_sha256$120000$3ba64226f50db5fcf67a91863113b3df$2ce1e250c5d59182e3cafc848677e6a3b10f20e563671b32a549f46bcd4a4663'),
-  ('usr_counsellor_aarav', 'counsellor', 'Aarav Sen', 'aarav.counsellor@example.com', '+917777777777', 'en', 'pbkdf2_sha256$120000$3ba64226f50db5fcf67a91863113b3df$2ce1e250c5d59182e3cafc848677e6a3b10f20e563671b32a549f46bcd4a4663'),
-  ('usr_counsellor_nisha', 'counsellor', 'Nisha Iyer', 'nisha.counsellor@example.com', '+916666666666', 'en', 'pbkdf2_sha256$120000$3ba64226f50db5fcf67a91863113b3df$2ce1e250c5d59182e3cafc848677e6a3b10f20e563671b32a549f46bcd4a4663'),
-  ('usr_admin_dharm', 'admin', 'Designer Dharm', 'dharm@mindheal.com', '+919999999997', 'en', 'pbkdf2_sha256$120000$3ba64226f50db5fcf67a91863113b3df$2ce1e250c5d59182e3cafc848677e6a3b10f20e563671b32a549f46bcd4a4663'),
-  ('usr_admin', 'admin', 'MindHeal Admin', 'admin@example.com', NULL, 'en', 'pbkdf2_sha256$120000$3ba64226f50db5fcf67a91863113b3df$2ce1e250c5d59182e3cafc848677e6a3b10f20e563671b32a549f46bcd4a4663')
-ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash;
+  ('usr_arjun', 'user', 'Arjun Kumar', 'arjun@example.com', '+919999999999', 'en', 'pbkdf2_sha256$120000$3ba64226f50db5fcf67a91863113b3df$2ce1e250c5d59182e3cafc848677e6a3b10f20e563671b32a549f46bcd4a4663', '1995-05-15'),
+  ('usr_demo_user', 'user', 'Demo User', 'user@example.com', '+919999999998', 'en', 'pbkdf2_sha256$120000$3ba64226f50db5fcf67a91863113b3df$2ce1e250c5d59182e3cafc848677e6a3b10f20e563671b32a549f46bcd4a4663', '1990-01-01'),
+  ('usr_counsellor_priya', 'counsellor', 'Dr. Priya Mehta', 'priya.counsellor@example.com', '+918888888888', 'en', 'pbkdf2_sha256$120000$3ba64226f50db5fcf67a91863113b3df$2ce1e250c5d59182e3cafc848677e6a3b10f20e563671b32a549f46bcd4a4663', '1985-03-20'),
+  ('usr_counsellor_aarav', 'counsellor', 'Aarav Sen', 'aarav.counsellor@example.com', '+917777777777', 'en', 'pbkdf2_sha256$120000$3ba64226f50db5fcf67a91863113b3df$2ce1e250c5d59182e3cafc848677e6a3b10f20e563671b32a549f46bcd4a4663', '1988-07-11'),
+  ('usr_counsellor_nisha', 'counsellor', 'Nisha Iyer', 'nisha.counsellor@example.com', '+916666666666', 'en', 'pbkdf2_sha256$120000$3ba64226f50db5fcf67a91863113b3df$2ce1e250c5d59182e3cafc848677e6a3b10f20e563671b32a549f46bcd4a4663', '1982-11-25'),
+  ('usr_admin_dharm', 'admin', 'Designer Dharm', 'dharm@mindheal.com', '+919999999997', 'en', 'pbkdf2_sha256$120000$3ba64226f50db5fcf67a91863113b3df$2ce1e250c5d59182e3cafc848677e6a3b10f20e563671b32a549f46bcd4a4663', '1990-01-01'),
+  ('usr_admin', 'admin', 'MindHeal Admin', 'admin@example.com', NULL, 'en', 'pbkdf2_sha256$120000$3ba64226f50db5fcf67a91863113b3df$2ce1e250c5d59182e3cafc848677e6a3b10f20e563671b32a549f46bcd4a4663', '1990-01-01')
+ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash, date_of_birth = EXCLUDED.date_of_birth;
 
 INSERT INTO counsellors (
   id,

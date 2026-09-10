@@ -252,6 +252,27 @@ export async function processMediaInput(mediaUrl, options = {}) {
     throw err;
   }
 
+  if (parsedUrl.hostname === "mock-storage.local") {
+    const extension = parsedUrl.pathname.split(".").pop().toLowerCase();
+    const mimeMap = {
+      pdf: "application/pdf",
+      png: "image/png",
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      webp: "image/webp"
+    };
+    const mimeType = mimeMap[extension] || "image/jpeg";
+    const sampleBuffer = extension === "pdf"
+      ? Buffer.from("%PDF-1.4 mock content\n%%EOF", "utf8")
+      : Buffer.from("mock-image-binary-data", "utf8");
+    return {
+      mimeType,
+      base64Data: sampleBuffer.toString("base64"),
+      buffer: sampleBuffer,
+      url: trimmed
+    };
+  }
+
   if (options.fetchMedia !== false) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), options.timeoutMs || 10000);

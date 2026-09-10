@@ -5,6 +5,7 @@ import { appConfig } from "./config/app.js";
 import { calculateAgeFromDob } from "./utils/validation.js";
 
 let ioInstance;
+let heartbeatWorker = null;
 
 export async function authorizeSessionParticipant(sessionId, user) {
   if (!sessionId || typeof sessionId !== "string") {
@@ -346,7 +347,8 @@ export function initializeSockets(httpServer) {
   });
 
   // Heartbeat worker: reap expired heartbeats (older than 60 seconds) every 30 seconds
-  const heartbeatWorker = setInterval(async () => {
+  if (heartbeatWorker) clearInterval(heartbeatWorker);
+  heartbeatWorker = setInterval(async () => {
     try {
       const reaped = await repositories.peerListenerPresence.reapExpiredHeartbeats(60);
       if (reaped && reaped.length) {
@@ -359,6 +361,19 @@ export function initializeSockets(httpServer) {
   if (heartbeatWorker.unref) heartbeatWorker.unref();
 
   return ioInstance;
+}
+
+export function closeSockets() {
+  if (heartbeatWorker) {
+    clearInterval(heartbeatWorker);
+    heartbeatWorker = null;
+  }
+  if (ioInstance) {
+    try {
+      ioInstance.close();
+    } catch (_) {}
+    ioInstance = null;
+  }
 }
 
 export function getIO() {

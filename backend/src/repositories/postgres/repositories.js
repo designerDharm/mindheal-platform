@@ -903,7 +903,7 @@ export const postgresRepositories = {
     async create(mood) {
       const res = await query(
         "INSERT INTO mood_logs (id, user_id, score, note, created_at) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-        [mood.id, mood.userId, mood.score || null, mood.note || "", mood.createdAt || new Date()]
+        [mood.id || createId("mood"), mood.userId, mood.score || null, mood.note || "", mood.createdAt || new Date()]
       );
       return mapMood(res.rows[0]);
     },
