@@ -612,13 +612,18 @@
 
 #### MH-26: Service filter state leaks and hides homepage bento cards
 - **Priority:** P2 (Medium)
-- **Status:** `Open`
-- **Affected Files:** `src/main.js`
-- **Reproduction Steps:** Select category on `/services`, return to Home (`#/`).
-- **Expected Result:** Home bento cards visible.
-- **Actual Result (Before Fix):** Cards hidden due to shared global filter state.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Status:** `Staging verified`
+- **Affected Files:** `src/main.js`, `tests/service-filter.test.js`
+- **Reproduction Steps:** Select category on `/services` (e.g. "AI Support"), return to Home (`#/`).
+- **Expected Result:** Home bento cards remain fully visible without leak from `/services` filters; consistent category normalization across all pages.
+- **Actual Result (Before Fix):** Cards hidden due to shared global filter state comparing mismatched identifiers (`"AI Support"` vs `"ai"`, `"self-care"`, `"human"`).
+- **Fix Commit:** `fix(services): standardize category identifiers and isolate filter state (MH-26)`
+- **Verification Evidence:**
+  - Implemented `normalizeCategory` and `matchesCategory` helpers supporting both canonical titles and slugs (`"AI Support"`, `"ai-support"`, `"Human Counselling"`, `"Wellness Tools"`, etc.).
+  - Isolated homepage showcase (`sectionServices()`) to display all 5 clinical pillars unconditionally without leaking filters.
+  - Reset `state.serviceFilter = "all"` on hashchange when navigating to Home (`#/`).
+  - Added unit test suite `tests/service-filter.test.js` with 7/7 passing subtests.
+  - Full frontend test suite `npm test` passes cleanly (78/78 tests passing).
 
 #### MH-27: Legal-centre links open wrong aliased documents
 - **Priority:** P2 (Medium)

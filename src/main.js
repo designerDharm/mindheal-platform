@@ -159,21 +159,47 @@ window.filterCounsellors = (category) => {
   });
 };
 
-window.filterServices = (category) => {
-  state.serviceFilter = category;
+export function normalizeCategory(category = "") {
+  const s = String(category || "").toLowerCase().trim();
+  if (s === "all" || !s || s.startsWith("all")) return "all";
+  if (s.includes("ai")) return "ai-support";
+  if (s.includes("human") || s.includes("counsell")) return "human-counselling";
+  if (s.includes("cbt")) return "cbt-tools";
+  if (s.includes("report") || s.includes("analysis") || s.includes("signature") || s.includes("dream") || s.includes("script")) return "analysis-reports";
+  if (s.includes("wellness") || s.includes("self-care") || s.includes("mood") || s.includes("game") || s.includes("focus") || s.includes("tracker")) return "wellness-tools";
+  if (s.includes("communit") || s.includes("peer")) return "community";
+  return s.replace(/\s+/g, "-");
+}
+
+export function matchesCategory(itemCategory, selectedFilter) {
+  if (!selectedFilter || selectedFilter === "all") return true;
+  const normFilter = normalizeCategory(selectedFilter);
+  if (normFilter === "all") return true;
+  const normItem = normalizeCategory(itemCategory);
+  return normItem === normFilter;
+}
+
+window.normalizeCategory = normalizeCategory;
+window.matchesCategory = matchesCategory;
+
+window.filterServices = (category = "all") => {
+  const targetCategory = category || "all";
+  state.serviceFilter = targetCategory;
   
   // Update active tab styling
   document.querySelectorAll('.filter-tab').forEach(tab => {
-    if (tab.dataset.filter === category) {
+    const tabFilter = tab.dataset.filter || "all";
+    if (tabFilter === targetCategory || (targetCategory === "all" && tabFilter === "all") || (tabFilter !== "all" && targetCategory !== "all" && matchesCategory(tabFilter, targetCategory))) {
       tab.classList.add('active');
     } else {
       tab.classList.remove('active');
     }
   });
 
-  // Update grid items visibility
-  document.querySelectorAll('#services-bento-grid > article').forEach(item => {
-    if (category === 'all' || item.dataset.category === category) {
+  // Update services directory grid items visibility
+  document.querySelectorAll('.service-grid > article, #services-directory-grid > article, .service-card').forEach(item => {
+    const itemCat = item.dataset.category || item.dataset.categoryName || "";
+    if (matchesCategory(itemCat, targetCategory)) {
       item.style.display = 'flex';
     } else {
       item.style.display = 'none';
@@ -228,6 +254,9 @@ window.addEventListener("hashchange", () => {
   state.route = parseRoute();
   state.navOpen = false;
   state.authError = "";
+  if (state.route.path === "/") {
+    state.serviceFilter = "all";
+  }
   updateSeoMetadata(state.route.path);
   render();
 });
@@ -1209,7 +1238,6 @@ function sectionProblemStatement() {
 }
 
 function sectionServices() {
-  const filter = state.serviceFilter || "all";
   return html`
     <section class="bg-charcoal" style="padding:160px 0;">
       <div class="container text-center mb-64 reveal-up">
@@ -1218,7 +1246,7 @@ function sectionServices() {
       <div id="services-bento-grid" class="container bento-grid" style="display:grid;grid-template-columns:repeat(3, 1fr);grid-auto-rows:minmax(380px, auto);gap:32px;">
         
         <!-- Card 1: AI Clinical Companion (Blue theme with floating chat bubbles) -->
-        <div data-category="ai" class="reveal-up bento-card-custom" onclick="location.hash='#/auth/user-signup'" style="background:#d4e7f7;color:#1e293b;min-height:460px;${filter !== 'all' && filter !== 'ai' ? 'display:none;' : ''}">
+        <div data-category="ai-support" class="reveal-up bento-card-custom" onclick="location.hash='#/auth/user-signup'" style="background:#d4e7f7;color:#1e293b;min-height:460px;">
           <div style="z-index:2;margin-bottom:24px;">
             <div style="width:56px;height:56px;background:rgba(235,94,40,0.1);border-radius:14px;display:flex;align-items:center;justify-content:center;color:var(--color-coral);font-size:28px;margin-bottom:24px;"><i class="ph-fill ph-robot"></i></div>
             <h3 style="font-family:var(--font-serif);font-size:28px;line-height:1.2;margin-bottom:12px;color:#0f172a;">${t("AI Clinical Companion")}</h3>
@@ -1244,7 +1272,7 @@ function sectionServices() {
         </div>
 
         <!-- Card 2: Real-Time Mood Analytics (Teal/Navy theme with mini graphs) -->
-        <div data-category="self-care" class="reveal-up delay-100 bento-card-custom" onclick="location.hash='#/auth/user-signup'" style="background:#093a3e;color:white;min-height:460px;${filter !== 'all' && filter !== 'self-care' ? 'display:none;' : ''}">
+        <div data-category="wellness-tools" class="reveal-up delay-100 bento-card-custom" onclick="location.hash='#/auth/user-signup'" style="background:#093a3e;color:white;min-height:460px;">
           <div style="z-index:2;margin-bottom:24px;">
             <div style="width:56px;height:56px;background:rgba(255,255,255,0.1);border-radius:14px;display:flex;align-items:center;justify-content:center;color:white;font-size:28px;margin-bottom:24px;"><i class="ph-fill ph-chart-line-up"></i></div>
             <h3 style="font-family:var(--font-serif);font-size:28px;line-height:1.2;margin-bottom:12px;color:#ffffff !important;">${t("Mood Studio Analytics")}</h3>
@@ -1260,7 +1288,7 @@ function sectionServices() {
         </div>
 
         <!-- Card 3A: CBT Toolkit (Dream Analysis module with cutout) -->
-        <div data-category="self-care" class="reveal-up delay-200 bento-card-custom" onclick="location.hash='#/auth/user-signup'" style="background:#eae3d2;color:#1e293b;min-height:380px;justify-content:flex-start;${filter !== 'all' && filter !== 'self-care' ? 'display:none;' : ''}">
+        <div data-category="analysis-reports" class="reveal-up delay-200 bento-card-custom" onclick="location.hash='#/auth/user-signup'" style="background:#eae3d2;color:#1e293b;min-height:380px;justify-content:flex-start;">
           <div style="z-index:2;margin-bottom:24px;max-width:85%;">
             <div style="width:56px;height:56px;background:rgba(0,0,0,0.04);border-radius:14px;display:flex;align-items:center;justify-content:center;color:var(--color-charcoal);font-size:28px;margin-bottom:24px;"><i class="ph-fill ph-moon-stars"></i></div>
             <h3 style="font-family:var(--font-serif);font-size:28px;line-height:1.2;margin-bottom:12px;color:#1e293b;">${t("Dream Analysis")}</h3>
@@ -1284,7 +1312,7 @@ function sectionServices() {
         </div>
 
         <!-- Card 3B: Psychological Reports (Signature & Handwriting module with cutout) -->
-        <div data-category="self-care" class="reveal-up delay-200 bento-card-custom" onclick="location.hash='#/auth/user-signup'" style="background:#e5ded2;color:#1e293b;min-height:380px;justify-content:flex-start;${filter !== 'all' && filter !== 'self-care' ? 'display:none;' : ''}">
+        <div data-category="analysis-reports" class="reveal-up delay-200 bento-card-custom" onclick="location.hash='#/auth/user-signup'" style="background:#e5ded2;color:#1e293b;min-height:380px;justify-content:flex-start;">
           <div style="z-index:2;margin-bottom:24px;max-width:85%;">
             <div style="width:56px;height:56px;background:rgba(0,0,0,0.04);border-radius:14px;display:flex;align-items:center;justify-content:center;color:var(--color-charcoal);font-size:28px;margin-bottom:24px;"><i class="ph-fill ph-signature"></i></div>
             <h3 style="font-family:var(--font-serif);font-size:28px;line-height:1.2;margin-bottom:12px;color:#1e293b;">${t("Signature & Script")}</h3>
@@ -1307,7 +1335,7 @@ function sectionServices() {
         </div>
 
         <!-- Card 4: Meet your collaborators (Wide bottom card with real camera image) -->
-        <div data-category="human" class="reveal-up delay-100 bento-card-wide" onclick="location.hash='#/counsellors'" style="cursor:pointer;grid-column:span 2;background:#f8f9fa;border:1px solid rgba(0,0,0,0.05);border-radius:24px;display:flex;overflow:hidden;position:relative;min-height:320px;align-items:stretch;${filter !== 'all' && filter !== 'human' ? 'display:none;' : ''}">
+        <div data-category="human-counselling" class="reveal-up delay-100 bento-card-wide" onclick="location.hash='#/counsellors'" style="cursor:pointer;grid-column:span 2;background:#f8f9fa;border:1px solid rgba(0,0,0,0.05);border-radius:24px;display:flex;overflow:hidden;position:relative;min-height:320px;align-items:stretch;">
           <div style="flex:1.2;padding:48px;display:flex;flex-direction:column;justify-content:center;gap:16px;z-index:2;">
             <div style="width:48px;height:48px;background:rgba(235,94,40,0.06);border-radius:12px;display:flex;align-items:center;justify-content:center;color:var(--color-coral);font-size:24px;margin-bottom:8px;"><i class="ph-fill ph-users"></i></div>
             <h3 style="font-family:var(--font-serif);font-size:28px;line-height:1.2;color:#1e293b;">${t("Find Counsellors")}</h3>
@@ -2201,8 +2229,11 @@ function getServiceRoute(id) {
 
 function serviceCard(service) {
   const route = getServiceRoute(service.id);
+  const currentFilter = state.serviceFilter || "all";
+  const normalizedCat = normalizeCategory(service.category);
+  const isVisible = matchesCategory(service.category, currentFilter);
   return html`
-    <article class="service-card" data-category="${escapeHtml(service.category)}" style="display:flex;flex-direction:column;justify-content:space-between;background:white;border-radius:20px;padding:32px;border:1px solid var(--color-border);transition:all 0.3s ease;box-shadow:0 4px 16px rgba(0,0,0,0.03);">
+    <article class="service-card" data-category="${normalizedCat}" data-category-name="${escapeHtml(service.category)}" style="display:${isVisible ? 'flex' : 'none'};flex-direction:column;justify-content:space-between;background:white;border-radius:20px;padding:32px;border:1px solid var(--color-border);transition:all 0.3s ease;box-shadow:0 4px 16px rgba(0,0,0,0.03);">
       <div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
           <div class="service-icon" style="width:56px;height:56px;border-radius:16px;background:var(--color-cream);display:flex;align-items:center;justify-content:center;">${service.icon}</div>
@@ -2235,6 +2266,7 @@ function timelineCard(item) {
 }
 
 function servicesPage() {
+  const currentFilter = state.serviceFilter || "all";
   return html`
     <main class="page" style="padding:120px 0 80px 0;">
       <div class="container" style="max-width:1200px;margin:0 auto;padding:0 24px;">
@@ -2247,14 +2279,14 @@ function servicesPage() {
 
           <!-- Interactive Filter Chips -->
           <div class="filter-pills-wrapper" style="display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:32px;">
-            <button class="filter-tab active" data-filter="all" onclick="window.filterServices('all')">All Services</button>
+            <button class="filter-tab ${currentFilter === 'all' ? 'active' : ''}" data-filter="all" onclick="window.filterServices('all')">All Services</button>
             ${serviceCategories.map((category) => `
-              <button class="filter-tab" data-filter="${escapeHtml(category)}" onclick="window.filterServices('${escapeHtml(category)}')">${category}</button>
+              <button class="filter-tab ${matchesCategory(category, currentFilter) && currentFilter !== 'all' ? 'active' : ''}" data-filter="${escapeHtml(category)}" onclick="window.filterServices('${escapeHtml(category)}')">${category}</button>
             `).join("")}
           </div>
         </div>
 
-        <div class="service-grid" id="services-bento-grid" style="display:grid;width:100%;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:28px;">
+        <div class="service-grid" id="services-directory-grid" style="display:grid;width:100%;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:28px;">
           ${services.map(serviceCard).join("")}
         </div>
       </div>
