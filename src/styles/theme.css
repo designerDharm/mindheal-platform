@@ -42,6 +42,9 @@
   --space-10: 40px;
   --space-12: 48px;
   --max-page: 1180px;
+  --color-surface-dark: #121214;
+  --color-text-on-dark: #f8fafc;
+  --color-text-on-dark-muted: rgba(248, 250, 252, 0.7);
 }
 
 [data-theme="dark"] {
@@ -70,6 +73,9 @@
   --shadow-1: 0 1px 4px rgba(0, 0, 0, 0.2);
   --shadow-2: 0 4px 16px rgba(0, 0, 0, 0.3);
   --shadow-3: 0 8px 32px rgba(0, 0, 0, 0.45);
+  --color-surface-dark: #121214;
+  --color-text-on-dark: #f8fafc;
+  --color-text-on-dark-muted: rgba(248, 250, 252, 0.7);
 }
 
 * {

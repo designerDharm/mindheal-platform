@@ -6596,43 +6596,55 @@ document.addEventListener('dragstart', (e) => {
   }
 });
 // --- Service Landing Pages ---
-function createServiceLandingPage(config) {
+export function createServiceLandingPage(config) {
+  const cfg = config || {};
+  const features = Array.isArray(cfg.features) ? cfg.features : [];
+  const iconClass = cfg.icon || "ph-fill ph-target";
+  const titleText = cfg.title || "MindHeal Wellness Tools";
+  const subtitleText = cfg.subtitle || "";
+  const ctaText = cfg.ctaText || "Get Started";
+
   return html`
-    <main style="background:var(--color-charcoal);min-height:100vh;padding-top:120px;padding-bottom:120px;overflow:hidden;">
+    <main class="service-landing-page" style="background:var(--color-surface-dark, #121214);min-height:100vh;padding-top:120px;padding-bottom:120px;overflow:hidden;color:var(--color-text-on-dark, #f8fafc);position:relative;">
       <!-- Background Effects -->
       <div style="position:absolute;top:0;left:0;width:100%;height:100%;background:radial-gradient(circle at 50% 0%, rgba(235,94,40,0.15) 0%, transparent 60%);pointer-events:none;z-index:0;"></div>
       
       <div class="container" style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;text-align:center;">
         
         <div style="width:80px;height:80px;border-radius:24px;background:rgba(235,94,40,0.2);color:var(--color-coral);display:flex;align-items:center;justify-content:center;font-size:40px;margin-bottom:32px;box-shadow:0 16px 32px rgba(235,94,40,0.2), inset 0 2px 2px rgba(255,255,255,0.2);">
-          <i class="${config.icon}"></i>
+          <i class="${iconClass}"></i>
         </div>
         
         <h1 style="font-family:var(--font-serif);font-size:64px;color:white;margin-bottom:24px;line-height:1.1;max-width:800px;">
-          ${config.title}
+          ${titleText}
         </h1>
         
         <p style="font-size:20px;color:rgba(255,255,255,0.7);max-width:600px;margin-bottom:48px;line-height:1.6;">
-          ${config.subtitle}
+          ${subtitleText}
         </p>
         
         <div style="display:flex;gap:16px;margin-bottom:80px;">
           <a href="#/auth/user-signup" class="btn hover-lift" style="background:var(--color-coral);color:white;border-radius:999px;height:56px;padding:0 40px;font-size:18px;font-weight:600;display:flex;align-items:center;text-decoration:none;border:none;">
-            ${config.ctaText}
+            ${ctaText}
           </a>
         </div>
         
         <!-- Features Grid -->
         <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:32px;width:100%;text-align:left;">
-          ${config.features.map(f => `
+          ${features.map(f => {
+            const fIcon = (f && f.icon) ? f.icon : "ph-bold ph-check";
+            const fTitle = (f && (f.title || f.name)) ? (f.title || f.name) : "Feature";
+            const fDesc = (f && (f.desc || f.description || f.customizable || f.text)) ? (f.desc || f.description || f.customizable || f.text) : "";
+            return `
             <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);border-radius:24px;padding:40px;backdrop-filter:blur(16px);transition:transform 0.3s ease;" class="hover-lift">
               <div style="width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;color:white;margin-bottom:24px;font-size:24px;">
-                <i class="${f.icon}"></i>
+                <i class="${fIcon}"></i>
               </div>
-              <h3 style="font-family:var(--font-serif);font-size:24px;color:white;margin-bottom:12px;">${f.title}</h3>
-              <p style="color:rgba(255,255,255,0.6);font-size:16px;line-height:1.6;margin:0;">${f.desc}</p>
+              <h3 style="font-family:var(--font-serif);font-size:24px;color:white;margin-bottom:12px;">${fTitle}</h3>
+              <p style="color:rgba(255,255,255,0.7);font-size:16px;line-height:1.6;margin:0;">${fDesc}</p>
             </div>
-          `).join("")}
+          `;
+          }).join("")}
         </div>
         
       </div>
@@ -7113,7 +7125,7 @@ async function serviceSignatureAnalysis() {
   `;
 }
 
-function serviceGroupHealing() {
+export function serviceGroupHealing() {
   return createServiceLandingPage({
     title: "Find Strength in Community Healing",
     subtitle: "Join expert-led, secure group therapy sessions to share experiences, build resilience, and heal together.",
@@ -7127,7 +7139,7 @@ function serviceGroupHealing() {
   });
 }
 
-function serviceMindGames() {
+export function serviceMindGames() {
   return createServiceLandingPage({
     title: "Train Your Brain with Cognitive Games",
     subtitle: "Improve memory, focus, and emotional regulation through engaging, clinically-designed mental exercises.",
@@ -7141,21 +7153,21 @@ function serviceMindGames() {
   });
 }
 
-function serviceFocusTools() {
+export function serviceFocusTools() {
   return createServiceLandingPage({
     title: "Enhance Your Productivity and Focus",
     subtitle: "Combat ADHD symptoms and general distraction with our suite of timers, ambient sounds, and task managers.",
     icon: "ph-fill ph-target",
     ctaText: "Start Focusing",
     features: [
-      { icon: "ph-bold ph-timer", title: "Pomodoro Timers", customizable: "Customizable work/break intervals to maintain peak productivity without burnout." },
+      { icon: "ph-bold ph-timer", title: "Pomodoro Timers", desc: "Customizable work/break intervals to maintain peak productivity without burnout." },
       { icon: "ph-bold ph-headphones", title: "Ambient Soundscapes", desc: "Access a library of binaural beats, white noise, and nature sounds to drown out distractions." },
       { icon: "ph-bold ph-check-square", title: "Task Chunking", desc: "Break overwhelming projects into manageable, bite-sized tasks to reduce executive dysfunction." }
     ]
   });
 }
 
-function serviceHealingMap() {
+export function serviceHealingMap() {
   return createServiceLandingPage({
     title: "Locate Mental Wellness Resources Near You",
     subtitle: "Find verified clinics, support groups, and crisis centers in your local area with our interactive map.",
@@ -7169,7 +7181,7 @@ function serviceHealingMap() {
   });
 }
 
-function servicePsychologicalTests() {
+export function servicePsychologicalTests() {
   return createServiceLandingPage({
     title: "Understand Your Mental Health Better",
     subtitle: "Take clinically-validated screening assessments for anxiety, depression, burnout, ADHD, and stress.",
@@ -7183,7 +7195,7 @@ function servicePsychologicalTests() {
   });
 }
 
-function serviceCBTDiary() {
+export function serviceCBTDiary() {
   return createServiceLandingPage({
     title: "Reframe Your Thoughts with CBT",
     subtitle: "Challenge negative thinking patterns and build healthier habits with our guided Cognitive Behavioral Therapy diary.",
@@ -7197,7 +7209,7 @@ function serviceCBTDiary() {
   });
 }
 
-function servicePsychologyCourses() {
+export function servicePsychologyCourses() {
   return createServiceLandingPage({
     title: "Learn the Science of Well-being",
     subtitle: "Access interactive video courses on emotional intelligence, managing panic attacks, and improving sleep hygiene.",

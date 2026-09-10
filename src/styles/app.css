@@ -523,6 +523,12 @@ h5, h6 {
   box-shadow: 0 4px 32px rgba(0,0,0,0.05);
   --header-text-color: var(--color-charcoal) !important;
 }
+.site-header.dark-theme.glass {
+  background: rgba(18, 18, 20, 0.9); /* dark glass for dark-theme pages */
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 32px rgba(0, 0, 0, 0.4);
+  --header-text-color: white !important;
+}
 
 .nav {
   display: flex;
@@ -962,6 +968,8 @@ h5, h6 {
     overflow-y: auto !important;
     box-shadow: none !important;
     animation: mobileMenuIn 0.25s cubic-bezier(0.16,1,0.3,1) forwards;
+    --header-text-color: var(--color-charcoal) !important;
+    color: var(--color-charcoal) !important;
   }
 
   @keyframes mobileMenuIn {
@@ -971,7 +979,8 @@ h5, h6 {
 
   /* Each top-level link row */
   .nav-links > a,
-  .nav-links > .nav-item > a {
+  .nav-links > .nav-item > a,
+  .nav-links.open .nav-link {
     display: flex !important;
     align-items: center !important;
     width: 100% !important;
@@ -5196,7 +5205,7 @@ tr:hover td {
     gap: 3px !important;
     flex: 1 !important;
     text-decoration: none !important;
-    color: rgba(0,0,0,0.35) !important;
+    color: #4a5568 !important; /* WCAG AA accessible contrast against light navbar */
     font-size: 10px !important;
     font-weight: 600 !important;
     letter-spacing: 0.02em !important;
@@ -5217,6 +5226,19 @@ tr:hover td {
 
   .mob-tab--active i {
     transform: scale(1.1) !important;
+  }
+
+  [data-theme="dark"] .mobile-bottom-nav {
+    background: rgba(22, 22, 24, 0.96) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+  }
+
+  [data-theme="dark"] .mob-tab {
+    color: rgba(255, 255, 255, 0.65) !important;
+  }
+
+  [data-theme="dark"] .mob-tab--active {
+    color: var(--color-coral) !important;
   }
 
   /* ── SITE HEADER — app style ── */

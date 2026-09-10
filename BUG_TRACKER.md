@@ -674,13 +674,22 @@
 
 #### MH-29: Focus page shows literal "undefined" under Pomodoro
 - **Priority:** P2 (Medium)
-- **Status:** `Open`
-- **Affected Files:** `src/main.js`
-- **Reproduction Steps:** Navigate to `#/services/focus`.
-- **Expected Result:** Pomodoro timer description displayed.
-- **Actual Result (Before Fix):** Shows string `"undefined"`.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Status:** `Staging verified`
+- **Affected Files:** `src/main.js`, `src/styles/app.css`, `src/styles/theme.css`, `tests/focus-page.test.js`
+- **Reproduction Steps:** Navigate to `#/services/focus`. Inspect Pomodoro feature card, inspect header navigation and contrast on desktop, mobile, and scrolled state.
+- **Expected Result:** Pomodoro timer description displayed ("Customizable work/break intervals to maintain peak productivity without burnout."); safe fallbacks prevent any `"undefined"` text across all landing pages; navigation contrast is WCAG-compliant on desktop, scrolled glass state, mobile drawer, and mobile bottom nav.
+- **Actual Result (Before Fix):** Shows literal string `"undefined"` under Pomodoro because the feature key was named `customizable` instead of `desc` and `createServiceLandingPage` lacked safe content fallbacks. Scrolled header on dark pages defaulted to cream glass, mobile open drawer on dark pages suffered from white text on white drawer background, and mobile bottom tabs had low-contrast washed out text (`rgba(0,0,0,0.35)`).
+- **Fix Commit:** `fix(focus): add safe content fallbacks for landing pages and resolve navigation contrast (MH-29)`
+- **Verification Evidence:**
+  - Automated test suite `tests/focus-page.test.js` passing (5/5 tests).
+  - Fixed `serviceFocusTools` to supply `desc` for Pomodoro Timers.
+  - Added robust safe property fallbacks in `createServiceLandingPage` (`f.desc || f.description || f.customizable || f.text || ""`) and guaranteed non-undefined defaults for titles, subtitles, and icons.
+  - Verified all 7 service landing pages (`serviceGroupHealing`, `serviceMindGames`, `serviceFocusTools`, `serviceHealingMap`, `servicePsychologicalTests`, `serviceCBTDiary`, `servicePsychologyCourses`) render valid non-undefined content.
+  - Added `.site-header.dark-theme.glass` in `src/styles/app.css` to maintain a dark translucent glass header with crisp white text when scrolling dark-top pages.
+  - Configured `--header-text-color: var(--color-charcoal) !important` in `.nav-links.open` to eliminate white-on-white text in the mobile drawer when opened from dark pages.
+  - Upgraded mobile bottom navigation tabs (`.mob-tab`) to `#4a5568` on light theme and `rgba(255,255,255,0.65)` on dark theme for WCAG AA contrast compliance.
+  - Full frontend test suite (`npm test`) passes with 103/103 tests passing across all 16 suites.
+  - Syntax check (`npm run check`) passes with 0 errors.
 
 #### MH-30: Analysis reset buttons throw ReferenceError on click
 - **Priority:** P2 (Medium)
