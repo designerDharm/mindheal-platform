@@ -131,6 +131,11 @@ const state = {
   pendingBooking: null
 };
 
+if (typeof window !== "undefined") {
+  window.currentAppState = state;
+  window.state = state;
+}
+
 window.filterCounsellors = (category) => {
   state.counsellorFilter = category;
   
@@ -313,6 +318,38 @@ export function resetAccountState(userId = null) {
   api.clearPrivateUserData?.(userId);
 }
 
+export function resetAnalysis(type = "dream") {
+  const normalized = String(type || "dream").toLowerCase();
+  if (normalized.includes("dream")) {
+    state.dreamResult = null;
+    state.dreamInput = "";
+    state.dreamError = "";
+    state.dreamAnalyzing = false;
+  } else if (normalized.includes("handwriting")) {
+    state.handwritingResult = null;
+    state.handwritingInput = "";
+    state.handwritingError = "";
+    state.handwritingAnalyzing = false;
+  } else if (normalized.includes("signature")) {
+    state.signatureResult = null;
+    state.signatureInput = "";
+    state.signatureError = "";
+    state.signatureAnalyzing = false;
+  }
+  if (typeof render === "function") {
+    render();
+  } else if (typeof window !== "undefined" && typeof window.triggerAppRender === "function") {
+    window.triggerAppRender();
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.resetAnalysis = resetAnalysis;
+  window.resetDreamAnalysis = () => resetAnalysis("dream");
+  window.resetHandwritingAnalysis = () => resetAnalysis("handwriting");
+  window.resetSignatureAnalysis = () => resetAnalysis("signature");
+}
+
 export function loadUserPrivateState(userId) {
   if (!userId) {
     resetAccountState();
@@ -402,6 +439,11 @@ async function render() {
   attachPageHandlers();
   initScrollObserver();
   window.scrollTo({ top: 0, behavior: "instant" });
+
+  if (typeof window !== "undefined") {
+    window.render = render;
+    window.triggerAppRender = render;
+  }
 
   window.dismissPromo = function() {
     sessionStorage.setItem("promo-dismissed", "true");
@@ -2427,7 +2469,7 @@ function otpVerificationScreen(role, target, panelPath) {
         </div>
       </div>
       <div class="auth-split-right">
-        <a href="#/" class="auth-close-btn" aria-label="Close form" onclick="state.otpMode = false; render();">
+        <a href="#/" class="auth-close-btn" aria-label="Close form" data-action="cancel-otp">
           <i class="ph ph-x"></i>
         </a>
         <main class="auth-wrap">
@@ -5583,6 +5625,28 @@ function attachPageHandlers() {
     });
   });
 
+  // Reset analysis handlers (Dream, Handwriting, Signature)
+  document.querySelectorAll("[data-action='reset-dream-analysis']").forEach((button) => {
+    button.addEventListener("click", (e) => {
+      e.preventDefault();
+      resetAnalysis("dream");
+    });
+  });
+
+  document.querySelectorAll("[data-action='reset-handwriting-analysis']").forEach((button) => {
+    button.addEventListener("click", (e) => {
+      e.preventDefault();
+      resetAnalysis("handwriting");
+    });
+  });
+
+  document.querySelectorAll("[data-action='reset-signature-analysis']").forEach((button) => {
+    button.addEventListener("click", (e) => {
+      e.preventDefault();
+      resetAnalysis("signature");
+    });
+  });
+
   // Unlock PDF report on landing page
   document.querySelectorAll("[data-action='dream-landing-unlock']").forEach((button) => {
     button.addEventListener("click", async () => {
@@ -6357,7 +6421,7 @@ async function serviceDreamAnalysis() {
                   <a href="#/counsellors" class="btn secondary" style="border: 1px solid rgba(255,255,255,0.15); color: white; background: transparent; display: flex; align-items: center; gap: 8px; text-decoration: none;">
                     <i class="ph ph-user-check"></i> Book expert review
                   </a>
-                  <button class="btn secondary" onclick="state.dreamResult = null; state.dreamInput = ''; render();" style="border: 1px solid rgba(255,255,255,0.15); color: white; background: transparent;">
+                  <button type="button" class="btn secondary" data-action="reset-dream-analysis" style="border: 1px solid rgba(255,255,255,0.15); color: white; background: transparent;">
                     Analyze Another Dream
                   </button>
                 </div>
@@ -6383,14 +6447,22 @@ async function serviceDreamAnalysis() {
               </div>
 
               ${state.dreamError ? html`
-                <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #ef4444; border-radius: 12px; padding: 16px; font-size: 14px;">
-                  ${state.dreamError}
+                <div class="analysis-error-banner" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #ef4444; border-radius: 12px; padding: 16px; font-size: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                  <span>${state.dreamError}</span>
+                  <button type="button" class="btn text" data-action="reset-dream-analysis" style="color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 4px 12px; font-size: 13px; border-radius: 8px; background: transparent; cursor: pointer;">Reset</button>
                 </div>
               ` : ""}
 
-              <button class="btn primary submit-btn" type="submit" style="background: var(--color-coral); color: white; border: none; height: 50px; font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 12px;">
-                <i class="ph ph-sparkle"></i> Analyse Subconscious Dream
-              </button>
+              <div style="display: flex; gap: 12px; align-items: center;">
+                <button class="btn primary submit-btn" type="submit" style="flex: 1; background: var(--color-coral); color: white; border: none; height: 50px; font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 12px;">
+                  <i class="ph ph-sparkle"></i> Analyse Subconscious Dream
+                </button>
+                ${(state.dreamInput || state.dreamError) ? html`
+                  <button type="button" class="btn secondary" data-action="reset-dream-analysis" style="border: 1px solid rgba(255,255,255,0.15); color: white; background: transparent; height: 50px; padding: 0 20px; border-radius: 12px;">
+                    Reset
+                  </button>
+                ` : ""}
+              </div>
             </form>
           `}
         </div>
@@ -6533,7 +6605,7 @@ async function serviceHandwritingAnalysis() {
                   <a href="#/counsellors" class="btn secondary" style="border: 1px solid rgba(255,255,255,0.15); color: white; background: transparent; display: flex; align-items: center; gap: 8px; text-decoration: none;">
                     <i class="ph ph-user-check"></i> Book expert review
                   </a>
-                  <button class="btn secondary" onclick="state.handwritingResult = null; state.handwritingInput = ''; render();" style="border: 1px solid rgba(255,255,255,0.15); color: white; background: transparent;">
+                  <button type="button" class="btn secondary" data-action="reset-handwriting-analysis" style="border: 1px solid rgba(255,255,255,0.15); color: white; background: transparent;">
                     Analyze Another Sample
                   </button>
                 </div>
@@ -6558,14 +6630,22 @@ async function serviceHandwritingAnalysis() {
               </div>
 
               ${state.handwritingError ? html`
-                <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #ef4444; border-radius: 12px; padding: 16px; font-size: 14px;">
-                  ${state.handwritingError}
+                <div class="analysis-error-banner" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #ef4444; border-radius: 12px; padding: 16px; font-size: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                  <span>${state.handwritingError}</span>
+                  <button type="button" class="btn text" data-action="reset-handwriting-analysis" style="color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 4px 12px; font-size: 13px; border-radius: 8px; background: transparent; cursor: pointer;">Reset</button>
                 </div>
               ` : ""}
 
-              <button class="btn primary submit-btn" type="submit" style="background: #2b6cb0; color: white; border: none; height: 50px; font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 12px;">
-                <i class="ph ph-sparkle"></i> Analyze Handwriting Specimen
-              </button>
+              <div style="display: flex; gap: 12px; align-items: center;">
+                <button class="btn primary submit-btn" type="submit" style="flex: 1; background: #2b6cb0; color: white; border: none; height: 50px; font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 12px;">
+                  <i class="ph ph-sparkle"></i> Analyze Handwriting Specimen
+                </button>
+                ${(state.handwritingInput || state.handwritingError) ? html`
+                  <button type="button" class="btn secondary" data-action="reset-handwriting-analysis" style="border: 1px solid rgba(255,255,255,0.15); color: white; background: transparent; height: 50px; padding: 0 20px; border-radius: 12px;">
+                    Reset
+                  </button>
+                ` : ""}
+              </div>
             </form>
           `}
         </div>
@@ -6664,7 +6744,7 @@ async function serviceSignatureAnalysis() {
                   <a href="#/counsellors" class="btn secondary" style="border: 1px solid rgba(255,255,255,0.15); color: white; background: transparent; display: flex; align-items: center; gap: 8px; text-decoration: none;">
                     <i class="ph ph-user-check"></i> Book expert review
                   </a>
-                  <button class="btn secondary" onclick="state.signatureResult = null; state.signatureInput = ''; render();" style="border: 1px solid rgba(255,255,255,0.15); color: white; background: transparent;">
+                  <button type="button" class="btn secondary" data-action="reset-signature-analysis" style="border: 1px solid rgba(255,255,255,0.15); color: white; background: transparent;">
                     Analyze Another Signature
                   </button>
                 </div>
@@ -6689,14 +6769,22 @@ async function serviceSignatureAnalysis() {
               </div>
 
               ${state.signatureError ? html`
-                <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #ef4444; border-radius: 12px; padding: 16px; font-size: 14px;">
-                  ${state.signatureError}
+                <div class="analysis-error-banner" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #ef4444; border-radius: 12px; padding: 16px; font-size: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                  <span>${state.signatureError}</span>
+                  <button type="button" class="btn text" data-action="reset-signature-analysis" style="color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 4px 12px; font-size: 13px; border-radius: 8px; background: transparent; cursor: pointer;">Reset</button>
                 </div>
               ` : ""}
 
-              <button class="btn primary submit-btn" type="submit" style="background: #805ad5; color: white; border: none; height: 50px; font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 12px;">
-                <i class="ph ph-sparkle"></i> Analyze Signature Specimen
-              </button>
+              <div style="display: flex; gap: 12px; align-items: center;">
+                <button class="btn primary submit-btn" type="submit" style="flex: 1; background: #805ad5; color: white; border: none; height: 50px; font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 12px;">
+                  <i class="ph ph-sparkle"></i> Analyze Signature Specimen
+                </button>
+                ${(state.signatureInput || state.signatureError) ? html`
+                  <button type="button" class="btn secondary" data-action="reset-signature-analysis" style="border: 1px solid rgba(255,255,255,0.15); color: white; background: transparent; height: 50px; padding: 0 20px; border-radius: 12px;">
+                    Reset
+                  </button>
+                ` : ""}
+              </div>
             </form>
           `}
         </div>

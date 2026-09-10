@@ -644,13 +644,19 @@
 
 #### MH-30: Analysis reset buttons throw ReferenceError on click
 - **Priority:** P2 (Medium)
-- **Status:** `Open`
-- **Affected Files:** `src/main.js`
-- **Reproduction Steps:** Complete Dream Analysis and click "Analyze Another Dream".
-- **Expected Result:** State resets and input form displays cleanly.
-- **Actual Result (Before Fix):** Console error `ReferenceError: state is not defined`.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Status:** `Staging verified`
+- **Affected Files:** `src/main.js`, `tests/analysis-reset.test.js`
+- **Reproduction Steps:** Complete Dream / Handwriting / Signature Analysis and click "Analyze Another Dream / Sample / Signature", or encounter an analysis error and attempt to reset.
+- **Expected Result:** Analysis state resets completely (`result = null`, `input = ""`, `error = ""`, `analyzing = false`) and input form displays cleanly without console errors or stale results.
+- **Actual Result (Before Fix):** Inline onclick handlers (`onclick="state.dreamResult = null; state.dreamInput = ''; render();"`) threw `ReferenceError: state is not defined` because `state` and `render` were ES-module-scoped rather than window-scoped. Furthermore, errors and analyzing flags were not reset, leaving stale error states on failure.
+- **Fix Commit:** `fix(analysis): replace broken inline handlers and implement complete state reset (MH-30)`
+- **Verification Evidence:**
+  - Automated test suite `tests/analysis-reset.test.js` passing (5/5 tests).
+  - All broken inline onclick handlers removed across Dream, Handwriting, Signature, and OTP modal (`data-action="cancel-otp"`).
+  - Implemented modular `resetAnalysis(type)` that resets complete state (`Result = null`, `Input = ""`, `Error = ""`, `Analyzing = false`) and calls `render()`.
+  - Added semantic `data-action` event listeners in `attachPageHandlers()` and added reset buttons to error banners and active form states.
+  - Full frontend test suite (`npm test`) passes with 71/71 tests passing across all suites.
+  - Syntax check `npm run check` passed cleanly.
 
 #### MH-31: Session persistence ignores "Stay logged in" checkbox
 - **Priority:** P2 (Medium)
