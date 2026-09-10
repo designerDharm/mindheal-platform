@@ -2150,7 +2150,7 @@ function sectionCounsellors() {
             <div style="display:flex;justify-content:center;gap:16px;font-size:14px;color:var(--color-text-muted);margin-bottom:24px;">
               <span><i class="ph-bold ph-briefcase"></i> ${t(doc.e)}</span>
             </div>
-            <a href="#/counsellors" class="btn" style="display:inline-block;width:100%;background:white;color:var(--color-charcoal);border:1px solid rgba(0,0,0,0.1);text-decoration:none;text-align:center;box-sizing:border-box;">${t("Browse Verified Directory")}</a>
+            <a href="#/counsellors" class="btn" style="display:inline-flex;align-items:center;justify-content:center;width:100%;height:48px;padding:0 20px;line-height:1;background:white;color:var(--color-charcoal);border:1px solid rgba(0,0,0,0.12);border-radius:999px;text-decoration:none;text-align:center;font-size:14px;font-weight:600;box-sizing:border-box;">${t("Browse Verified Directory")}</a>
           </div>
         `).join('')}
       </div>
@@ -3313,7 +3313,7 @@ function userPanelContent(section, dashboard, data) {
           <p style="color: var(--color-text-muted); max-width: 540px; margin: 0 auto 20px auto; font-size: 14px;">
             New counsellors are currently undergoing clinical credential verification. Real-time booking will become available once practitioners are approved.
           </p>
-          <a href="#/panel/user?section=cbt" class="btn primary" style="display: inline-block;">Explore CBT Tools</a>
+          <a href="#/panel/user?section=cbt" class="btn primary">Explore CBT Tools</a>
         </div>
       `;
     }

@@ -2305,7 +2305,28 @@ input.form-control:focus, select.form-control:focus, textarea.form-control:focus
   border-color: var(--color-coral) !important;
 }
 .counsellor-profile .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 48px;
+  padding: 0 20px;
+  line-height: 1;
+  background: white;
+  color: var(--color-charcoal);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 999px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14px;
+  box-sizing: border-box;
   transition: all 0.3s ease;
+}
+.counsellor-profile .btn:hover {
+  background: var(--color-charcoal);
+  color: white;
+  border-color: var(--color-charcoal);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 .counsellor-prof.ai-safety-card .btn {
   margin-top: 20px;
