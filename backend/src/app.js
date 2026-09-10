@@ -71,6 +71,31 @@ export function createApp() {
           return send(res, 204, null);
         }
 
+        // HTTPS verification & safe redirection in production
+        if (appConfig.env === "production" && appConfig.enforceHttps) {
+          const proto = req.headers["x-forwarded-proto"];
+          const isHttp = proto === "http";
+          if (isHttp) {
+            // Exempt ACME challenge verification and load-balancer health checks from redirect
+            const isExempt = req.url.startsWith("/.well-known/acme-challenge/") ||
+              req.url === "/health" || req.url.startsWith("/health?") ||
+              req.url === "/readiness" || req.url.startsWith("/readiness?") ||
+              req.url === "/api/v1/health" || req.url.startsWith("/api/v1/health?") ||
+              req.url === "/api/v1/readiness" || req.url.startsWith("/api/v1/readiness?");
+            
+            if (!isExempt) {
+              const host = req.headers.host || appConfig.canonicalHostname;
+              const target = `https://${host}${req.url}`;
+              res.writeHead(301, {
+                Location: target,
+                "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload"
+              });
+              res.end();
+              return;
+            }
+          }
+        }
+
         const clientIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
         const rateLimit = await applyRateLimit(clientIp);
         if (rateLimit.status === "unavailable") {
@@ -236,6 +261,7 @@ function applyHeaders(req, res) {
   res.setHeader("x-content-type-options", "nosniff");
   res.setHeader("x-frame-options", "DENY");
   res.setHeader("x-xss-protection", "1; mode=block");
-  res.setHeader("strict-transport-security", "max-age=31536000; includeSubDomains");
+  res.setHeader("strict-transport-security", "max-age=31536000; includeSubDomains; preload");
   res.setHeader("referrer-policy", "strict-origin-when-cross-origin");
+  res.setHeader("content-security-policy", "default-src 'self' https:; img-src 'self' https: data: blob:; media-src 'self' https: data: blob:; connect-src 'self' https: wss:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' https: data:; upgrade-insecure-requests;");
 }

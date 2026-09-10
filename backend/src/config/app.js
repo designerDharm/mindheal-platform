@@ -33,6 +33,8 @@ export const appConfig = {
   allowFirebaseAuthMock: process.env.FIREBASE_AUTH_MOCK_ENABLED === "true" && process.env.NODE_ENV !== "production",
   isOtpTestMode: env === "test" || (env !== "production" && isOtpTestMode),
   allowedOrigins,
+  canonicalHostname: process.env.CANONICAL_HOSTNAME || "mindheal-platform.onrender.com",
+  enforceHttps: process.env.ENFORCE_HTTPS !== "false",
   rateLimitWindowMs: 15 * 60 * 1000,
   rateLimitMaxRequests: 1000,
   peerTalk: {
@@ -58,6 +60,7 @@ function resolveJwtSecret(envName, developmentFallback, currentEnv) {
   if (!value) {
     throw new Error(`${envName} must be configured in production.`);
   }
+
   if (isWeakJwtSecret(value, developmentFallback)) {
     throw new Error(`${envName} is too weak for production.`);
   }
@@ -91,6 +94,9 @@ function resolveAllowedOrigins(currentEnv) {
       "http://127.0.0.1:3000",
       "http://localhost:5173",
       "http://127.0.0.1:5173",
+      "https://mindheal-platform.onrender.com",
+      "https://mindheal.in",
+      "https://www.mindheal.in",
       "*"
     ];
     return configured.length ? Array.from(new Set([...configured, ...devDefaults])) : devDefaults;

@@ -776,15 +776,15 @@
 - **Fix Commit:** Pending
 - **Verification Evidence:** Pending
 
-#### MH-33: API fallback routing under SPA
+#### MH-33: Establish a working HTTPS deployment & secure routing
 - **Priority:** P2 (Medium)
 - **Status:** `Staging verified`
-- **Affected Files:** `src/services/mock-api.js`, `backend/src/routes/index.js`, `vercel.json`, `serve.json`, `_redirects`, `netlify.toml`, `nginx.conf`
-- **Reproduction Steps:** Request nonexistent `/api/v1/invalid-route` or call API via frontend when SPA fallback router redirects `/api/*` to `/index.html`.
-- **Expected Result:** Backend returns structured JSON 404 `{"success": false, "error": {"code": "NOT_FOUND", "message": "Route not found."}}`, and frontend client (`request()`) detects HTML response (`content-type: text/html`) and rejects with `{ ok: false, status: 404, error: { code: "API_HTML_FALLTHROUGH" } }` instead of treating HTML as successful JSON.
-- **Actual Result (Before Fix):** Returned SPA `index.html` with status 200, resulting in silent `data: undefined` failures in frontend consumer components.
-- **Fix Commit:** `fix(api): align frontend and backend origin, configure reverse proxy, CORS, and prevent HTML fallthrough (MH-34)`
-- **Verification Evidence:** `tests/api-alignment.test.js` (6/6 passed) validating backend 404 JSON response, frontend HTML fallthrough rejection, health check JSON responses, and SPA proxy isolation rules across Vercel, Netlify, serve, and Nginx.
+- **Affected Files:** `backend/src/app.js`, `backend/src/config/app.js`, `backend/.env`, `nginx.conf`, `vercel.json`, `index.html`, `tests/https-deployment.test.js`
+- **Reproduction Steps:** Deploy application without HTTPS certificate verification, causing insecure HTTP delivery, missing HSTS preload headers, unverified HTTP redirects, or broken OAuth/media origins.
+- **Expected Result:** Canonical hostname configured (`mindheal-platform.onrender.com` / `mindheal.in`); production HTTP requests redirect to HTTPS (301) with HSTS preload; ACME challenge verification and health probes exempt from redirect to prevent issuance/probe failure; CSP `upgrade-insecure-requests` and HSTS preload headers present; authentication and media storage return secure HTTPS URLs.
+- **Actual Result (Before Fix):** Missing dual HTTP/HTTPS server block in Nginx, unverified HTTP redirection, missing HSTS preload and CSP upgrade directives, and unconfigured production allowed origins.
+- **Fix Commit:** `fix(infra): establish working HTTPS deployment, canonical hostname, and SSL verification (MH-33)`
+- **Verification Evidence:** `tests/https-deployment.test.js` (8/8 passed) validating production HTTP->HTTPS 301 redirection with HSTS preload, ACME challenge exemption for SSL issuance, health probe exemption, HTTPS request execution without redirect, approved canonical CORS origins, media storage HTTPS URLs, and static configuration compliance (`index.html`, `nginx.conf`, `vercel.json`). Full regression `npm test` (124/124 passed), syntax check `npm run check` (0 errors).
 
 #### MH-34: Align deployed frontend and API, reverse proxy, CORS, and security headers
 - **Priority:** P2 (Medium)
