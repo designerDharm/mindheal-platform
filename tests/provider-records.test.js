@@ -179,7 +179,7 @@ test("MH-25: Homepage Meet Your Match displays verified counsellor cards and pri
   assert.ok(counsellorsSnippet, "sectionCounsellors should exist");
   const code = counsellorsSnippet[1];
 
-  assert.ok(code.includes("VERIFIED COUNSELLOR"), "Homepage cards must be labelled VERIFIED COUNSELLOR");
+  assert.ok(code.includes("verified-badge"), "Homepage cards must include verified badge");
   assert.ok(code.includes('data-action="open-booking-modal"'), "Cards must include booking modal action");
   assert.ok(code.includes('${t("Book")} ₹${doc.p}'), "Pricing buttons must be present with rate formatting");
 });

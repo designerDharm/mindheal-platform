@@ -2144,9 +2144,8 @@ function sectionCounsellors() {
         ].map((doc, i) => `
           <div data-category="${doc.cat}" class="counsellor-profile hover-lift reveal-up delay-${i*100}" style="text-align:center;padding:32px;background:var(--color-cream);border-radius:24px;border:1px solid var(--color-border);position:relative;${filter !== 'all' && filter !== doc.cat ? 'display:none;' : ''}">
             <div style="position:absolute;top:16px;right:16px;background:white;padding:4px 8px;border-radius:8px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:4px;box-shadow:0 4px 12px rgba(0,0,0,0.05);"><i class="ph-fill ph-star" style="color:#FFBD2E;"></i> ${doc.r}</div>
-            <span class="status-pill success" style="font-size:10px;padding:2px 8px;margin-bottom:12px;display:inline-flex;align-items:center;gap:4px;letter-spacing:0.05em;font-weight:700;"><i class="ph-fill ph-seal-check" style="font-size:12px;"></i> ${t("VERIFIED COUNSELLOR")}</span>
             <img src="${doc.img}" style="width:120px;height:120px;border-radius:50%;object-fit:cover;margin:0 auto 24px auto;border:4px solid white;box-shadow:0 12px 24px rgba(0,0,0,0.1);" />
-            <h3 style="font-family:var(--font-serif);font-size:20px;color:var(--color-charcoal);margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:6px;">${doc.n} <i class="ph-fill ph-seal-check verified-badge" style="color:var(--color-coral);font-size:18px;" title="Verified Counsellor"></i></h3>
+            <h3 style="font-family:var(--font-serif);font-size:20px;color:var(--color-charcoal);margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:6px;">${doc.n} <i class="ph-fill ph-seal-check verified-badge" style="color:#1d9bf0;font-size:18px;" title="Verified Counsellor"></i></h3>
             <div style="font-size:12px;color:var(--color-coral);font-weight:700;margin-bottom:16px;letter-spacing:0.05em;">${t(doc.t)}</div>
             <div style="display:flex;justify-content:center;gap:16px;font-size:14px;color:var(--color-text-muted);margin-bottom:24px;">
               <span><i class="ph-bold ph-briefcase"></i> ${t(doc.e)}</span>
