@@ -81,8 +81,9 @@ export async function updateAiService({ params, body, user }) {
   return ok(result);
 }
 
-export async function listInstructionBundles({ query }) {
-  return ok(await repositories.aiInstructionBundles.list(query.serviceId));
+export async function listInstructionBundles({ query = {} } = {}) {
+  const serviceId = query?.serviceId;
+  return ok(await repositories.aiInstructionBundles.list(serviceId));
 }
 
 export async function createInstructionBundle({ body, user }) {

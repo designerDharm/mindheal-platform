@@ -2,9 +2,9 @@ import { repositories } from "../repositories/index.js";
 import { badRequest, ok } from "../utils/http.js";
 import { createId } from "../utils/security.js";
 
-export async function listCounsellors({ url }) {
-  const specialty = url.searchParams.get("specialty");
-  const language = url.searchParams.get("language");
+export async function listCounsellors({ query = {}, url } = {}) {
+  const specialty = query.specialty || url?.searchParams?.get("specialty") || undefined;
+  const language = query.language || url?.searchParams?.get("language") || undefined;
   const rows = await repositories.counsellors.listApproved({ specialty, language });
   return ok(rows, { count: rows.length });
 }

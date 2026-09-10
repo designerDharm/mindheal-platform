@@ -687,13 +687,13 @@
 
 #### MH-23: Dispatcher context missing query; status mismatch
 - **Priority:** P1 (High)
-- **Status:** `Open`
-- **Affected Files:** `backend/src/app.js`, `backend/src/routes/index.js`
-- **Reproduction Steps:** Invoke endpoint requiring query parameters (e.g., `listInstructionBundles`).
-- **Expected Result:** Query parameters parsed into `req.query`.
-- **Actual Result (Before Fix):** Query parameters omitted from dispatcher context.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Status:** `Staging verified`
+- **Affected Files:** `backend/src/app.js`, `backend/src/routes/index.js`, `backend/src/controllers/admin.controller.js`, `backend/src/controllers/counsellor.controller.js`, `backend/src/repositories/memory/index.js`, `backend/tests/app.test.js`, `backend/tests/admin.controller.test.js`
+- **Reproduction Steps:** Invoke endpoint requiring query parameters (e.g., `listInstructionBundles?serviceId=ai_chat` or `listInstructionBundles`).
+- **Expected Result:** Query parameters parsed into `req.query` and `context.query`. Handler receives query, params, body, and user context. Handlers safely handle empty/missing query parameters without undefined-property errors. Status codes mapping `status || statusCode || 200` correctly preserves custom error status codes (e.g. 503 on readiness).
+- **Actual Result (Before Fix):** Query parameters omitted from dispatcher context causing `listInstructionBundles` to crash with `TypeError: Cannot read properties of undefined (reading 'serviceId')`. Handlers returning `statusCode: 503` (e.g., readiness) were sent as 200 due to checking only `result.status`.
+- **Fix Commit:** `fix(api): standardize dispatcher handler contracts and resolve status mismatch (MH-23)`
+- **Verification Evidence:** `backend/tests/app.test.js` (9/9 passed) and `backend/tests/admin.controller.test.js` (8/8 passed). Tested actual dispatcher end-to-end for admin instruction bundles listing with `?serviceId=ai_chat` filter and without query, verifying query parsing, route params extraction, status code resolution, and absence of undefined-property errors.
 
 #### MH-24: AI failure fallback and media processing
 - **Priority:** P1 (High)

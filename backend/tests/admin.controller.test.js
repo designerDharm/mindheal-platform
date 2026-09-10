@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert";
-import { crisisEvents, updateApiConfig, updateContactStatus, updateService, verifyCounsellor } from "../src/controllers/admin.controller.js";
+import { crisisEvents, listInstructionBundles, updateApiConfig, updateContactStatus, updateService, verifyCounsellor } from "../src/controllers/admin.controller.js";
 import { repositories } from "../src/repositories/index.js";
 import { decryptSecret, isEncryptedSecret } from "../src/services/secret.service.js";
 
@@ -223,6 +223,51 @@ test("admin controller", async (t) => {
       assert.ok(!JSON.stringify(response.body.data).includes("I want to kill myself"));
     } finally {
       repositories.crisisEvents = originalCrisisEvents;
+    }
+  });
+
+  await t.test("MH-23: listInstructionBundles safely filters by serviceId and handles missing query", async () => {
+    const originalBundles = repositories.aiInstructionBundles;
+    let queryServiceId = null;
+
+    repositories.aiInstructionBundles = {
+      list: async (serviceId) => {
+        queryServiceId = serviceId;
+        const bundles = [
+          { id: "bdl_1", serviceId: "ai_chat", name: "Chat Instructions" },
+          { id: "bdl_2", serviceId: "ai_dream", name: "Dream Instructions" }
+        ];
+        return serviceId ? bundles.filter(b => b.serviceId === serviceId) : bundles;
+      }
+    };
+
+    try {
+      // 1. Filtered by serviceId
+      const filteredRes = await listInstructionBundles({ query: { serviceId: "ai_chat" } });
+      assert.strictEqual(filteredRes.status, 200);
+      assert.strictEqual(queryServiceId, "ai_chat");
+      assert.strictEqual(filteredRes.body.data.length, 1);
+      assert.strictEqual(filteredRes.body.data[0].id, "bdl_1");
+
+      // 2. Empty query object returns all bundles
+      const allRes = await listInstructionBundles({ query: {} });
+      assert.strictEqual(allRes.status, 200);
+      assert.strictEqual(queryServiceId, undefined);
+      assert.strictEqual(allRes.body.data.length, 2);
+
+      // 3. Omitted query parameter (empty context object)
+      const emptyContextRes = await listInstructionBundles({});
+      assert.strictEqual(emptyContextRes.status, 200);
+      assert.strictEqual(queryServiceId, undefined);
+      assert.strictEqual(emptyContextRes.body.data.length, 2);
+
+      // 4. Called without any arguments (undefined context)
+      const noArgsRes = await listInstructionBundles();
+      assert.strictEqual(noArgsRes.status, 200);
+      assert.strictEqual(queryServiceId, undefined);
+      assert.strictEqual(noArgsRes.body.data.length, 2);
+    } finally {
+      repositories.aiInstructionBundles = originalBundles;
     }
   });
 });

@@ -88,6 +88,20 @@ export function createApp() {
 
         const match = url.pathname.match(route.pattern);
         const params = match?.groups || {};
+
+        const query = {};
+        for (const [key, value] of url.searchParams.entries()) {
+          if (query[key] !== undefined) {
+            if (Array.isArray(query[key])) {
+              query[key].push(value);
+            } else {
+              query[key] = [query[key], value];
+            }
+          } else {
+            query[key] = value;
+          }
+        }
+
         let body = {};
         const contentType = req.headers["content-type"] || "";
         if (!contentType.includes("multipart/form-data")) {
@@ -106,9 +120,34 @@ export function createApp() {
           return json(res, authResult.error.status, authResult.error.body);
         }
 
-        const context = { req, res, url, params, body, user: authResult.user };
+        req.query = query;
+        req.params = params;
+        req.body = body;
+        req.user = authResult.user;
+
+        const context = {
+          req,
+          res,
+          url,
+          params,
+          query,
+          body,
+          user: authResult.user,
+          ip: clientIp,
+          headers: req.headers
+        };
         const result = await route.handler(context);
-        return json(res, result.status || 200, result.body ?? result);
+        if (res.writableEnded) return;
+
+        if (result?.headers && typeof result.headers === "object") {
+          for (const [headerName, headerValue] of Object.entries(result.headers)) {
+            res.setHeader(headerName, headerValue);
+          }
+        }
+
+        const statusCode = result?.status ?? result?.statusCode ?? 200;
+        const responseBody = result?.body !== undefined ? result.body : result;
+        return json(res, statusCode, responseBody);
       } catch (error) {
         console.error("[App] Unhandled request error", error);
         if (res.writableEnded) return;

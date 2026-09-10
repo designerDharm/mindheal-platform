@@ -10,16 +10,38 @@ export const memoryRepositories = {
 
   users: {
     list() {
-      return store.users;
+      return store.users.map((u) => ({
+        ...u,
+        onboardingStatus: u.onboardingStatus || u.onboarding_status || 'COMPLETED',
+        onboarding_status: u.onboardingStatus || u.onboarding_status || 'COMPLETED'
+      }));
     },
     findById(id) {
-      return store.users.find((user) => user.id === id) || null;
+      const user = store.users.find((u) => u.id === id);
+      if (!user) return null;
+      if (!user.onboardingStatus && !user.onboarding_status) {
+        user.onboardingStatus = 'COMPLETED';
+        user.onboarding_status = 'COMPLETED';
+      }
+      return user;
     },
     findByEmailAndRole(email, role) {
-      return store.users.find((user) => user.email === email && user.role === role) || null;
+      const user = store.users.find((u) => u.email === email && u.role === role);
+      if (!user) return null;
+      if (!user.onboardingStatus && !user.onboarding_status) {
+        user.onboardingStatus = 'COMPLETED';
+        user.onboarding_status = 'COMPLETED';
+      }
+      return user;
     },
     findByMobileAndRole(mobile, role) {
-      return store.users.find((user) => user.mobile === mobile && user.role === role) || null;
+      const user = store.users.find((u) => u.mobile === mobile && u.role === role);
+      if (!user) return null;
+      if (!user.onboardingStatus && !user.onboarding_status) {
+        user.onboardingStatus = 'COMPLETED';
+        user.onboarding_status = 'COMPLETED';
+      }
+      return user;
     },
     create(user) {
       const mapped = {

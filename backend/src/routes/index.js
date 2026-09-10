@@ -159,6 +159,7 @@ export const routes = [
 async function health() {
   const gitCommit = process.env.RENDER_GIT_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA || "unknown";
   return {
+    status: 200,
     statusCode: 200,
     headers: {
       "x-build-revision": gitCommit
@@ -201,8 +202,10 @@ async function readiness() {
   }
 
   const isReady = dbStatus === "healthy" && redisStatus === "healthy";
+  const statusCode = isReady ? 200 : 503;
   return {
-    statusCode: isReady ? 200 : 503,
+    status: statusCode,
+    statusCode,
     body: {
       success: isReady,
       data: {
