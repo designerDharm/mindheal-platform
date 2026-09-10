@@ -21,6 +21,7 @@ export const routes = [
   route("GET", "/health", health),
   route("GET", "/", async () => ok({ status: "ok", service: "mindheal-api", version: "v1", apiPrefix: p })),
   route("GET", `${p}/readiness`, readiness),
+  route("GET", "/readiness", readiness),
   route("GET", `${p}/config/public`, publicController.publicConfig),
   route("GET", `${p}/promotions/active`, publicController.activePromotions),
   route("POST", `${p}/contact`, contactController.submitContact),
@@ -182,29 +183,37 @@ async function readiness() {
   let dbStatus = "healthy";
   let redisStatus = "healthy";
 
-  try {
-    const { pool } = await import("../data/db.js");
-    if (pool) {
-      await pool.query("SELECT 1");
-    } else {
+  const driver = process.env.REPOSITORY_DRIVER || "memory";
+  if (driver === "postgres") {
+    try {
+      const { pool } = await import("../data/db.js");
+      if (pool) {
+        await pool.query("SELECT 1");
+      } else {
+        dbStatus = "unhealthy";
+      }
+    } catch (e) {
       dbStatus = "unhealthy";
     }
-  } catch (e) {
-    dbStatus = "unhealthy";
+  } else {
+    dbStatus = "healthy";
   }
 
   try {
     const { redisClient } = await import("../config/redis.js");
     if (redisClient?.isOpen) {
       await redisClient.ping();
+      redisStatus = "healthy";
     } else {
-      redisStatus = "unhealthy";
+      redisStatus = process.env.REDIS_URL ? "disconnected" : "unconfigured";
     }
   } catch (e) {
     redisStatus = "unhealthy";
   }
 
-  const isReady = dbStatus === "healthy" && redisStatus === "healthy";
+  // Database is the mandatory Single Source of Truth for serving application traffic.
+  // When Redis is disconnected or degraded, the API maintains active in-memory rate limiting and session fallback.
+  const isReady = dbStatus === "healthy";
   const statusCode = isReady ? 200 : 503;
   return {
     status: statusCode,
@@ -215,7 +224,8 @@ async function readiness() {
         ready: isReady,
         service: "mindheal-api",
         database: dbStatus,
-        redis: redisStatus
+        redis: redisStatus,
+        rateLimiter: redisStatus === "healthy" ? "redis" : "memory_fallback"
       }
     }
   };

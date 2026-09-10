@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert";
 import { Readable } from "node:stream";
-import { createApp } from "../src/app.js";
+import { createApp, resetMemoryRateLimits } from "../src/app.js";
 import { routes } from "../src/routes/index.js";
 import { appConfig } from "../src/config/app.js";
 import { redisClient } from "../src/config/redis.js";
@@ -69,20 +69,67 @@ test("app request handling", async (t) => {
     }
   });
 
-  await t.test("fails closed when production rate limit store is unavailable", async () => {
+  await t.test("MH-05: falls back to memory rate limiter in production when Redis is unavailable without disabling protections", async () => {
     const previousEnv = appConfig.env;
+    const previousMax = appConfig.rateLimitMaxRequests;
     const previousRedisIsOpen = redisClient.isOpen;
     appConfig.env = "production";
+    appConfig.rateLimitMaxRequests = 2;
     redisClient.isOpen = false;
+    resetMemoryRateLimits();
 
     try {
-      const response = await request("GET", "/api/v1/health", { ip: "10.0.0.102" });
+      const ip = "10.0.0.102";
+      // 1. Under limit: succeeds with 200 rather than failing closed with 503
+      const first = await request("GET", "/api/v1/health", { ip });
+      assert.strictEqual(first.status, 200);
 
-      assert.strictEqual(response.status, 503);
-      assert.strictEqual(response.body.error.code, "RATE_LIMIT_UNAVAILABLE");
+      const second = await request("GET", "/api/v1/health", { ip });
+      assert.strictEqual(second.status, 200);
+
+      // 2. Over limit: actively protects with 429 rather than failing open
+      const third = await request("GET", "/api/v1/health", { ip });
+      assert.strictEqual(third.status, 429);
+      assert.strictEqual(third.body.error.code, "TOO_MANY_REQUESTS");
+
+      // 3. Unauthenticated access returns 401 (not 503)
+      const unauthIp = "10.0.0.109";
+      const unauthRes = await request("GET", "/api/v1/user/me", { ip: unauthIp });
+      assert.strictEqual(unauthRes.status, 401);
+      assert.strictEqual(unauthRes.body.error.code, "UNAUTHORIZED");
     } finally {
       appConfig.env = previousEnv;
+      appConfig.rateLimitMaxRequests = previousMax;
       redisClient.isOpen = previousRedisIsOpen;
+      resetMemoryRateLimits();
+    }
+  });
+
+  await t.test("MH-05: gracefully degrades to memory store when Redis throws during operation", async () => {
+    const previousEnv = appConfig.env;
+    const previousMax = appConfig.rateLimitMaxRequests;
+    const previousRedisIsOpen = redisClient.isOpen;
+    const previousIncr = redisClient.incr;
+
+    appConfig.env = "production";
+    appConfig.rateLimitMaxRequests = 2;
+    redisClient.isOpen = true;
+    redisClient.incr = async () => {
+      throw new Error("ECONNRESET: Redis socket dropped");
+    };
+    resetMemoryRateLimits();
+
+    try {
+      const ip = "10.0.0.104";
+      const res = await request("GET", "/api/v1/health", { ip });
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.body.data.status, "ok");
+    } finally {
+      appConfig.env = previousEnv;
+      appConfig.rateLimitMaxRequests = previousMax;
+      redisClient.isOpen = previousRedisIsOpen;
+      redisClient.incr = previousIncr;
+      resetMemoryRateLimits();
     }
   });
 

@@ -9,6 +9,10 @@ import { calculateAgeFromDob } from "./utils/validation.js";
 
 const rateLimitStore = new Map();
 
+export function resetMemoryRateLimits() {
+  rateLimitStore.clear();
+}
+
 async function applyRateLimit(ip) {
   // Bypass rate limiting for localhost in non-production environments
   if (appConfig.env !== "production") {
@@ -19,15 +23,12 @@ async function applyRateLimit(ip) {
   if (redisClient.isOpen) {
     try {
       return await applyRedisRateLimit(ip);
-    } catch {
-      return { status: "unavailable" };
+    } catch (err) {
+      console.warn("[RateLimit] Redis rate limit check failed, falling back to memory store:", err.message);
     }
   }
 
-  if (appConfig.env === "production") {
-    return { status: "unavailable" };
-  }
-
+  // Graceful degradation: Fall back to memory bucket rate limiter with active protection
   return applyMemoryRateLimit(ip);
 }
 

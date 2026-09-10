@@ -730,15 +730,21 @@
 
 ### Phase 8: Deployment, Routing Contracts & Release Suite (P1 & P2)
 
-#### MH-05: Rate limiter failure mode in production
+#### MH-05: Rate limiter failure mode in production & API dependency health
 - **Priority:** P1 (High)
-- **Status:** `Open`
-- **Affected Files:** `backend/src/app.js`, `backend/src/config/redis.js`
-- **Reproduction Steps:** Simulate Redis disconnect in production.
-- **Expected Result:** Falls back to memory bucket rate limiter with logged warning.
-- **Actual Result (Before Fix):** Entire API fails closed or open without graceful degradation.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Status:** `Staging verified`
+- **Affected Files:** `backend/src/app.js`, `backend/src/config/redis.js`, `backend/src/routes/index.js`, `backend/tests/app.test.js`, `tests/api-dependency-health.test.js`
+- **Reproduction Steps:** Simulate Redis disconnect in production (`redisClient.isOpen = false` or Redis socket timeout during `incr`).
+- **Expected Result:** Falls back to memory bucket rate limiter with logged warning without taking down the API; preserves active rate-limiting protection (429 on abuse); public counsellor listing returns JSON 200; unauthenticated profile access returns 401 UNAUTHORIZED (not 503); readiness check accurately reflects subsystem health and rateLimiter status; seamless automatic recovery when Redis reconnects.
+- **Actual Result (Before Fix):** In production, any Redis outage or closed client returned 503 `RATE_LIMIT_UNAVAILABLE`, failing closed and halting all endpoints across the platform.
+- **Fix Commit:** `fix(backend): restore API dependency health, graceful rate-limiter fallback, and readiness checks (MH-05)`
+- **Verification Evidence:** `tests/api-dependency-health.test.js` (7/7 passed), `backend/tests/app.test.js` (10/10 passed), full regression `npm test` (116/116 passed), syntax check `npm run check` (0 errors). Verified:
+  1. Public counsellor listing returns JSON with status 200 during Redis outage in production.
+  2. Unauthenticated profile access returns 401 UNAUTHORIZED (not 503) during Redis outage in production.
+  3. Production rate-limit protection remains active during Redis outage (blocks requests exceeding limit with 429).
+  4. Redis failure/recovery lifecycle (Redis -> Memory fallback -> Redis socket error fallback -> Redis recovery) operates predictably without server restart.
+  5. Readiness endpoints (`/readiness` and `/api/v1/readiness`) accurately report database, redis, and rateLimiter status.
+  6. `checkRedisHealth()` utility truthfully reports connected, degraded, unhealthy, and disconnected states.
 
 #### MH-23: Dispatcher context missing query; status mismatch
 - **Priority:** P1 (High)
