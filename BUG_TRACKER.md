@@ -772,20 +772,21 @@
 
 #### MH-33: API fallback routing under SPA
 - **Priority:** P2 (Medium)
-- **Status:** `Open`
-- **Affected Files:** `index.html`, server proxy configuration
-- **Reproduction Steps:** Request nonexistent `/api/v1/invalid-route`.
-- **Expected Result:** JSON 404 response `{"success": false, "error": {"code": "NOT_FOUND"}}`.
-- **Actual Result (Before Fix):** Returned SPA `index.html` with status 200.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Status:** `Staging verified`
+- **Affected Files:** `src/services/mock-api.js`, `backend/src/routes/index.js`, `vercel.json`, `serve.json`, `_redirects`, `netlify.toml`, `nginx.conf`
+- **Reproduction Steps:** Request nonexistent `/api/v1/invalid-route` or call API via frontend when SPA fallback router redirects `/api/*` to `/index.html`.
+- **Expected Result:** Backend returns structured JSON 404 `{"success": false, "error": {"code": "NOT_FOUND", "message": "Route not found."}}`, and frontend client (`request()`) detects HTML response (`content-type: text/html`) and rejects with `{ ok: false, status: 404, error: { code: "API_HTML_FALLTHROUGH" } }` instead of treating HTML as successful JSON.
+- **Actual Result (Before Fix):** Returned SPA `index.html` with status 200, resulting in silent `data: undefined` failures in frontend consumer components.
+- **Fix Commit:** `fix(api): align frontend and backend origin, configure reverse proxy, CORS, and prevent HTML fallthrough (MH-34)`
+- **Verification Evidence:** `tests/api-alignment.test.js` (6/6 passed) validating backend 404 JSON response, frontend HTML fallthrough rejection, health check JSON responses, and SPA proxy isolation rules across Vercel, Netlify, serve, and Nginx.
 
-#### MH-34: Enforce HTTPS & Security Headers
+#### MH-34: Align deployed frontend and API, reverse proxy, CORS, and security headers
 - **Priority:** P2 (Medium)
-- **Status:** `Open`
-- **Affected Files:** `backend/src/app.js`
-- **Reproduction Steps:** Inspect response headers on HTTP request in production.
-- **Expected Result:** HSTS, CSP, X-Frame-Options, X-Content-Type-Options headers present.
-- **Actual Result (Before Fix):** Security headers missing or incomplete.
-- **Fix Commit:** Pending
-- **Verification Evidence:** Pending
+- **Status:** `Staging verified`
+- **Affected Files:** `src/data/mindheal-data.js`, `src/services/mock-api.js`, `backend/src/config/app.js`, `backend/src/app.js`, `backend/src/routes/index.js`, `vercel.json`, `serve.json`, `_redirects`, `netlify.toml`, `nginx.conf`
+- **Reproduction Steps:** Deploy frontend and API with mismatched origins, missing reverse proxy rewrite configurations, CORS preflight rejections, or API route fallthrough returning 200 HTML instead of JSON.
+- **Expected Result:** Intended backend origin defined with dynamic resolution hierarchy (`window.__MINDHEAL_API_URL__` → `localStorage` → `appConfig.apiBaseUrl` → `localhost:4000` / production Render origin); CORS configured for all authorized environments; reverse proxies strictly route `/api/*` to backend; security headers (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Strict-Transport-Security`, `Referrer-Policy`) enforced; API routes return intended JSON responses.
+- **Actual Result (Before Fix):** Inconsistent origin URLs across files, API routes risking 200 HTML fallthrough, and CORS preflight rejections on unauthorized local/dev ports.
+- **Fix Commit:** `fix(api): align frontend and backend origin, configure reverse proxy, CORS, and prevent HTML fallthrough (MH-34)`
+- **Verification Evidence:** `tests/api-alignment.test.js` (6/6 passed), `backend/tests/app.test.js` (9/9 passed), full regression `npm test` (109/109 passed), syntax check `npm run check` (0 errors).
+

@@ -4,6 +4,8 @@ export const appConfig = {
   supportEmail: "support@mindheal.in",
   phone: "+91 90000 00000",
   address: "Jaipur, Rajasthan, India",
+  backendOrigin: typeof window !== "undefined" && window.location && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") ? "http://localhost:4000" : "https://mindheal-platform.onrender.com",
+  apiPrefix: "/api/v1",
   apiBaseUrl: typeof window !== "undefined" && window.location && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") ? "http://localhost:4000/api/v1" : "https://mindheal-platform.onrender.com/api/v1",
   currencies: ["INR"],
   defaultLanguage: "en",

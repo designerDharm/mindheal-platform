@@ -150,14 +150,39 @@ function authHeaders() {
   }
 }
 
-function getApiBaseUrl() {
+export function getApiBaseUrl() {
   try {
-    const defaultUrl = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
-      ? "http://localhost:4000/api/v1"
-      : "https://mindheal-platform.onrender.com/api/v1";
-    return localStorage.getItem("mindheal-api-base-url") || appConfig.apiBaseUrl || defaultUrl;
+    if (typeof window !== "undefined") {
+      if (window.__MINDHEAL_API_URL__) {
+        return String(window.__MINDHEAL_API_URL__).trim().replace(/\/+$/, "");
+      }
+      const override = localStorage.getItem("mindheal-api-base-url");
+      if (override) {
+        return String(override).trim().replace(/\/+$/, "");
+      }
+    }
+    if (appConfig && appConfig.apiBaseUrl) {
+      return String(appConfig.apiBaseUrl).trim().replace(/\/+$/, "");
+    }
+    if (typeof window !== "undefined" && window.location) {
+      const hostname = window.location.hostname;
+      if (hostname === "localhost" || hostname === "127.0.0.1") {
+        return "http://localhost:4000/api/v1";
+      }
+    }
+    return "https://mindheal-platform.onrender.com/api/v1";
   } catch {
-    return appConfig.apiBaseUrl || "http://localhost:4000/api/v1";
+    return (appConfig && appConfig.apiBaseUrl) ? appConfig.apiBaseUrl.replace(/\/+$/, "") : "http://localhost:4000/api/v1";
+  }
+}
+
+export function setApiBaseUrl(url) {
+  if (typeof window !== "undefined" && window.localStorage) {
+    if (url) {
+      window.localStorage.setItem("mindheal-api-base-url", String(url).trim().replace(/\/+$/, ""));
+    } else {
+      window.localStorage.removeItem("mindheal-api-base-url");
+    }
   }
 }
 
@@ -251,7 +276,48 @@ export async function request(path, options = {}) {
       }
     }
 
-    const payload = await response.json().catch(() => ({}));
+    const contentType = (response.headers && typeof response.headers.get === "function")
+      ? (response.headers.get("content-type") || "")
+      : "";
+
+    // Reject HTML fallthrough responses (e.g. SPA catch-all serving index.html on missing API routes)
+    if (contentType.includes("text/html")) {
+      return {
+        ok: false,
+        status: response.status === 200 ? 404 : response.status,
+        isServerError: response.status >= 500,
+        isNetworkError: false,
+        isTimeout: false,
+        error: {
+          message: `API route '${path}' returned HTML instead of JSON. Check reverse proxy configuration and backend routing.`,
+          code: "API_HTML_FALLTHROUGH",
+          status: response.status === 200 ? 404 : response.status
+        }
+      };
+    }
+
+    let payload;
+    try {
+      payload = await response.json();
+    } catch {
+      payload = null;
+    }
+
+    if (!payload || typeof payload !== "object") {
+      return {
+        ok: false,
+        status: response.status === 200 ? 502 : response.status,
+        isServerError: true,
+        isNetworkError: false,
+        isTimeout: false,
+        error: {
+          message: `API route '${path}' did not return a valid JSON payload.`,
+          code: "INVALID_JSON_RESPONSE",
+          status: response.status === 200 ? 502 : response.status
+        }
+      };
+    }
+
     if (!response.ok || payload.success === false) {
       const errMsg = typeof payload.error === "string" ? payload.error : (payload.error?.message || payload.message || "Request failed");
       return {
@@ -287,9 +353,21 @@ async function uploadFile(file) {
       headers: authHeaders(),
       body: formData
     });
-    const payload = await response.json();
-    if (!response.ok || payload.success === false) {
-      return { ok: false, error: payload.error || { message: "Upload failed" } };
+    const contentType = (response.headers && typeof response.headers.get === "function")
+      ? (response.headers.get("content-type") || "")
+      : "";
+    if (contentType.includes("text/html")) {
+      return {
+        ok: false,
+        error: {
+          message: "API upload endpoint returned HTML instead of JSON.",
+          code: "API_HTML_FALLTHROUGH"
+        }
+      };
+    }
+    const payload = await response.json().catch(() => null);
+    if (!payload || !response.ok || payload.success === false) {
+      return { ok: false, error: payload?.error || { message: "Upload failed" } };
     }
     return { ok: true, data: payload.data };
   } catch (error) {
@@ -298,6 +376,8 @@ async function uploadFile(file) {
 }
 
 export const api = {
+  getApiBaseUrl,
+  setApiBaseUrl,
   async getAuthProfile() {
     const token = getAccessToken();
     if (!token) return null;

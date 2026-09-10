@@ -12,11 +12,14 @@ import * as publicController from "../controllers/public.controller.js";
 import * as notificationController from "../controllers/notification.controller.js";
 import * as peerController from "../controllers/peer.controller.js";
 import * as screeningController from "../controllers/screening.controller.js";
+import { ok } from "../utils/http.js";
 
 const p = appConfig.apiPrefix;
 
 export const routes = [
   route("GET", `${p}/health`, health),
+  route("GET", "/health", health),
+  route("GET", "/", async () => ok({ status: "ok", service: "mindheal-api", version: "v1", apiPrefix: p })),
   route("GET", `${p}/readiness`, readiness),
   route("GET", `${p}/config/public`, publicController.publicConfig),
   route("GET", `${p}/promotions/active`, publicController.activePromotions),

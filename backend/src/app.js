@@ -217,7 +217,7 @@ async function authenticate(req, route) {
 
 function applyHeaders(req, res) {
   const origin = req.headers.origin;
-  const isAllowed = origin && appConfig.allowedOrigins.includes(origin);
+  const isAllowed = origin && (appConfig.allowedOrigins.includes(origin) || appConfig.allowedOrigins.includes("*"));
   if (isAllowed) {
     res.setHeader("access-control-allow-origin", origin);
     res.setHeader("access-control-allow-credentials", "true");
