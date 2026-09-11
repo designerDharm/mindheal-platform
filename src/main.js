@@ -28,6 +28,7 @@ import { t, getSelectedLanguage, handleLanguageChange, langCodes, translateDOM }
 import { ASSESSMENT_REGISTRY, scoreAssessment, FUNCTIONAL_IMPACT_OPTIONS, INTAKE_CONTEXT_SCHEMA } from "./data/assessment-registry.js";
 import { createAssessmentState, AssessmentController } from "./features/assessment-flow.js";
 import { getAssessmentAccess, calculateAge } from "./utils/assessment-access.js";
+import { renderHomeV2, initHomeV2Handlers } from "./features/home-v2.js";
 
 const app = document.querySelector("#app");
 
@@ -640,14 +641,15 @@ async function render() {
   }
 
   const panelServiceRoutes = ["/services/ai", "/services/cbt", "/services/focus", "/services/tests", "/services/diary", "/services/courses", "/services/games", "/services/map", "/services/group"];
-  const isAuthOrPanel = state.route.path.startsWith("/panel") || state.route.path.startsWith("/auth") || panelServiceRoutes.some(r => state.route.path.startsWith(r));
+  const isHomeV2 = state.route.path === "/home-v2";
+  const isAuthOrPanel = isHomeV2 || state.route.path.startsWith("/panel") || state.route.path.startsWith("/auth") || panelServiceRoutes.some(r => state.route.path.startsWith(r));
 
   
   app.innerHTML = html`
     <div class="app-shell">
       ${!isAuthOrPanel ? siteHeader() : ""}
       ${page}
-      ${shouldShowFooter(state.route.path) ? siteFooter() : ""}
+      ${!isHomeV2 && shouldShowFooter(state.route.path) ? siteFooter() : ""}
       ${!isAuthOrPanel ? mobileBottomNav() : ""}
       ${linkGoogleAccountModal()}
       ${renderBookingModal()}
@@ -660,6 +662,9 @@ async function render() {
 
   attachGlobalHandlers();
   attachPageHandlers();
+  if (isHomeV2) {
+    initHomeV2Handlers();
+  }
   manageModalAccessibility();
   initScrollObserver();
   window.scrollTo({ top: 0, behavior: "instant" });
@@ -871,6 +876,7 @@ async function resolvePage(path) {
   }
 
   if (path === "/" || path === "") return homePage();
+  if (path === "/home-v2") return renderHomeV2(state, t);
   if (path === "/services") return servicesPage();
   if (path === "/services/ai-counselling" || path === "/services/ai-chat") {
     toast("Authentication required: Please log in with a user account.", "error");
