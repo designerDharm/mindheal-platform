@@ -83,7 +83,11 @@ export const SENSITIVE_STORAGE_KEYS = [
   "mindheal-ai-chat",
   "mindheal-thought-mirror-sessions",
   "mindheal-unsent-letters",
-  "mindheal-grounding-sessions"
+  "mindheal-grounding-sessions",
+  "mindheal-screening",
+  "mindheal-assessment",
+  "mindheal-screening-answers",
+  "mindheal-screening-context"
 ];
 
 export function clearPrivateUserData(userId = null) {
@@ -1120,10 +1124,13 @@ export const api = {
     return { success: remote.ok, data: remote.data, error: remote.error };
   },
 
-  async completeScreening(id, score, responses) {
+  async completeScreening(id, score, responsesData) {
+    const body = (responsesData && typeof responsesData === "object" && "responses" in responsesData)
+      ? { score, ...responsesData }
+      : { score, responses: responsesData };
     const remote = await request(`/screenings/${id}/complete`, {
       method: "POST",
-      body: { score, responses }
+      body
     });
     return { success: remote.ok, data: remote.data, error: remote.error };
   },
@@ -1138,9 +1145,36 @@ export const api = {
     return { success: remote.ok, data: remote.data, error: remote.error };
   },
 
-  async requestScreeningInterpretation(id) {
-    const remote = await request(`/screenings/${id}/interpret`, {
+  async deleteScreening(id) {
+    const remote = await request(`/screenings/${id}`, {
+      method: "DELETE"
+    });
+    return { success: remote.ok, data: remote.data, error: remote.error };
+  },
+
+  async shareScreening(id) {
+    const remote = await request(`/screenings/${id}/share`, {
       method: "POST"
+    });
+    return { success: remote.ok, data: remote.data, error: remote.error };
+  },
+
+  async revokeShareScreening(id) {
+    const remote = await request(`/screenings/${id}/revoke-share`, {
+      method: "POST"
+    });
+    return { success: remote.ok, data: remote.data, error: remote.error };
+  },
+
+  async getSharedScreening(shareToken) {
+    const remote = await request(`/screenings/shared/${shareToken}`);
+    return { success: remote.ok, data: remote.data, error: remote.error };
+  },
+
+  async requestScreeningInterpretation(id, consentPayload = { consentToAiInterpretation: true }) {
+    const remote = await request(`/screenings/${id}/interpret`, {
+      method: "POST",
+      body: consentPayload
     });
     return { success: remote.ok, data: remote.data, error: remote.error };
   },

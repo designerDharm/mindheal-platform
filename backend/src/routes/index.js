@@ -90,7 +90,11 @@ export const routes = [
   route("POST", `${p}/screenings/:id/complete`, screeningController.completeScreening, ["user"]),
   route("POST", `${p}/screenings/:id/interpret`, screeningController.requestInterpretation, ["user"]),
   route("GET", `${p}/screenings/me`, screeningController.listMyScreenings, ["user"]),
+  route("GET", `${p}/screenings/shared/:shareToken`, screeningController.getSharedScreening),
   route("GET", `${p}/screenings/:id`, screeningController.getScreening, ["user", "admin"]),
+  route("DELETE", `${p}/screenings/:id`, screeningController.deleteScreening, ["user", "admin"]),
+  route("POST", `${p}/screenings/:id/share`, screeningController.shareScreening, ["user"]),
+  route("POST", `${p}/screenings/:id/revoke-share`, screeningController.revokeShareScreening, ["user"]),
 
   route("GET", `${p}/wallet/balance`, walletController.balance, ["user", "counsellor", "admin"]),
   route("POST", `${p}/wallet/topup/initiate`, walletController.initiateTopup, ["user"]),

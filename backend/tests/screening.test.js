@@ -14,6 +14,7 @@ test("Diagnostic Screening End-to-End Flow (MH-37: Free Basic Screenings & Optio
     id: createId("usr"),
     name: "Screening Tester",
     email: "screening@example.com",
+    dateOfBirth: "1995-05-10",
     role: "user"
   };
 
@@ -112,6 +113,7 @@ test("Diagnostic Screening End-to-End Flow (MH-37: Free Basic Screenings & Optio
     const controller = await import("../src/controllers/screening.controller.js");
     const res = await controller.requestInterpretation({
       params: { id: sessionID },
+      body: { consentToAiInterpretation: true },
       user
     });
 
@@ -140,6 +142,7 @@ test("Diagnostic Screening End-to-End Flow (MH-37: Free Basic Screenings & Optio
     const controller = await import("../src/controllers/screening.controller.js");
     const res = await controller.requestInterpretation({
       params: { id: sessionID },
+      body: { consentToAiInterpretation: true },
       user
     });
 
@@ -156,6 +159,7 @@ test("Diagnostic Screening End-to-End Flow (MH-37: Free Basic Screenings & Optio
     // Repeated call is idempotent and does not double-debit
     const repeatRes = await controller.requestInterpretation({
       params: { id: sessionID },
+      body: { consentToAiInterpretation: true },
       user
     });
     assert.strictEqual(repeatRes.status, 200);
@@ -179,6 +183,7 @@ test("Backend Screening Scoring & Input Validation (MH-36: Versioned Definitions
     id: createId("usr"),
     name: "Scoring Tester",
     email: "scoring_test@example.com",
+    dateOfBirth: "1992-03-20",
     role: "user"
   };
   await repositories.users.create(user);
@@ -447,6 +452,7 @@ test("Transactional Screening Interpretation & Failure Compensation (MH-38: Zero
     try {
       const res = await controller.requestInterpretation({
         params: { id: screeningId },
+        body: { consentToAiInterpretation: true },
         user
       });
 
@@ -486,6 +492,7 @@ test("Transactional Screening Interpretation & Failure Compensation (MH-38: Zero
     try {
       const res = await controller.requestInterpretation({
         params: { id: screeningId },
+        body: { consentToAiInterpretation: true },
         user
       });
 
@@ -520,6 +527,7 @@ test("Transactional Screening Interpretation & Failure Compensation (MH-38: Zero
     try {
       const res = await controller.requestInterpretation({
         params: { id: screeningId },
+        body: { consentToAiInterpretation: true },
         user
       });
 
@@ -544,6 +552,7 @@ test("Transactional Screening Interpretation & Failure Compensation (MH-38: Zero
     // Now request interpretation with all systems operational
     const res = await controller.requestInterpretation({
       params: { id: screeningId },
+      body: { consentToAiInterpretation: true },
       user
     });
 
@@ -565,6 +574,7 @@ test("Transactional Screening Interpretation & Failure Compensation (MH-38: Zero
     // Idempotent repeat call does not charge again
     const repeatRes = await controller.requestInterpretation({
       params: { id: screeningId },
+      body: { consentToAiInterpretation: true },
       user
     });
     assert.strictEqual(repeatRes.status, 200);

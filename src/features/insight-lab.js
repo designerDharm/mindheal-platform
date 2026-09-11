@@ -344,7 +344,7 @@ function renderTabContent(tab, state) {
             </div>
           </div>
 
-          <!-- Optional Paid In-Depth Clinical Interpretation -->
+          <!-- Optional Paid In-Depth Clinical Interpretation (Prompt 9: 100% Optional, Explicit Opt-In, ₹49) -->
           ${completed.hasPaidInterpretation && completed.interpretation ? `
             <div style="background:var(--color-bg);border:1px solid var(--color-border);border-radius:14px;padding:18px;text-align:left;width:100%;">
               <div style="font-weight:700;color:var(--color-charcoal);margin-bottom:6px;display:flex;align-items:center;gap:6px;">
@@ -353,12 +353,32 @@ function renderTabContent(tab, state) {
               <p style="margin:0;font-size:13px;color:var(--color-charcoal);line-height:1.6;">${escapeHtml(completed.interpretation)}</p>
             </div>
           ` : `
-            <div style="background:#FAF8F5;border:1px dashed var(--color-coral);border-radius:16px;padding:20px;text-align:left;width:100%;display:flex;justify-content:space-between;align-items:center;gap:16px;">
-              <div>
-                <h4 style="margin:0 0 4px 0;font-size:15px;color:var(--color-charcoal);">Optional In-Depth Clinical Interpretation</h4>
-                <p style="margin:0;font-size:13px;color:var(--color-text-muted);">Unlock comprehensive narrative breakdown and customized CBT intervention recommendations.</p>
+            <div style="background:#FAF8F5;border:1.5px dashed var(--color-coral);border-radius:16px;padding:20px;text-align:left;width:100%;display:flex;flex-direction:column;gap:12px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+                <h4 style="margin:0;font-size:15px;color:var(--color-charcoal);font-weight:700;">
+                  <i class="ph-bold ph-sparkle" style="color:var(--color-coral);margin-right:4px;"></i> Optional AI Clinical Interpretation
+                </h4>
+                <span style="font-size:12px;font-weight:700;color:var(--color-coral);background:#FFF9F8;border:1px solid rgba(224,90,71,0.25);padding:3px 10px;border-radius:99px;">₹49</span>
               </div>
-              <button class="btn primary" onclick="window.purchaseScreeningInterpretation('${completed.id}')" style="white-space:nowrap;background:var(--color-coral);border-color:var(--color-coral);color:white;font-weight:600;font-size:13px;">Unlock (₹49)</button>
+              <p style="margin:0;font-size:13px;color:var(--color-text-muted);line-height:1.5;">
+                Synthesizes an in-depth clinical narrative and customized coping recommendations based on your verified screening responses.
+              </p>
+              <!-- Transparent Data & Price Disclosure -->
+              <div style="background:white;border-radius:10px;padding:12px;font-size:11px;color:var(--color-text-muted);line-height:1.4;border:1px solid rgba(0,0,0,0.06);">
+                <strong style="color:var(--color-charcoal);display:block;margin-bottom:4px;">Data & Price Disclosure:</strong>
+                • <strong>Data Sent:</strong> Verified score, severity band, item answers, and sanitized intake context.<br>
+                • <strong>Price:</strong> ₹49 deducted once from your MindHeal wallet.<br>
+                • <strong>Clinical Boundary:</strong> The AI does not establish a formal medical diagnosis, prescribe drugs, or alter your verified score.
+              </div>
+              <div>
+                <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;cursor:pointer;color:var(--color-charcoal);">
+                  <input type="checkbox" id="lab-ai-consent-checkbox" style="margin-top:2px;cursor:pointer;" />
+                  <span>I explicitly opt in and consent to generate an AI clinical narrative with the disclosed data for ₹49.</span>
+                </label>
+              </div>
+              <button class="btn primary" onclick="window.purchaseScreeningInterpretation('${completed.id}')" style="align-self:flex-start;white-space:nowrap;background:var(--color-coral);border-color:var(--color-coral);color:white;font-weight:600;font-size:13px;padding:8px 20px;border-radius:8px;">
+                <i class="ph-bold ph-sparkle"></i> Unlock Narrative (₹49)
+              </button>
             </div>
           `}
 
@@ -1483,9 +1503,18 @@ window.purchaseScreeningInterpretation = async function(id) {
   const state = window.currentAppState;
   if (!id) return;
 
+  const consentCb = document.getElementById("lab-ai-consent-checkbox");
+  if (consentCb && !consentCb.checked) {
+    toast("Please check the consent box to opt in to the AI clinical narrative.", "error");
+    return;
+  }
+
   try {
     toast("Unlocking clinical interpretation report...");
-    const res = await api.requestScreeningInterpretation(id);
+    const res = await api.requestScreeningInterpretation(id, {
+      consentToAiInterpretation: true,
+      optInConsent: true
+    });
     if (res.success && res.data) {
       if (state && state.completedScreeningResult) {
         state.completedScreeningResult.hasPaidInterpretation = true;

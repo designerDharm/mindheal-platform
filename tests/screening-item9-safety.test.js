@@ -46,11 +46,11 @@ test("MH-16: Item-level screening safety handling (PHQ-9 Item 9)", async (t) => 
     );
   });
 
-  await t.test("3. Renders immediate, prominent crisis banner and emergency helplines for positive Item 9", () => {
+  await t.test("3. Renders immediate, prominent consolidated Safety Support and emergency helplines for positive Item 9", () => {
     assert.match(
       mainJsContent,
-      /class="crisis-safety-alert"/,
-      "Must render crisis-safety-alert banner"
+      /Safety Support/,
+      "Must render consolidated Safety Support card"
     );
 
     assert.match(
@@ -65,10 +65,10 @@ test("MH-16: Item-level screening safety handling (PHQ-9 Item 9)", async (t) => 
       "Must include AASRA crisis helpline (9820466726)"
     );
 
-    assert.match(
+    assert.doesNotMatch(
       mainJsContent,
-      /href="tel:112"/,
-      "Must include National Emergency (112)"
+      /class="crisis-safety-alert"/,
+      "Must NOT render duplicate large crisis-safety-alert banner"
     );
   });
 

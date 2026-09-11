@@ -916,9 +916,24 @@ export const memoryRepositories = {
       store.screenings ||= [];
       return store.screenings.find(s => s.id === id) || null;
     },
+    async findByShareToken(token) {
+      store.screenings ||= [];
+      if (!token) return null;
+      return store.screenings.find(s => {
+        const json = s.responsesJson;
+        return json && typeof json === "object" && json.shareToken === token;
+      }) || null;
+    },
     async listForUser(userId) {
       store.screenings ||= [];
       return store.screenings.filter(s => s.userId === userId).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+    },
+    async delete(id) {
+      store.screenings ||= [];
+      const idx = store.screenings.findIndex(s => s.id === id);
+      if (idx === -1) return false;
+      store.screenings.splice(idx, 1);
+      return true;
     }
   },
 

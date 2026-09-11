@@ -4776,6 +4776,7 @@ tr:hover td {
 .hero-mobile-btn-primary   { display: none; }
 .hero-mobile-btn-secondary { display: none; }
 .hero-app-chips         { display: none; } /* shown only in mobile @media block */
+.mobile-quiz-chips-wrapper { display: none; } /* shown only in mobile @media block */
 
 
 

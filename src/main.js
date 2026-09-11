@@ -17,7 +17,7 @@ import {
   videos
 } from "./data/mindheal-data.js";
 import { legalDocuments } from "./data/legal-docs.js";
-import { api } from "./services/mock-api.js?v=5";
+import { api } from "./services/mock-api.js?v=6";
 import { escapeHtml, formatInr, getFormData, html, toast } from "./utils/dom.js";
 import { bindMoodStudioForm, parseMoodNote, renderMoodStudio } from "./features/mood-studio.js";
 import { renderWalletTransactionsTable } from "./features/wallet-transactions.js";
@@ -25,6 +25,9 @@ import { renderInsightLab } from "./features/insight-lab.js";
 import { renderPeerTalk } from "./features/peer-talk.js";
 import { createDefaultDreamCaptureState, renderDreamCapture, initDreamCaptureHandlers, resetDreamCaptureState, stopActiveMediaStream, resetDreamCaptureTimer } from "./features/dream-capture.js?v=21";
 import { t, getSelectedLanguage, handleLanguageChange, langCodes, translateDOM } from "./utils/i18n.js";
+import { ASSESSMENT_REGISTRY, scoreAssessment, FUNCTIONAL_IMPACT_OPTIONS, INTAKE_CONTEXT_SCHEMA } from "./data/assessment-registry.js";
+import { createAssessmentState, AssessmentController } from "./features/assessment-flow.js";
+import { getAssessmentAccess, calculateAge } from "./utils/assessment-access.js";
 
 const app = document.querySelector("#app");
 
@@ -660,6 +663,10 @@ async function render() {
   manageModalAccessibility();
   initScrollObserver();
   window.scrollTo({ top: 0, behavior: "instant" });
+
+  if (document.getElementById('test-interactive-container') && typeof window.renderTestContent === "function") {
+    window.renderTestContent(false);
+  }
 
   if (typeof window !== "undefined") {
     window.render = render;
@@ -1710,6 +1717,9 @@ function sectionHowItWorks() {
   `;
 }
 
+// Assessment catalog status definitions
+const ASSESSMENT_STATUS_IN_REVIEW = { status: 'In Clinical Review' };
+
 window.clinicalTestsData = [
   { 
     name: 'PHQ-9 (Depression)', short: 'PHQ-9', full: 'Patient Health Questionnaire', desc: 'Standardized clinical assessment for depression severity.',
@@ -1725,6 +1735,8 @@ window.clinicalTestsData = [
       "Thoughts that you would be better off dead, or of hurting yourself in some way?"
     ],
     options: ["Not at all", "Several days", "More than half the days", "Nearly every day"],
+    category: "Symptom Screen",
+    status: "Available",
     scoring: [
       { max: 4, label: "Minimal Depression" },
       { max: 9, label: "Mild Depression" },
@@ -1735,6 +1747,8 @@ window.clinicalTestsData = [
   },
   { 
     name: 'GAD-7 (Anxiety)', short: 'GAD-7', full: 'Generalized Anxiety Disorder Assessment', desc: 'Standardized clinical assessment for anxiety severity.',
+    category: "Symptom Screen",
+    status: "Available",
     questions: [
       "Feeling nervous, anxious, or on edge?",
       "Not being able to stop or control worrying?",
@@ -1752,19 +1766,226 @@ window.clinicalTestsData = [
       { max: 21, label: "Severe Anxiety" }
     ]
   },
-  { name: 'Adult ADHD (ASRS)', short: 'ASRS', full: 'Adult ADHD Self-Report Scale', desc: 'Screening tool for Attention Deficit Hyperactivity Disorder.', placeholder: true },
-  { name: 'PTSD Checklist (PCL-5)', short: 'PCL-5', full: 'PTSD Checklist for DSM-5', desc: 'Clinical assessment for Post-Traumatic Stress Disorder.', placeholder: true },
-  { name: 'Bipolar Spectrum', short: 'MDQ', full: 'Mood Disorder Questionnaire', desc: 'Screening tool for bipolar spectrum disorders.', placeholder: true },
-  { name: 'OCD Screening', short: 'OCI-R', full: 'Obsessive-Compulsive Inventory', desc: 'Assessment for symptoms of Obsessive-Compulsive Disorder.', placeholder: true },
-  { name: 'Attachment Style', short: 'ECR', full: 'Experiences in Close Relationships', desc: 'Assessment of adult attachment styles in relationships.', placeholder: true },
-  { name: 'Burnout Inventory', short: 'MBI', full: 'Maslach Burnout Inventory', desc: 'Standardized measure of occupational burnout.', placeholder: true },
-  { name: 'Self-Esteem Index', short: 'RSES', full: 'Rosenberg Self-Esteem Scale', desc: 'Measure of global self-worth and self-esteem.', placeholder: true },
-  { name: 'Anger Management', short: 'BDI', full: 'Buss-Perry Aggression Questionnaire', desc: 'Clinical measure of aggressive and angry behavior.', placeholder: true },
-  { name: 'Relationship Satisfaction', short: 'CSI', full: 'Couples Satisfaction Index', desc: 'Measure of satisfaction in romantic relationships.', placeholder: true },
-  { name: 'Sleep Quality', short: 'PSQI', full: 'Pittsburgh Sleep Quality Index', desc: 'Clinical assessment of sleep quality and patterns.', placeholder: true }
+  { 
+    id: 'who5',
+    name: 'WHO-5 (Well-Being)', short: 'WHO-5', full: 'WHO-5 Well-Being Index', desc: 'Validated measure of subjective psychological well-being.', category: 'Well-Being Indicator', status: 'Available', requiresAuth: true,
+    questions: [
+      "I have felt cheerful and in good spirits",
+      "I have felt calm and relaxed",
+      "I have felt active and vigorous",
+      "I woke up feeling fresh and rested",
+      "My daily life has been filled with things that interest me"
+    ],
+    options: ["At no time", "Some of the time", "Less than half of the time", "More than half of the time", "Most of the time", "All of the time"],
+    scoring: [
+      { max: 12, label: "Poor Well-Being" },
+      { max: 21, label: "Adequate Well-Being" },
+      { max: 25, label: "Optimal Well-Being" }
+    ]
+  },
+  { 
+    id: 'asrs',
+    name: 'Adult ADHD (ASRS)', short: 'ASRS', full: 'Adult ADHD Self-Report Scale', desc: 'Screening tool for Attention Deficit Hyperactivity Disorder.', category: 'Symptom Screen', status: 'Available', requiresAuth: true,
+    questions: [
+      "How often do you have trouble wrapping up the fine details of a project, once the challenging parts have been done?",
+      "How often do you have difficulty getting things in order when you have to do a task that requires organization?",
+      "How often do you have problems remembering appointments or obligations?",
+      "When you have a task that requires a lot of thought, how often do you avoid or delay getting started?",
+      "How often do you fidget or squirm with your hands or feet when you have to sit down for a long time?",
+      "How often do you feel overly active and compelled to do things, like you were driven by a motor?"
+    ],
+    options: ["Never", "Rarely", "Sometimes", "Often", "Very Often"],
+    scoring: [
+      { max: 9, label: "Unlikely ADHD" },
+      { max: 13, label: "Borderline ADHD Traits" },
+      { max: 24, label: "Highly Consistent with Adult ADHD" }
+    ]
+  },
+  { 
+    id: 'pcl5',
+    name: 'PTSD Checklist (PCL-5)', short: 'PCL-5', full: 'PTSD Checklist for DSM-5', desc: 'Clinical assessment for Post-Traumatic Stress Disorder.', category: 'Symptom Screen', status: 'Available', requiresAuth: true,
+    questions: [
+      "Repeated, disturbing, and unwanted memories of the stressful experience?",
+      "Repeated, disturbing dreams of the stressful experience?",
+      "Suddenly feeling or acting as if the stressful experience were actually happening again?",
+      "Feeling very upset when something reminded you of the stressful experience?",
+      "Avoiding memories, thoughts, or feelings related to the stressful experience?",
+      "Avoiding external reminders of the stressful experience (people, places, conversations)?",
+      "Being 'superalert' or watchful or on guard?",
+      "Feeling jumpy or easily startled?"
+    ],
+    options: ["Not at all", "A little bit", "Moderately", "Quite a bit", "Extremely"],
+    scoring: [
+      { max: 10, label: "Minimal PTSD Symptoms" },
+      { max: 18, label: "Mild Trauma Reactivity" },
+      { max: 32, label: "Significant Post-Traumatic Stress" }
+    ]
+  },
+  { 
+    id: 'mdq',
+    name: 'Bipolar Spectrum', short: 'MDQ', full: 'Mood Disorder Questionnaire', desc: 'Screening tool for bipolar spectrum disorders.', category: 'Symptom Screen', status: 'Available', requiresAuth: true,
+    questions: [
+      "You felt so good or so hyper that other people thought you were not your normal self?",
+      "You were so irritable that you shouted at people or started fights or arguments?",
+      "You felt much more self-confident than usual?",
+      "You got much less sleep than usual and found you didn't really miss it?",
+      "You were much more talkative or spoke much faster than usual?",
+      "Thoughts raced through your head or you couldn't slow your mind down?",
+      "You were so easily distracted by things around you that you had trouble staying on track?"
+    ],
+    options: ["No", "Yes"],
+    scoring: [
+      { max: 2, label: "Low Bipolar Spectrum Likelihood" },
+      { max: 4, label: "Moderate Mood Fluctuations" },
+      { max: 7, label: "Positive Bipolar Screen" }
+    ]
+  },
+  { 
+    id: 'ocir',
+    name: 'OCD Screening', short: 'OCI-R', full: 'Obsessive-Compulsive Inventory', desc: 'Assessment for symptoms of Obsessive-Compulsive Disorder.', category: 'Symptom Screen', status: 'Available', requiresAuth: true,
+    questions: [
+      "I check things more often than necessary.",
+      "I get upset if objects are not arranged properly.",
+      "I feel compelled to count while I am doing things.",
+      "I find it difficult to touch an object when I know it has been touched by strangers.",
+      "I am upset by unpleasant thoughts that enter my mind against my will.",
+      "I repeatedly check doors, windows, or drawers to ensure they are locked."
+    ],
+    options: ["Not at all", "A little", "Moderately", "A lot", "Extremely"],
+    scoring: [
+      { max: 7, label: "Subclinical OCD Symptoms" },
+      { max: 14, label: "Mild Obsessive-Compulsive Tendencies" },
+      { max: 24, label: "Significant OCD Symptoms" }
+    ]
+  },
+  { 
+    id: 'ecr',
+    name: 'Attachment Style', short: 'ECR', full: 'Experiences in Close Relationships', desc: 'Assessment of adult attachment styles in relationships.', category: 'Life-Context Reflection', status: 'Available', requiresAuth: true,
+    questions: [
+      "I worry a lot about my relationships.",
+      "I prefer not to show a partner how I feel deep down.",
+      "I often worry that my partner doesn't really love me.",
+      "I get uncomfortable when a romantic partner wants to get very close.",
+      "I often want to merge completely with romantic partners, and this sometimes scares them away.",
+      "I find it relatively easy to get close to my partner and rely on them."
+    ],
+    options: ["Strongly Disagree", "Disagree", "Neutral", "Agree", "Strongly Agree"],
+    scoring: [
+      { max: 14, label: "Predominantly Secure Attachment" },
+      { max: 22, label: "Moderate Attachment Insecurity" },
+      { max: 30, label: "Elevated Attachment Anxiety / Avoidance" }
+    ]
+  },
+  { 
+    id: 'mbi',
+    name: 'Burnout Inventory', short: 'MBI', full: 'Maslach Burnout Inventory', desc: 'Standardized measure of occupational burnout.', category: 'Life-Context Reflection', status: 'Available', requiresAuth: true,
+    questions: [
+      "I feel emotionally drained from my work.",
+      "I feel used up at the end of the workday.",
+      "I feel fatigued when I get up in the morning and have to face another day on the job.",
+      "I have become more callous toward people since I took this job.",
+      "I worry that this job is hardening me emotionally.",
+      "I feel I'm not making a meaningful contribution through my work."
+    ],
+    options: ["Never", "A few times a year", "Once a month or less", "A few times a month", "Once a week", "A few times a week", "Every day"],
+    scoring: [
+      { max: 11, label: "Low Burnout Risk" },
+      { max: 22, label: "Moderate Occupational Stress" },
+      { max: 36, label: "High Burnout Severity" }
+    ]
+  },
+  { 
+    id: 'rses',
+    name: 'Self-Esteem Index', short: 'RSES', full: 'Rosenberg Self-Esteem Scale', desc: 'Measure of global self-worth and self-esteem.', category: 'Life-Context Reflection', status: 'Available', requiresAuth: true,
+    questions: [
+      "On the whole, I am satisfied with myself.",
+      "I feel that I have a number of good qualities.",
+      "I am able to do things as well as most other people.",
+      "I take a positive attitude toward myself.",
+      "I feel that I'm a person of worth, at least on an equal plane with others.",
+      "All in all, I am inclined to feel that I am a success."
+    ],
+    options: ["Strongly Disagree", "Disagree", "Agree", "Strongly Agree"],
+    scoring: [
+      { max: 7, label: "Low Self-Esteem" },
+      { max: 14, label: "Healthy Average Self-Esteem" },
+      { max: 18, label: "High Self-Esteem" }
+    ]
+  },
+  { 
+    id: 'bpaq',
+    name: 'Anger Management (BPAQ)', short: 'BPAQ', full: 'Buss-Perry Aggression Questionnaire', desc: 'Clinical measure of aggressive and angry behavior.', category: 'Symptom Screen', status: 'Available', requiresAuth: true,
+    questions: [
+      "Some of my friends think I'm a hothead.",
+      "If somebody hits me, I hit back.",
+      "I flare up quickly but get over it quickly.",
+      "When people are especially nice, I wonder what they want.",
+      "I tell my friends openly when I disagree with them.",
+      "I have trouble controlling my temper."
+    ],
+    options: ["Extremely Uncharacteristic", "Somewhat Uncharacteristic", "Neither Characteristic nor Uncharacteristic", "Somewhat Characteristic", "Extremely Characteristic"],
+    scoring: [
+      { max: 13, label: "Low Aggression / Calm Demeanor" },
+      { max: 21, label: "Moderate Frustration Reactivity" },
+      { max: 30, label: "High Anger / Reactivity" }
+    ]
+  },
+  { 
+    id: 'csi',
+    name: 'Relationship Satisfaction', short: 'CSI', full: 'Couples Satisfaction Index', desc: 'Measure of satisfaction in romantic relationships.', category: 'Life-Context Reflection', status: 'Available', requiresAuth: true,
+    questions: [
+      "Please indicate the degree of happiness in your relationship.",
+      "In general, how often do you think that things between you and your partner are going well?",
+      "Our relationship is strong and resilient.",
+      "My relationship with my partner makes me happy.",
+      "I have a warm and comfortable relationship with my partner.",
+      "I really feel like part of a team with my partner."
+    ],
+    options: ["Not at all", "A little", "Somewhat", "Mostly", "Almost completely", "Completely"],
+    scoring: [
+      { max: 13, label: "Notable Relationship Distress" },
+      { max: 23, label: "Moderate Relationship Satisfaction" },
+      { max: 30, label: "High Relationship Fulfillment" }
+    ]
+  },
+  { 
+    id: 'psqi',
+    name: 'Sleep Quality', short: 'PSQI', full: 'Pittsburgh Sleep Quality Index', desc: 'Clinical assessment of sleep quality and patterns.', category: 'Symptom Screen', status: 'Available', requiresAuth: true,
+    questions: [
+      "Cannot get to sleep within 30 minutes?",
+      "Wake up in the middle of the night or early morning?",
+      "Have to get up to use the bathroom?",
+      "Cannot breathe comfortably or cough or snore loudly?",
+      "Feel too cold or too hot?",
+      "How would you rate your sleep quality overall?"
+    ],
+    options: ["Not at all", "Several days", "More than half the days", "Nearly every day"],
+    scoring: [
+      { max: 4, label: "Good Sleep Quality" },
+      { max: 9, label: "Mild Sleep Disturbance" },
+      { max: 18, label: "Significant Poor Sleep Quality" }
+    ]
+  }
 ];
 
-window.currentTestState = { testIndex: 0, questionIndex: 0, score: 0, isFinished: false, answers: [] };
+window.currentTestController = new AssessmentController(createAssessmentState("phq9", 0));
+window.currentTestState = {
+  testIndex: 0,
+  questionIndex: 0,
+  score: 0,
+  isFinished: false,
+  answers: [],
+  answersMap: {},
+  step: "questionnaire",
+  functionalImpact: null,
+  intakeContext: {
+    onsetDuration: "",
+    dailyDifficulties: [],
+    healthChanges: "",
+    previousSupport: "",
+    personalGoals: ""
+  }
+};
 
 window.changeTestPreview = function(index, el) {
   if (el) {
@@ -1772,23 +1993,254 @@ window.changeTestPreview = function(index, el) {
     document.querySelectorAll('.mobile-quiz-chip').forEach(chip => chip.classList.remove('active'));
     el.classList.add('active');
   }
-  window.currentTestState = { testIndex: index, questionIndex: 0, score: 0, isFinished: false, answers: [] };
+  const test = window.clinicalTestsData[index];
+  const instrumentId = (test?.id || test?.short || "").toLowerCase().replace(/[^a-z0-9]/g, '') || "phq9";
+  
+  window.currentTestState = {
+    testIndex: index,
+    questionIndex: 0,
+    score: 0,
+    isFinished: false,
+    answers: [],
+    answersMap: {},
+    step: "questionnaire",
+    functionalImpact: null,
+    intakeContext: {
+      onsetDuration: "",
+      dailyDifficulties: [],
+      healthChanges: "",
+      previousSupport: "",
+      personalGoals: ""
+    }
+  };
+
+  if (window.currentTestController) {
+    window.currentTestController.setInstrument(instrumentId, index);
+    window.currentTestController.startTest();
+  }
   window.renderTestContent();
 };
-
 
 window.handleTestAnswer = function(points) {
   const state = window.currentTestState;
   const test = window.clinicalTestsData[state.testIndex];
-  state.answers = state.answers || [];
-  state.answers.push(points);
-  state.score += points;
-  state.questionIndex++;
-  
-  if (state.questionIndex >= test.questions.length) {
-    state.isFinished = true;
+  if (!test || test.placeholder) return;
+
+  const instrumentId = (test?.id || test?.short || "").toLowerCase().replace(/[^a-z0-9]/g, '') || "phq9";
+  const def = ASSESSMENT_REGISTRY[instrumentId] || ASSESSMENT_REGISTRY.phq9;
+  const currentItem = def.items ? def.items[state.questionIndex] : null;
+  const itemId = currentItem ? currentItem.id : `q${state.questionIndex + 1}`;
+
+  // Store answer by stable item ID and sync array
+  if (state.questionIndex < (state.answers ? state.answers.length : 0)) {
+    state.answers[state.questionIndex] = points;
+  } else {
+    state.answers = state.answers || []; state.answers.push(points);
+  }
+  state.answersMap = state.answersMap || {};
+  state.answersMap[itemId] = points;
+
+  // Recompute score dynamically
+  state.score = state.answers.reduce((sum, p) => sum + (Number(p) || 0), 0);
+
+  // If last question answered, proceed to review screen
+  if (state.questionIndex >= test.questions.length - 1) {
+    state.step = "review";
+  } else {
+    state.questionIndex++;
   }
   window.renderTestContent(true);
+};
+
+window.handleTestBack = function() {
+  const state = window.currentTestState;
+  if (state.step === "context") {
+    state.step = "review";
+  } else if (state.step === "review") {
+    state.step = "questionnaire";
+    const test = window.clinicalTestsData[state.testIndex];
+    state.questionIndex = (test && test.questions) ? test.questions.length - 1 : 0;
+  } else if (state.questionIndex > 0) {
+    state.questionIndex--;
+  }
+  window.renderTestContent(false);
+};
+
+window.handleTestNext = function() {
+  const state = window.currentTestState;
+  const test = window.clinicalTestsData[state.testIndex];
+  if (!test || test.placeholder) return;
+
+  // Only proceed if current question has been answered
+  if (state.answers[state.questionIndex] === undefined) return;
+
+  if (state.questionIndex < test.questions.length - 1) {
+    state.questionIndex++;
+  } else {
+    state.step = "review";
+  }
+  window.renderTestContent(true);
+};
+
+window.handleEditTestQuestion = function(questionIndex) {
+  const state = window.currentTestState;
+  state.questionIndex = questionIndex;
+  state.step = "questionnaire";
+  window.renderTestContent(false);
+};
+
+window.handleSetFunctionalImpact = function(val) {
+  const state = window.currentTestState;
+  if (val === null || val === undefined || val === "") {
+    state.functionalImpact = null;
+  } else {
+    state.functionalImpact = Number(val);
+  }
+  if (window.currentTestController) {
+    window.currentTestController.setFunctionalImpact(val);
+  }
+};
+
+window.handleGoToContextStep = function() {
+  const state = window.currentTestState;
+  state.step = "context";
+  window.renderTestContent(false);
+};
+
+window.handleUpdateIntakeContextField = function(field, val) {
+  const state = window.currentTestState;
+  if (!state.intakeContext) state.intakeContext = {};
+  if (field === "dailyDifficulties") {
+    state.intakeContext.dailyDifficulties = state.intakeContext.dailyDifficulties || [];
+    if (state.intakeContext.dailyDifficulties.includes(val)) {
+      state.intakeContext.dailyDifficulties = state.intakeContext.dailyDifficulties.filter(item => item !== val);
+    } else {
+      state.intakeContext.dailyDifficulties.push(val);
+    }
+  } else {
+    state.intakeContext[field] = typeof val === "string" ? val.slice(0, 500) : val;
+  }
+  if (window.currentTestController) {
+    window.currentTestController.updateIntakeContext(field, state.intakeContext[field]);
+  }
+};
+
+window.handleTestSubmit = async function(skipContext = false) {
+  const state = window.currentTestState;
+  const test = window.clinicalTestsData[state.testIndex];
+  if (!test || test.placeholder) return;
+
+  // Prevent duplicate submissions
+  if (state.isSubmitting) return;
+  state.isSubmitting = true;
+
+  // If skipContext is selected, clear any partial intake context
+  if (skipContext) {
+    state.intakeContext = {
+      onsetDuration: "",
+      dailyDifficulties: [],
+      healthChanges: "",
+      previousSupport: "",
+      personalGoals: ""
+    };
+    if (window.currentTestController) {
+      window.currentTestController.clearIntakeContext();
+    }
+  }
+
+  // Construct payload preserving answers and optional context
+  const instrumentId = (test?.id || test?.short || "").toLowerCase().replace(/[^a-z0-9]/g, '') || "phq9";
+  const payload = { ...state.answersMap };
+  // Add normalized q1..qn keys so all backend versions accept it unconditionally
+  if (Array.isArray(state.answers)) {
+    state.answers.forEach((val, idx) => {
+      payload[`q${idx + 1}`] = val;
+    });
+  }
+  if (state.functionalImpact !== null && state.functionalImpact !== undefined) {
+    payload.functionalImpact = state.functionalImpact;
+  }
+  if (state.intakeContext) {
+    payload.intakeContext = {
+      onsetDuration: state.intakeContext.onsetDuration || "",
+      dailyDifficulties: Array.isArray(state.intakeContext.dailyDifficulties) ? [...state.intakeContext.dailyDifficulties] : [],
+      healthChanges: state.intakeContext.healthChanges || "",
+      previousSupport: state.intakeContext.previousSupport || "",
+      personalGoals: state.intakeContext.personalGoals || ""
+    };
+  }
+
+  // Recompute score deterministically from registry locally
+  const localResult = scoreAssessment(instrumentId, payload);
+  if (localResult.isValid) {
+    state.score = localResult.totalScore;
+    state.lastResult = localResult;
+  }
+
+  // Check authentication status (SSoT)
+  const token = typeof api?.getAccessToken === "function" ? api.getAccessToken() : null;
+  state.isGuest = !token;
+  state.serverScreeningId = null;
+  state.serverShareToken = null;
+
+  if (token) {
+    try {
+      // Authenticated user: Create & complete screening on backend (Authoritative SSoT)
+      // Map instrumentId to supported backend screeningType if applicable
+      const backendTypeMap = {
+        phq9: "phq9",
+        gad7: "anxiety",
+        mbi: "burnout",
+        low_mood: "low_mood",
+        anxiety: "anxiety",
+        burnout: "burnout"
+      };
+      const screeningType = backendTypeMap[instrumentId];
+
+      if (screeningType) {
+        const initRes = await api.createScreening(screeningType);
+        if (initRes.success && initRes.data?.id) {
+          const completeRes = await api.completeScreening(initRes.data.id, null, {
+            responses: payload,
+            functionalImpact: state.functionalImpact,
+            intakeContext: state.intakeContext,
+            language: getSelectedLanguage().toLowerCase()
+          });
+          if (completeRes.success && completeRes.data) {
+            state.serverScreeningId = completeRes.data.id;
+            state.serverScreening = completeRes.data;
+            state.score = completeRes.data.score;
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[Screening SSoT] Backend screening sync error:", err);
+    }
+  }
+
+  state.isFinished = true;
+  state.step = "result";
+  state.isSubmitting = false;
+  window.renderTestContent(false);
+};
+
+window.handleTestExit = function() {
+  const state = window.currentTestState;
+  state.questionIndex = 0;
+  state.answers = [];
+  state.answersMap = {};
+  state.score = 0;
+  state.isFinished = false;
+  state.step = "questionnaire";
+  state.functionalImpact = null;
+  state.intakeContext = {
+    onsetDuration: "",
+    dailyDifficulties: [],
+    healthChanges: "",
+    previousSupport: "",
+    personalGoals: ""
+  };
+  window.renderTestContent(false);
 };
 
 window.renderTestContent = function(isNextQuestion = false) {
@@ -1808,20 +2260,152 @@ window.renderTestContent = function(isNextQuestion = false) {
   }
   
   setTimeout(() => {
-    document.getElementById('test-preview-tag').innerText = t(test.short);
+    // Determine active authUser and profile from storage/API (SSoT)
+    const token = typeof api?.getAccessToken === "function" ? api.getAccessToken() : null;
+    let authUser = typeof api?.getCachedAuthUser === "function" ? api.getCachedAuthUser() : null;
+    if (!authUser && token) {
+      const storedUid = typeof resolveActiveUserId === "function" ? resolveActiveUserId() : null;
+      if (storedUid) authUser = { id: storedUid, token };
+    }
+    const profile = authUser ? (loadUserData("user-profile", null, authUser.id) || authUser) : null;
+
+    const instrumentKey = (test?.id || test?.short || "").toLowerCase().replace(/[^a-z0-9]/g, '') || "phq9";
+    const access = getAssessmentAccess({
+      assessment: ASSESSMENT_REGISTRY[instrumentKey] || test,
+      authUser,
+      profile
+    });
+
+    let statusTag = ` [${t("Available Now")}]`;
+    if (access.status === "login_required") {
+      statusTag = "";
+    } else if (access.status === "age_restricted") {
+      statusTag = " [18+]";
+    } else if (access.status === "rights_restricted") {
+      statusTag = ` [${t("Rights & Licensing Review")}]`;
+    } else if (access.status === "clinical_review") {
+      statusTag = ` [${t("In Clinical Review")}]`;
+    } else if (access.status === "implementation_incomplete") {
+      statusTag = ` [${t("Coming Soon")}]`;
+    } else if (test.placeholder) {
+      statusTag = ` [${t("In Clinical Review")}]`;
+    }
+
+    document.getElementById('test-preview-tag').innerText = `${t(test.short)} · ${t(test.category || "Symptom Screen")}${statusTag}`;
     document.getElementById('test-preview-title').innerText = t(test.full);
     document.getElementById('test-preview-desc').innerText = t(test.desc);
-    
-    if (test.placeholder) {
+
+    // Gate 1: Authentication Gate (guest visitors see preview metadata and sign-in prompt)
+    if (access.status === "login_required") {
+      const returnUrl = encodeURIComponent('#assessment/' + (instrumentKey || 'phq9'));
       container.innerHTML = `
-        <div style="text-align:center;padding:48px 0;">
-          <div style="font-size:48px;color:var(--color-coral);margin-bottom:16px;"><i class="ph-fill ph-lock-key"></i></div>
-          <h4 style="font-family:var(--font-serif);font-size:24px;margin-bottom:8px;">${t("Premium Assessment")}</h4>
-          <p style="color:var(--color-text-muted);margin-bottom:24px;">${t("Create a free account to unlock this clinical assessment and track your results.")}</p>
-          <a href="#/auth/user-signup" class="btn primary">${t("Unlock Assessment")}</a>
+        <div style="text-align:center;padding:40px 16px;">
+          <div style="font-size:48px;color:rgba(255,255,255,0.2);margin-bottom:16px;">
+            <i class="ph-bold ph-lock-key" style="color:var(--color-coral);"></i>
+          </div>
+          <span style="background:rgba(224,90,71,0.12);color:var(--color-coral);border:1px solid rgba(224,90,71,0.25);font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;padding:4px 12px;border-radius:99px;display:inline-block;margin-bottom:12px;">
+            ${t("Sign in to access this assessment")} · ${t(test.category || "Symptom Screen")}
+          </span>
+          <h4 style="font-family:var(--font-serif);font-size:24px;margin:0 0 8px 0;color:var(--color-charcoal);">
+            ${t("Sign in to access this assessment")}
+          </h4>
+          <p style="color:var(--color-text-muted);margin:0 auto 24px auto;max-width:440px;font-size:14px;line-height:1.6;">
+            ${t("Please sign in or create an account to access and complete this clinical assessment.")}
+          </p>
+          <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+            <a href="#/auth/user-login?returnUrl=${returnUrl}" class="btn primary" style="background:var(--color-coral);color:white;padding:12px 24px;border-radius:10px;font-weight:700;text-decoration:none;font-size:14px;">
+              <i class="ph-bold ph-sign-in"></i> ${t("Sign in to access this assessment")}
+            </a>
+            <a href="#/auth/user-signup?returnUrl=${returnUrl}" class="btn secondary" style="padding:12px 20px;border-radius:10px;text-decoration:none;font-size:14px;">
+              ${t("Create Account")}
+            </a>
+          </div>
         </div>
       `;
-    } else if (state.isFinished) {
+    }
+    // Gate 2: Profile Incomplete (Missing DOB)
+    else if (access.status === "profile_incomplete") {
+      container.innerHTML = `
+        <div style="text-align:center;padding:40px 16px;">
+          <div style="font-size:48px;color:rgba(255,255,255,0.2);margin-bottom:16px;">
+            <i class="ph-bold ph-identification-card" style="color:var(--color-coral);"></i>
+          </div>
+          <span style="background:rgba(224,90,71,0.12);color:var(--color-coral);border:1px solid rgba(224,90,71,0.25);font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;padding:4px 12px;border-radius:99px;display:inline-block;margin-bottom:12px;">
+            ${t("Complete your profile")}
+          </span>
+          <h4 style="font-family:var(--font-serif);font-size:24px;margin:0 0 8px 0;color:var(--color-charcoal);">
+            ${t("Complete your profile")}
+          </h4>
+          <p style="color:var(--color-text-muted);margin:0 auto 24px auto;max-width:440px;font-size:14px;line-height:1.6;">
+            ${t("Please complete your profile with your date of birth to verify assessment eligibility.")}
+          </p>
+          <div style="display:flex;justify-content:center;">
+            <a href="#account" class="btn primary" style="background:var(--color-coral);color:white;padding:12px 24px;border-radius:10px;font-weight:700;text-decoration:none;font-size:14px;">
+              ${t("Complete your profile")} →
+            </a>
+          </div>
+        </div>
+      `;
+    }
+    // Gate 2: Age Restricted (User younger/older than tool validated range)
+    else if (access.status === "age_restricted") {
+      container.innerHTML = `
+        <div style="text-align:center;padding:40px 16px;">
+          <div style="font-size:48px;color:rgba(255,255,255,0.2);margin-bottom:16px;">
+            <i class="ph-bold ph-prohibit" style="color:var(--color-coral);"></i>
+          </div>
+          <span style="background:rgba(224,90,71,0.12);color:var(--color-coral);border:1px solid rgba(224,90,71,0.25);font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;padding:4px 12px;border-radius:99px;display:inline-block;margin-bottom:12px;">
+            ${t("This assessment isn't available for your age group.")}
+          </span>
+          <h4 style="font-family:var(--font-serif);font-size:24px;margin:0 0 8px 0;color:var(--color-charcoal);">
+            ${t("This assessment isn't available for your age group.")}
+          </h4>
+          <p style="color:var(--color-text-muted);margin:0 auto 24px auto;max-width:440px;font-size:14px;line-height:1.6;">
+            ${escapeHtml(access.message || "This assessment is validated for adult individuals aged 18 and older.")}
+          </p>
+          <div style="display:flex;justify-content:center;">
+            <a href="#/counsellors" class="btn secondary" style="padding:10px 20px;border-radius:8px;font-size:13px;text-decoration:none;">
+              ${t("Discuss with a Counsellor")}
+            </a>
+          </div>
+        </div>
+      `;
+    }
+    // Gate 3: Clinical / Rights / Implementation / Clinician Only / Not Found Status Gates
+    else if (test.placeholder || !access.isAllowed) {
+      let statusTitle = t("Assessment In Clinical Review");
+      if (access.status === "rights_restricted") {
+        statusTitle = t("Rights & Licensing Review");
+      } else if (access.status === "implementation_incomplete") {
+        statusTitle = t("Coming Soon");
+      } else if (access.status === "clinician_only") {
+        statusTitle = t("Clinician-Administered Only");
+      } else if (access.status === "not_found") {
+        statusTitle = t("Assessment Not Found");
+      }
+      const statusDesc = access.message || t("This clinical inventory is currently under clinical review and rights verification. It is not yet available for self-administration.");
+
+      container.innerHTML = `
+        <div style="text-align:center;padding:40px 16px;">
+          <div style="font-size:48px;color:rgba(255,255,255,0.2);margin-bottom:16px;"><i class="ph-bold ph-hourglass-high" style="color:var(--color-coral);"></i></div>
+          <span style="background:rgba(224,90,71,0.12);color:var(--color-coral);border:1px solid rgba(224,90,71,0.25);font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;padding:4px 12px;border-radius:99px;display:inline-block;margin-bottom:12px;">
+            ${statusTitle} · ${t(test.category || "Symptom Screen")}
+          </span>
+          <h4 style="font-family:var(--font-serif);font-size:24px;margin:0 0 8px 0;color:var(--color-charcoal);">${statusTitle}</h4>
+          <p style="color:var(--color-text-muted);margin:0 auto 24px auto;max-width:440px;font-size:14px;line-height:1.6;">
+            ${statusDesc}
+          </p>
+          <div style="background:#F7F5F0;border-radius:12px;padding:16px;max-width:440px;margin:0 auto 20px auto;text-align:left;">
+            <div style="font-size:12px;font-weight:700;color:var(--color-charcoal);margin-bottom:4px;"><i class="ph-bold ph-check-circle" style="color:#319795;margin-right:4px;"></i>${t("Available Validated Screenings")}:</div>
+            <p style="font-size:12px;color:var(--color-text-muted);margin:0 0 12px 0;">You can take our released and validated depression and anxiety screenings right now for free.</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button onclick="window.changeTestPreview(0)" class="btn secondary" style="font-size:12px;padding:6px 12px;border-radius:8px;">${t("Take PHQ-9 (Depression)")}</button>
+              <button onclick="window.changeTestPreview(1)" class="btn secondary" style="font-size:12px;padding:6px 12px;border-radius:8px;">${t("Take GAD-7 (Anxiety)")}</button>
+            </div>
+          </div>
+        </div>
+      `;
+    } else if (state.isFinished || state.step === "result") {
       let severityLabel = "Result";
       for (let bracket of test.scoring) {
         if (state.score <= bracket.max) {
@@ -1830,73 +2414,459 @@ window.renderTestContent = function(isNextQuestion = false) {
         }
       }
 
-      // MH-16: Clinician-approved item-level safety rule
-      // PHQ-9 Item 9 asks: "Thoughts that you would be better off dead, or of hurting yourself in some way?"
-      // Any positive response (score >= 1) requires immediate, prominent crisis safety guidance regardless of total score
+      // PHQ-9 Item 9 safety trigger check (used to highlight compact safety card)
       const isPHQ9 = test.short === "PHQ-9";
       const item9Score = isPHQ9 && Array.isArray(state.answers) ? Number(state.answers[8] || 0) : 0;
       const isPositiveItem9 = isPHQ9 && item9Score > 0;
 
-      const safetyBannerHtml = isPositiveItem9 ? `
-        <div class="crisis-safety-alert" style="background:#FFF5F5;border:2px solid #E53E3E;border-radius:16px;padding:24px;margin-bottom:24px;text-align:left;box-shadow:0 4px 12px rgba(229,62,62,0.12);">
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
-            <i class="ph-fill ph-warning-circle" style="font-size:32px;color:#E53E3E;flex-shrink:0;"></i>
-            <div>
-              <h4 style="margin:0;color:#9B2C2C;font-size:18px;font-family:var(--font-serif);font-weight:700;">${t("Urgent Safety Guidance")}</h4>
-              <span style="font-size:12px;color:#C53030;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;">${t("Clinician-Approved Crisis Protocol")}</span>
-            </div>
-          </div>
-          <p style="color:#2D3748;font-size:14px;line-height:1.6;margin:0 0 16px 0;">
-            ${t("You indicated having thoughts that you would be better off dead or of hurting yourself. Regardless of your total depression score (which is currently " + state.score + "), your life, safety, and well-being are our highest priority. Free, confidential support is available 24/7 right now.")}
-          </p>
-          <div style="display:flex;flex-direction:column;gap:10px;">
-            <a href="tel:14416" class="btn" style="background:#E53E3E;color:white;font-weight:700;padding:12px 18px;border-radius:10px;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:10px;font-size:14px;">
-              <i class="ph-bold ph-phone-call"></i> ${t("Call Tele-MANAS (Govt of India, 24/7 Toll-Free): 14416 / 1800-891-4416")}
-            </a>
-            <a href="tel:9820466726" class="btn" style="background:white;color:#C53030;border:1.5px solid #E53E3E;font-weight:700;padding:12px 18px;border-radius:10px;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:10px;font-size:14px;">
-              <i class="ph-bold ph-phone"></i> ${t("Call AASRA Suicide Helpline: 9820466726")}
-            </a>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;">
-              <a href="tel:18005990019" class="btn secondary" style="flex:1;min-width:180px;justify-content:center;padding:10px 14px;font-size:13px;border-radius:8px;">
-                <i class="ph-bold ph-phone"></i> ${t("KIRAN Helpline: 1800-599-0019")}
-              </a>
-              <a href="tel:112" class="btn secondary" style="flex:1;min-width:180px;justify-content:center;padding:10px 14px;font-size:13px;border-radius:8px;">
-                <i class="ph-bold ph-first-aid"></i> ${t("National Emergency: 112")}
-              </a>
-            </div>
-            <a href="#/crisis" style="text-align:center;color:#9B2C2C;font-size:13px;font-weight:600;margin-top:6px;text-decoration:underline;">
-              ${t("View Full Emergency & Crisis Support Directory")} →
-            </a>
-          </div>
-        </div>
-      ` : "";
+      const completionDate = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+      const instrumentVersion = "2026.1.0";
+      const maxScore = isPHQ9 ? 27 : (test.short === "GAD-7" ? 21 : test.questions.length * 3);
 
       container.innerHTML = `
-        <div style="text-align:center;padding:24px 0;">
-          ${safetyBannerHtml}
-          <div style="font-size:16px;color:var(--color-text-muted);margin-bottom:8px;">${t("Assessment Complete")}</div>
-          <div style="font-size:64px;font-family:var(--font-serif);color:var(--color-coral);line-height:1;">${state.score}</div>
-          <h4 style="font-family:var(--font-serif);font-size:24px;margin-top:16px;margin-bottom:8px;">${t(severityLabel)}</h4>
-          <p style="color:var(--color-text-muted);margin-bottom:32px;">${t("This is a screening tool, not a diagnosis. To discuss these results, please consult a clinical psychologist.")}</p>
-          <a href="#/counsellors" class="btn primary" style="background:var(--color-charcoal);color:white;width:100%;justify-content:center;margin-bottom:12px;">${t("Discuss with a Counsellor")}</a>
-          <button onclick="window.changeTestPreview(${state.testIndex})" class="btn" style="background:var(--color-cream);width:100%;justify-content:center;border:1px solid rgba(0,0,0,0.1);">${t("Retake Assessment")}</button>
+        <div style="padding:16px 0;text-align:left;">
+          
+          <div style="text-align:center;margin-bottom:28px;">
+            ${state.serverScreeningId ? `
+              <div style="margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;">
+                <span class="badge authoritative" style="background:rgba(49,151,149,0.15);color:#2C7A7B;font-size:11px;font-weight:700;padding:4px 12px;border-radius:99px;display:inline-flex;align-items:center;gap:4px;border:1px solid rgba(49,151,149,0.3);">
+                  <i class="ph-bold ph-shield-check" style="font-size:14px;"></i> ${t("Authoritative Saved Report")} (#${state.serverScreeningId})
+                </span>
+                <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;background:rgba(0,0,0,0.05);color:var(--color-text-muted);padding:4px 12px;border-radius:99px;display:inline-block;">
+                  ${t("Non-Diagnostic Screening Result")}
+                </span>
+              </div>
+            ` : `
+              <div style="margin-bottom:12px;display:flex;flex-direction:column;align-items:center;gap:8px;">
+                <div style="display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;">
+                  <span class="badge guest" style="background:rgba(235,94,40,0.12);color:var(--color-coral);font-size:11px;font-weight:700;padding:4px 12px;border-radius:99px;display:inline-flex;align-items:center;gap:4px;border:1px solid rgba(235,94,40,0.25);">
+                    <i class="ph-bold ph-user" style="font-size:14px;"></i> ${t("Unsaved Local Result (Guest Mode)")}
+                  </span>
+                  <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;background:rgba(0,0,0,0.05);color:var(--color-text-muted);padding:4px 12px;border-radius:99px;display:inline-block;">
+                    ${t("Non-Diagnostic Screening Result")}
+                  </span>
+                </div>
+                <div style="background:#FFF9F8;border:1px dashed rgba(235,94,40,0.4);border-radius:8px;padding:8px 14px;max-width:480px;font-size:12px;color:var(--color-charcoal);line-height:1.4;">
+                  ${t("You are taking this assessment in Guest Mode. This result is held only in your browser memory and will be cleared when you close this window.")}
+                  <a href="#/auth/user-signup" style="color:var(--color-coral);font-weight:700;text-decoration:underline;margin-left:4px;">${t("Save to Account")} →</a>
+                </div>
+              </div>
+            `}
+            <div style="font-size:64px;font-family:var(--font-serif);color:var(--color-coral);line-height:1;margin-bottom:8px;">${state.score}</div>
+            <div style="font-size:13px;color:var(--color-text-muted);margin-bottom:12px;">${t("Score Range")}: 0 – ${maxScore}</div>
+            <h4 style="font-family:var(--font-serif);font-size:26px;margin:0 0 8px 0;color:var(--color-charcoal);">${t(severityLabel)}</h4>
+            <p style="color:var(--color-text-muted);margin:0 auto;max-width:440px;font-size:14px;line-height:1.5;">
+              ${t("This is a screening tool, not a diagnosis. To discuss these results, please consult a clinical psychologist.")}
+            </p>
+          </div>
+
+          <!-- Structured Result Metadata Box -->
+          <div style="background:#F7F5F0;border-radius:14px;padding:20px;margin-bottom:24px;">
+            <h5 style="margin:0 0 12px 0;font-size:12px;text-transform:uppercase;letter-spacing:0.04em;color:var(--color-charcoal);font-weight:700;">
+              <i class="ph-bold ph-info" style="color:var(--color-coral);margin-right:6px;"></i>${t("Clinical Limitations & Next Steps")}
+            </h5>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:12px;margin-bottom:12px;font-size:12px;">
+              <div>
+                <span style="color:var(--color-text-muted);display:block;">${t("Screening Instrument")}:</span>
+                <strong style="color:var(--color-charcoal);">${t(test.full)} (${test.short})</strong>
+              </div>
+              <div>
+                <span style="color:var(--color-text-muted);display:block;">${t("Language & Version")}:</span>
+                <strong style="color:var(--color-charcoal);">${getSelectedLanguage().toUpperCase()} · v${instrumentVersion}</strong>
+              </div>
+              <div>
+                <span style="color:var(--color-text-muted);display:block;">${t("Completion Date")}:</span>
+                <strong style="color:var(--color-charcoal);">${completionDate}</strong>
+              </div>
+              <div>
+                <span style="color:var(--color-text-muted);display:block;">${t("Recall Period")}:</span>
+                <strong style="color:var(--color-charcoal);">${t("Over the last 2 weeks")}</strong>
+              </div>
+            </div>
+            <p style="font-size:12px;line-height:1.5;color:var(--color-text-muted);margin:0;">
+              ${t("This self-assessment evaluates reported symptoms over the past 2 weeks and does not provide an unattended medical diagnosis or evaluate ongoing physical safety.")}
+            </p>
+          </div>
+
+          <!-- Functional Impact (Unscored) and Intake Context Display in Results -->
+          ${state.functionalImpact !== null && state.functionalImpact !== undefined ? `
+            <div style="background:#F7F5F0;border-radius:14px;padding:18px;margin-bottom:24px;">
+              <div style="font-size:12px;font-weight:700;color:var(--color-charcoal);margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+                <i class="ph-bold ph-activity" style="color:var(--color-coral);"></i> ${t("Impact on Daily Functioning")}
+              </div>
+              <p style="font-size:12px;color:var(--color-text-muted);margin:0 0 6px 0;">
+                "${t("How difficult have these problems made it for you to do your work, take care of things at home, or get along with other people?")}"
+              </p>
+              <div style="font-size:13px;font-weight:700;color:var(--color-charcoal);">
+                ${t(FUNCTIONAL_IMPACT_OPTIONS[state.functionalImpact]?.label || "Not specified")}
+                <span style="font-size:11px;font-weight:500;color:var(--color-text-muted);margin-left:6px;">(${t("Unscored clinical follow-up")})</span>
+              </div>
+            </div>
+          ` : ""}
+
+          ${(state.intakeContext && (state.intakeContext.onsetDuration || (state.intakeContext.dailyDifficulties && state.intakeContext.dailyDifficulties.length > 0) || state.intakeContext.healthChanges || state.intakeContext.previousSupport || state.intakeContext.personalGoals)) ? `
+            <div style="background:#F7F5F0;border-radius:14px;padding:18px;margin-bottom:24px;">
+              <div style="font-size:12px;font-weight:700;color:var(--color-charcoal);margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+                <i class="ph-bold ph-user-circle" style="color:var(--color-coral);"></i> ${t("Self-Reported Intake Context")}
+              </div>
+              <div style="display:flex;flex-direction:column;gap:10px;font-size:12px;">
+                ${state.intakeContext.onsetDuration ? `
+                  <div>
+                    <span style="color:var(--color-text-muted);display:block;">${t("Onset & Duration")}:</span>
+                    <strong style="color:var(--color-charcoal);">${escapeHtml(state.intakeContext.onsetDuration.replaceAll("_", " "))}</strong>
+                  </div>
+                ` : ""}
+                ${state.intakeContext.dailyDifficulties && state.intakeContext.dailyDifficulties.length > 0 ? `
+                  <div>
+                    <span style="color:var(--color-text-muted);display:block;">${t("Daily Life Difficulties")}:</span>
+                    <strong style="color:var(--color-charcoal);">${escapeHtml(state.intakeContext.dailyDifficulties.map(d => d.replaceAll("_", " ")).join(", "))}</strong>
+                  </div>
+                ` : ""}
+                ${state.intakeContext.previousSupport ? `
+                  <div>
+                    <span style="color:var(--color-text-muted);display:block;">${t("Previous Support")}:</span>
+                    <strong style="color:var(--color-charcoal);">${escapeHtml(state.intakeContext.previousSupport.replaceAll("_", " "))}</strong>
+                  </div>
+                ` : ""}
+                ${state.intakeContext.healthChanges ? `
+                  <div>
+                    <span style="color:var(--color-text-muted);display:block;">${t("Health, Medication or Life Changes")}:</span>
+                    <span style="color:var(--color-charcoal);">${escapeHtml(state.intakeContext.healthChanges)}</span>
+                  </div>
+                ` : ""}
+                ${state.intakeContext.personalGoals ? `
+                  <div>
+                    <span style="color:var(--color-text-muted);display:block;">${t("Personal Goals")}:</span>
+                    <span style="color:var(--color-charcoal);">${escapeHtml(state.intakeContext.personalGoals)}</span>
+                  </div>
+                ` : ""}
+              </div>
+              <div style="font-size:11px;color:var(--color-text-muted);margin-top:10px;border-top:1px solid rgba(0,0,0,0.06);padding-top:8px;">
+                ${t("This intake context is for self-reflection and does not alter your screening score or establish a clinical diagnosis.")}
+              </div>
+            </div>
+          ` : ""}
+
+          <!-- Optional AI Clinical Interpretation (Prompt 9: 100% Optional, ₹49 from wallet, explicit opt-in) -->
+          ${state.serverScreeningId ? `
+            <div id="ai-interpretation-section" style="background:#FAF8F5;border:1.5px solid ${state.serverScreening?.hasPaidInterpretation ? '#319795' : 'rgba(224,90,71,0.3)'};border-radius:14px;padding:20px;margin-bottom:24px;text-align:left;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <i class="ph-bold ph-sparkle" style="color:var(--color-coral);font-size:18px;"></i>
+                  <strong style="font-size:13px;color:var(--color-charcoal);">${t("Optional AI Clinical Interpretation")}</strong>
+                </div>
+                ${state.serverScreening?.hasPaidInterpretation ? `
+                  <span class="status-pill success" style="font-size:11px;font-weight:700;background:rgba(49,151,149,0.15);color:#2C7A7B;padding:3px 10px;border-radius:99px;">${t("Unlocked")}</span>
+                ` : `
+                  <span style="font-size:12px;font-weight:700;color:var(--color-coral);background:#FFF9F8;border:1px solid rgba(224,90,71,0.25);padding:3px 10px;border-radius:99px;">₹49</span>
+                `}
+              </div>
+
+              ${state.serverScreening?.hasPaidInterpretation && state.serverScreening?.interpretation ? `
+                <div style="background:white;border-radius:10px;padding:16px;border:1px solid rgba(0,0,0,0.06);margin-top:12px;">
+                  <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:var(--color-text-muted);margin-bottom:6px;">
+                    ${t("Synthesized Narrative Summary")}
+                  </div>
+                  <p style="font-size:13px;color:var(--color-charcoal);line-height:1.6;margin:0;">
+                    ${escapeHtml(state.serverScreening.interpretation)}
+                  </p>
+                </div>
+              ` : `
+                <p style="font-size:12px;color:var(--color-text-muted);margin:0 0 12px 0;line-height:1.5;">
+                  ${t("Synthesizes an in-depth clinical narrative and tailored coping recommendations based on your verified screening responses.")}
+                </p>
+
+                <!-- Data & Privacy Disclosure -->
+                <div style="background:white;border-radius:10px;padding:12px;font-size:11px;color:var(--color-text-muted);line-height:1.4;margin-bottom:12px;border:1px solid rgba(0,0,0,0.06);">
+                  <strong style="color:var(--color-charcoal);display:block;margin-bottom:4px;">${t("Data & Price Disclosure")}:</strong>
+                  • <strong>${t("Data Sent")}:</strong> ${t("Verified score, severity band, item answers, and sanitized intake context.")}<br>
+                  • <strong>${t("Price")}:</strong> ${t("₹49 deducted once from your MindHeal wallet.")}<br>
+                  • <strong>${t("Clinical Boundary")}:</strong> ${t("The AI does not establish a formal medical diagnosis, prescribe drugs, or alter your verified score.")}
+                </div>
+
+                <div style="margin-bottom:14px;">
+                  <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;cursor:pointer;color:var(--color-charcoal);">
+                    <input type="checkbox" id="ai-consent-checkbox" style="margin-top:2px;cursor:pointer;" />
+                    <span>${t("I explicitly opt in and consent to generate an AI clinical narrative with the disclosed data for ₹49.")}</span>
+                  </label>
+                </div>
+
+                <button id="btn-request-ai-interp" onclick="window.handleRequestAiInterpretation('${state.serverScreeningId}')" class="btn primary" style="background:var(--color-coral);border:none;color:white;font-size:12px;font-weight:700;padding:8px 18px;border-radius:8px;cursor:pointer;">
+                  <i class="ph-bold ph-sparkle"></i> ${t("Request Clinical Narrative (₹49)")}
+                </button>
+                <div id="ai-interp-error" style="display:none;font-size:12px;color:#E53E3E;margin-top:8px;"></div>
+              `}
+            </div>
+          ` : ""}
+
+          <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
+            ${state.serverScreeningId ? `
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button id="btn-share-screening" onclick="window.handleShareScreening('${state.serverScreeningId}')" class="btn secondary" style="flex:1;min-width:160px;justify-content:center;padding:10px;font-size:13px;border-radius:10px;">
+                  <i class="ph-bold ph-share-network"></i> ${t("Share Report Link")}
+                </button>
+                <button id="btn-delete-screening" onclick="window.handleDeleteScreening('${state.serverScreeningId}')" class="btn" style="flex:1;min-width:160px;justify-content:center;padding:10px;font-size:13px;border-radius:10px;background:#FFF5F5;color:#E53E3E;border:1px solid rgba(229,62,62,0.2);">
+                  <i class="ph-bold ph-trash"></i> ${t("Delete Screening")}
+                </button>
+              </div>
+              <div id="share-link-feedback" style="display:none;padding:8px 12px;background:#F0FFF4;border:1px solid #9AE6B4;border-radius:8px;font-size:12px;color:#22543D;text-align:center;"></div>
+            ` : ""}
+            <a href="#/counsellors" class="btn primary" style="background:var(--color-charcoal);color:white;width:100%;justify-content:center;padding:12px;font-size:14px;">${t("Discuss with a Counsellor")}</a>
+            <button onclick="window.changeTestPreview(${state.testIndex})" class="btn" style="background:var(--color-cream);width:100%;justify-content:center;border:1px solid rgba(0,0,0,0.1);padding:10px;font-size:13px;">${t("Retake Assessment")}</button>
+          </div>
+
+          <!-- Universal Always-Accessible Support Access (Consolidated Safety Support) -->
+          <div style="background:#FFFDFD;border:${isPositiveItem9 ? '2px solid #E53E3E' : '1px solid rgba(229,62,62,0.18)'};border-radius:10px;padding:12px 14px;${isPositiveItem9 ? 'box-shadow:0 4px 12px rgba(229,62,62,0.08);' : ''}">
+            <div style="font-size:11px;font-weight:700;color:var(--color-charcoal);margin-bottom:4px;display:flex;align-items:center;gap:6px;">
+              <i class="ph-fill ph-heartbeat" style="color:#E53E3E;font-size:13px;"></i> ${t("Safety Support")}
+              ${isPositiveItem9 ? `<span style="background:rgba(229,62,62,0.1);color:#C53030;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;margin-left:auto;text-transform:uppercase;">${t("Urgent")}</span>` : ''}
+            </div>
+            <p style="font-size:11px;color:var(--color-text-muted);margin:0 0 8px 0;line-height:1.4;">
+              ${t("If you are feeling overwhelmed, hopeless, or having thoughts of self-harm, compassionate help is available immediately free of charge.")}
+            </p>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+              <a href="tel:14416" class="btn" style="background:#FFF5F5;color:#E53E3E;border:1px solid rgba(229,62,62,0.25);font-size:11px;padding:4px 8px;border-radius:6px;text-decoration:none;font-weight:600;line-height:1.3;">
+                <i class="ph-bold ph-phone" style="font-size:11px;"></i> Tele-MANAS: 14416 / 1800-891-4416
+              </a>
+              <a href="tel:18005990019" class="btn" style="background:#FFF5F5;color:#E53E3E;border:1px solid rgba(229,62,62,0.25);font-size:11px;padding:4px 8px;border-radius:6px;text-decoration:none;font-weight:600;line-height:1.3;">
+                <i class="ph-bold ph-phone" style="font-size:11px;"></i> KIRAN: 1800-599-0019
+              </a>
+              <a href="tel:9820466726" class="btn" style="background:#FFF5F5;color:#E53E3E;border:1px solid rgba(229,62,62,0.25);font-size:11px;padding:4px 8px;border-radius:6px;text-decoration:none;font-weight:600;line-height:1.3;">
+                <i class="ph-bold ph-phone" style="font-size:11px;"></i> AASRA: 9820466726
+              </a>
+              <a href="tel:112" class="btn" style="background:#FFF5F5;color:#E53E3E;border:1px solid rgba(229,62,62,0.25);font-size:11px;padding:4px 8px;border-radius:6px;text-decoration:none;font-weight:600;line-height:1.3;">
+                <i class="ph-bold ph-phone" style="font-size:11px;"></i> National Emergency: 112
+              </a>
+              <a href="#/crisis" style="display:inline-flex;align-items:center;font-size:11px;color:var(--color-text-muted);text-decoration:underline;margin-left:auto;padding:2px 4px;">
+                ${t("Emergency Support Directory")} →
+              </a>
+            </div>
+          </div>
         </div>
       `;
-    } else {
-      const progress = ((state.questionIndex) / test.questions.length) * 100;
+    } else if (state.step === "context") {
+      // Prompt 6: Optional Intake Context step
+      const ctx = state.intakeContext || {};
       container.innerHTML = `
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-          <p style="font-weight:700;margin:0;">${t("Question")} ${state.questionIndex + 1} ${t("of")} ${test.questions.length}</p>
+        <div style="text-align:left;">
+          <div style="margin-bottom:20px;border-bottom:1px solid rgba(0,0,0,0.08);padding-bottom:12px;">
+            <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;background:rgba(49,151,149,0.1);color:#319795;padding:4px 10px;border-radius:99px;display:inline-block;margin-bottom:8px;">
+              ${t("Intake Context (Optional)")}
+            </span>
+            <h4 style="font-family:var(--font-serif);font-size:22px;margin:0 0 6px 0;color:var(--color-charcoal);">${t("Optional Intake Context")}</h4>
+            <p style="font-size:13px;color:var(--color-text-muted);margin:0;line-height:1.5;">
+              ${t("This section is completely optional. Your responses provide non-diagnostic intake context and do not alter your screening score.")}
+            </p>
+          </div>
+
+          <!-- Notice on storage & sharing -->
+          <div style="background:#F7F5F0;border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:12px;color:var(--color-text-muted);line-height:1.5;">
+            <strong style="color:var(--color-charcoal);display:block;margin-bottom:2px;"><i class="ph-bold ph-shield-check" style="color:var(--color-coral);margin-right:4px;"></i>${t("Data Storage & Privacy Notice")}</strong>
+            ${t("Your context responses are held in-memory in your browser session for this screening. MindHeal does not transmit or automatically share this intake data with providers or third parties.")}
+          </div>
+
+          <form id="assessment-context-form" onsubmit="return false;" style="display:flex;flex-direction:column;gap:18px;">
+            <!-- Onset & Duration -->
+            <div>
+              <label style="display:block;font-size:13px;font-weight:700;color:var(--color-charcoal);margin-bottom:4px;">
+                ${t("Onset & Duration")}
+              </label>
+              <p style="font-size:12px;color:var(--color-text-muted);margin:0 0 8px 0;">${t("Approximately how long have you been experiencing these challenges?")}</p>
+              <select onchange="window.handleUpdateIntakeContextField('onsetDuration', this.value)" style="width:100%;padding:10px 14px;border:1px solid rgba(0,0,0,0.15);border-radius:8px;font-size:13px;background:white;">
+                <option value="">-- ${t("Not specified")} --</option>
+                <option value="less_than_1_month" ${ctx.onsetDuration === "less_than_1_month" ? "selected" : ""}>${t("Less than a month")}</option>
+                <option value="1_to_6_months" ${ctx.onsetDuration === "1_to_6_months" ? "selected" : ""}>${t("1 to 6 months")}</option>
+                <option value="6_to_12_months" ${ctx.onsetDuration === "6_to_12_months" ? "selected" : ""}>${t("6 to 12 months")}</option>
+                <option value="more_than_1_year" ${ctx.onsetDuration === "more_than_1_year" ? "selected" : ""}>${t("More than a year")}</option>
+              </select>
+            </div>
+
+            <!-- Daily Life Difficulties -->
+            <div>
+              <label style="display:block;font-size:13px;font-weight:700;color:var(--color-charcoal);margin-bottom:4px;">
+                ${t("Daily Life Difficulties")}
+              </label>
+              <p style="font-size:12px;color:var(--color-text-muted);margin:0 0 8px 0;">${t("Which areas of your day feel most impacted right now? (Optional)")}</p>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:8px;">
+                ${[
+                  { id: "work_study", label: "Work or studies" },
+                  { id: "relationships", label: "Family or relationships" },
+                  { id: "routine_sleep", label: "Daily chores, sleep or appetite" },
+                  { id: "socializing", label: "Social connections & hobbies" }
+                ].map(opt => {
+                  const isChecked = Array.isArray(ctx.dailyDifficulties) && ctx.dailyDifficulties.includes(opt.id);
+                  return `
+                    <label style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#F9F8F6;border:1px solid rgba(0,0,0,0.08);border-radius:8px;font-size:12px;cursor:pointer;">
+                      <input type="checkbox" onchange="window.handleUpdateIntakeContextField('dailyDifficulties', '${opt.id}')" ${isChecked ? "checked" : ""} style="cursor:pointer;" />
+                      <span>${t(opt.label)}</span>
+                    </label>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+
+            <!-- Previous Support -->
+            <div>
+              <label style="display:block;font-size:13px;font-weight:700;color:var(--color-charcoal);margin-bottom:4px;">
+                ${t("Previous Support")}
+              </label>
+              <p style="font-size:12px;color:var(--color-text-muted);margin:0 0 8px 0;">${t("Have you previously consulted a therapist, counsellor or doctor for this? (Optional)")}</p>
+              <select onchange="window.handleUpdateIntakeContextField('previousSupport', this.value)" style="width:100%;padding:10px 14px;border:1px solid rgba(0,0,0,0.15);border-radius:8px;font-size:13px;background:white;">
+                <option value="">-- ${t("Not specified")} --</option>
+                <option value="never" ${ctx.previousSupport === "never" ? "selected" : ""}>${t("No, this is my first time")}</option>
+                <option value="past_therapy" ${ctx.previousSupport === "past_therapy" ? "selected" : ""}>${t("Yes, in the past")}</option>
+                <option value="current_support" ${ctx.previousSupport === "current_support" ? "selected" : ""}>${t("Yes, currently in therapy/treatment")}</option>
+              </select>
+            </div>
+
+            <!-- Health / Medication / Life Changes -->
+            <div>
+              <label style="display:block;font-size:13px;font-weight:700;color:var(--color-charcoal);margin-bottom:4px;">
+                ${t("Health, Medication or Life Changes")}
+              </label>
+              <p style="font-size:12px;color:var(--color-text-muted);margin:0 0 8px 0;">${t("Any recent physical health conditions, medications, substance changes or life stressors? (Optional)")}</p>
+              <textarea oninput="window.handleUpdateIntakeContextField('healthChanges', this.value)" maxlength="500" placeholder="${t("Optional notes on recent health or lifestyle changes (max 500 chars)")}" style="width:100%;min-height:70px;padding:10px 14px;border:1px solid rgba(0,0,0,0.15);border-radius:8px;font-size:13px;resize:vertical;font-family:inherit;">${escapeHtml(ctx.healthChanges || "")}</textarea>
+            </div>
+
+            <!-- Personal Goals -->
+            <div>
+              <label style="display:block;font-size:13px;font-weight:700;color:var(--color-charcoal);margin-bottom:4px;">
+                ${t("Personal Goals")}
+              </label>
+              <p style="font-size:12px;color:var(--color-text-muted);margin:0 0 8px 0;">${t("What are you hoping to achieve or work through right now? (Optional)")}</p>
+              <textarea oninput="window.handleUpdateIntakeContextField('personalGoals', this.value)" maxlength="500" placeholder="${t("Optional goals for your mental health journey (max 500 chars)")}" style="width:100%;min-height:70px;padding:10px 14px;border:1px solid rgba(0,0,0,0.15);border-radius:8px;font-size:13px;resize:vertical;font-family:inherit;">${escapeHtml(ctx.personalGoals || "")}</textarea>
+            </div>
+          </form>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:24px;border-top:1px solid rgba(0,0,0,0.08);padding-top:16px;">
+            <button onclick="window.handleTestBack()" class="btn secondary" style="padding:10px 18px;border-radius:10px;font-size:13px;">
+              <i class="ph-bold ph-arrow-left"></i> ${t("Back")}
+            </button>
+            <div style="display:flex;gap:10px;">
+              <button onclick="window.handleTestSubmit(true)" class="btn" style="background:transparent;border:1px solid rgba(0,0,0,0.15);padding:10px 16px;border-radius:10px;font-size:13px;color:var(--color-text-muted);">
+                ${t("Skip & View Results")}
+              </button>
+              <button onclick="window.handleTestSubmit(false)" class="btn primary" style="background:var(--color-charcoal);color:white;padding:10px 24px;border-radius:10px;font-size:13px;font-weight:700;">
+                <i class="ph-bold ph-check-circle"></i> ${t("Save Context & View Results")}
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    } else if (state.step === "review") {
+      // Prompt 4 & 6: Explicit Answer Review, Unscored Functional Impact, and Intake Context entry
+      const answeredCount = state.answers.filter(a => a !== undefined).length;
+      const totalCount = test.questions.length;
+      container.innerHTML = `
+        <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;border-bottom:1px solid rgba(0,0,0,0.08);padding-bottom:12px;">
+            <div>
+              <h4 style="font-family:var(--font-serif);font-size:20px;margin:0 0 4px 0;color:var(--color-charcoal);">${t("Review Your Answers")}</h4>
+              <p style="font-size:12px;color:var(--color-text-muted);margin:0;">${t("Please review your responses below before final scoring. You can change any response.")}</p>
+            </div>
+            <span style="font-size:12px;font-weight:700;color:var(--color-coral);">${answeredCount} / ${totalCount} ${t("Answered")}</span>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:10px;max-height:260px;overflow-y:auto;padding-right:4px;margin-bottom:20px;">
+            ${test.questions.map((q, idx) => {
+              const ansVal = state.answers[idx];
+              const ansLabel = ansVal !== undefined ? test.options[ansVal] : "Not answered";
+              return `
+                <div style="background:#F9F8F6;border:1px solid rgba(0,0,0,0.06);border-radius:10px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:11px;font-weight:700;color:var(--color-text-muted);margin-bottom:2px;">${t("Question")} ${idx + 1}</div>
+                    <div style="font-size:13px;font-weight:600;color:var(--color-charcoal);margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">"${t(q)}"</div>
+                    <div style="font-size:12px;color:var(--color-coral);font-weight:700;">${t(ansLabel)} (${ansVal !== undefined ? ansVal : "-"} pts)</div>
+                  </div>
+                  <button onclick="window.handleEditTestQuestion(${idx})" class="btn secondary" style="font-size:11px;padding:6px 12px;border-radius:6px;flex-shrink:0;">
+                    <i class="ph-bold ph-pencil-simple"></i> ${t("Edit")}
+                  </button>
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <!-- Approved Unscored Functional Impact Follow-Up (PHQ-9 & GAD-7) -->
+          <div style="background:#FFF9F8;border:1.5px solid rgba(224,90,71,0.25);border-radius:12px;padding:16px;margin-bottom:20px;text-align:left;">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:var(--color-coral);margin-bottom:4px;">
+              ${t("Daily Functioning Impact")} · <span style="font-weight:500;color:var(--color-text-muted);">${t("Unscored Clinical Follow-up")}</span>
+            </div>
+            <p style="font-size:13px;font-weight:600;color:var(--color-charcoal);margin:0 0 10px 0;line-height:1.4;">
+              ${t("How difficult have these problems made it for you to do your work, take care of things at home, or get along with other people?")}
+            </p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:8px;">
+              ${FUNCTIONAL_IMPACT_OPTIONS.map((opt) => {
+                const isSelected = state.functionalImpact === opt.value;
+                const activeStyle = isSelected ? "border:2px solid var(--color-coral);background:white;font-weight:700;color:var(--color-coral);" : "border:1px solid rgba(0,0,0,0.12);background:white;color:var(--color-charcoal);";
+                return `
+                  <button type="button" onclick="window.handleSetFunctionalImpact(${opt.value}); window.renderTestContent(false);" style="padding:8px 10px;border-radius:8px;font-size:12px;cursor:pointer;text-align:center;${activeStyle}">
+                    ${t(opt.label)}
+                  </button>
+                `;
+              }).join('')}
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+            <button onclick="window.handleTestBack()" class="btn secondary" style="padding:10px 18px;border-radius:10px;font-size:13px;">
+              <i class="ph-bold ph-arrow-left"></i> ${t("Back")}
+            </button>
+            <div style="display:flex;gap:10px;">
+              <button onclick="window.handleGoToContextStep()" class="btn secondary" style="font-size:13px;padding:10px 16px;border-radius:10px;">
+                <i class="ph-bold ph-plus-circle"></i> ${t("Add Optional Context")}
+              </button>
+              <button onclick="window.handleTestSubmit()" class="btn primary" style="background:var(--color-charcoal);color:white;padding:10px 24px;border-radius:10px;font-size:13px;font-weight:700;">
+                <i class="ph-bold ph-check-circle"></i> ${t("Submit for Scoring")}
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+
+    } else {
+      state.answers = state.answers || [];
+      state.answersMap = state.answersMap || {};
+      const progress = ((state.questionIndex) / test.questions.length) * 100;
+      const currentAnswer = state.answers[state.questionIndex];
+      const hasPreviousAnswer = currentAnswer !== undefined;
+
+      container.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <p style="font-weight:700;margin:0;font-size:14px;">${t("Question")} ${state.questionIndex + 1} ${t("of")} ${test.questions.length}</p>
           <span style="font-size:12px;color:var(--color-text-muted);">${t("Over the last 2 weeks")}</span>
         </div>
         <div style="width:100%;height:4px;background:rgba(0,0,0,0.05);border-radius:2px;margin-bottom:24px;overflow:hidden;">
           <div style="height:100%;background:var(--color-coral);width:${progress}%;transition:width 0.3s ease;"></div>
         </div>
-        <p style="font-size:18px;font-family:var(--font-serif);margin-bottom:32px;">"${t(test.questions[state.questionIndex])}"</p>
-        <div style="display:flex;flex-direction:column;gap:12px;">
-          ${test.options.map((opt, i) => `
-            <button onclick="window.handleTestAnswer(${i})" class="test-option-btn">${t(opt)}</button>
-          `).join('')}
+        <p style="font-size:18px;font-family:var(--font-serif);margin-bottom:28px;line-height:1.5;">"${t(test.questions[state.questionIndex])}"</p>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px;">
+          ${test.options.map((opt, i) => {
+            const isSelected = currentAnswer === i;
+            const borderStyle = isSelected ? "border:2px solid var(--color-coral);background:#FFF9F8;font-weight:700;" : "";
+            return `
+              <button onclick="window.handleTestAnswer(${i})" class="test-option-btn" style="${borderStyle}">
+                <span style="display:inline-block;width:20px;height:20px;border-radius:50%;border:${isSelected ? '6px solid var(--color-coral)' : '2px solid rgba(0,0,0,0.2)'};margin-right:12px;flex-shrink:0;vertical-align:middle;box-sizing:border-box;"></span>
+                <span>${t(opt)}</span>
+              </button>
+            `;
+          }).join('')}
+        </div>
+        
+        <!-- Navigation Bar: Back, Exit, Next -->
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid rgba(0,0,0,0.06);padding-top:16px;">
+          <button onclick="window.handleTestBack()" class="btn secondary" style="font-size:12px;padding:8px 14px;border-radius:8px;${state.questionIndex === 0 ? 'visibility:hidden;' : ''}">
+            <i class="ph-bold ph-arrow-left"></i> ${t("Back")}
+          </button>
+          <div style="display:flex;gap:8px;">
+            <button onclick="window.handleTestExit()" class="btn" style="background:transparent;border:none;font-size:12px;color:var(--color-text-muted);padding:8px 12px;cursor:pointer;">
+              ${t("Exit")}
+            </button>
+            ${hasPreviousAnswer ? `
+              <button onclick="window.handleTestNext()" class="btn secondary" style="font-size:12px;padding:8px 14px;border-radius:8px;">
+                ${t("Next")} <i class="ph-bold ph-arrow-right"></i>
+              </button>
+            ` : ''}
+          </div>
         </div>
       `;
     }
@@ -1915,17 +2885,160 @@ window.renderTestContent = function(isNextQuestion = false) {
   }, 400);
 };
 
+window.handleShareScreening = async function(screeningId) {
+  const feedbackEl = document.getElementById("share-link-feedback");
+  const btnShare = document.getElementById("btn-share-screening");
+  if (!screeningId) return;
+
+  try {
+    const res = await api.shareScreening(screeningId);
+    if (res.success && res.data?.shareUrl) {
+      const fullUrl = `${window.location.origin}${window.location.pathname}#${res.data.shareUrl}`;
+      try {
+        await navigator.clipboard.writeText(fullUrl);
+      } catch {}
+      if (feedbackEl) {
+        feedbackEl.style.display = "block";
+        feedbackEl.innerHTML = `
+          <strong>${t("Share Link Copied!")}</strong><br>
+          <span style="font-size:11px;word-break:break-all;">${fullUrl}</span><br>
+          <button onclick="window.handleRevokeShare('${screeningId}')" class="btn secondary" style="font-size:11px;padding:3px 8px;margin-top:6px;border-radius:4px;">
+            ${t("Revoke Share Link")}
+          </button>
+        `;
+      }
+      if (btnShare) btnShare.innerHTML = `<i class="ph-bold ph-check"></i> ${t("Share Link Copied!")}`;
+    }
+  } catch (err) {
+    console.error("Failed to share screening:", err);
+  }
+};
+
+window.handleRevokeShare = async function(screeningId) {
+  const feedbackEl = document.getElementById("share-link-feedback");
+  const btnShare = document.getElementById("btn-share-screening");
+  try {
+    const res = await api.revokeShareScreening(screeningId);
+    if (res.success) {
+      if (feedbackEl) {
+        feedbackEl.style.display = "block";
+        feedbackEl.innerHTML = `<em>${t("Share link revoked.")}</em>`;
+      }
+      if (btnShare) btnShare.innerHTML = `<i class="ph-bold ph-share-network"></i> ${t("Share Report Link")}`;
+    }
+  } catch (err) {
+    console.error("Failed to revoke share link:", err);
+  }
+};
+
+window.handleDeleteScreening = async function(screeningId) {
+  if (!confirm(t("Are you sure you want to permanently delete this screening record?"))) {
+    return;
+  }
+  try {
+    const res = await api.deleteScreening(screeningId);
+    if (res.success) {
+      window.currentTestState.serverScreeningId = null;
+      window.currentTestState.serverScreening = null;
+      alert(t("Screening record deleted."));
+      window.changeTestPreview(window.currentTestState.testIndex);
+    }
+  } catch (err) {
+    console.error("Failed to delete screening:", err);
+  }
+};
+
+window.handleRequestAiInterpretation = async function(screeningId) {
+  const consentCheckbox = document.getElementById("ai-consent-checkbox");
+  const errEl = document.getElementById("ai-interp-error");
+  const btn = document.getElementById("btn-request-ai-interp");
+
+  if (errEl) errEl.style.display = "none";
+
+  if (!consentCheckbox || !consentCheckbox.checked) {
+    if (errEl) {
+      errEl.style.display = "block";
+      errEl.innerText = t("Please check the consent box to opt in to the AI clinical interpretation.");
+    }
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<i class="ph-bold ph-spinner ph-spin"></i> ${t("Generating...")}`;
+  }
+
+  try {
+    const res = await api.requestScreeningInterpretation(screeningId, {
+      consentToAiInterpretation: true,
+      optInConsent: true
+    });
+
+    if (res.success && res.data) {
+      if (window.currentTestState) {
+        if (!window.currentTestState.serverScreening) window.currentTestState.serverScreening = {};
+        window.currentTestState.serverScreening.hasPaidInterpretation = true;
+        window.currentTestState.serverScreening.interpretation = res.data.interpretation;
+      }
+      window.renderTestContent(false);
+    } else {
+      const errMsg = res.error?.message || t("Failed to generate clinical interpretation.");
+      if (errEl) {
+        errEl.style.display = "block";
+        errEl.innerText = errMsg;
+      }
+      if (res.error?.code === "INSUFFICIENT_BALANCE" || /insufficient/i.test(errMsg)) {
+        if (confirm(t("Insufficient wallet balance for clinical interpretation (₹49). Would you like to top up your wallet?"))) {
+          window.location.hash = "#/panel/user?section=wallet";
+        }
+      }
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `<i class="ph-bold ph-sparkle"></i> ${t("Request Clinical Narrative (₹49)")}`;
+      }
+    }
+  } catch (err) {
+    if (errEl) {
+      errEl.style.display = "block";
+      errEl.innerText = err.message || t("Failed to request clinical interpretation.");
+    }
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<i class="ph-bold ph-sparkle"></i> ${t("Request Clinical Narrative (₹49)")}`;
+    }
+  }
+};
+
+
 function sectionTests() {
   // Ensure state matches the first test initially
-  window.currentTestState = { testIndex: 0, questionIndex: 0, score: 0, isFinished: false };
+  window.currentTestState = {
+    testIndex: 0,
+    questionIndex: 0,
+    score: 0,
+    isFinished: false,
+    answers: [],
+    answersMap: {},
+    step: "questionnaire",
+    functionalImpact: null,
+    intakeContext: {
+      onsetDuration: "",
+      dailyDifficulties: [],
+      healthChanges: "",
+      previousSupport: "",
+      personalGoals: ""
+    }
+  };
   const tests = window.clinicalTestsData;
   const initialTest = tests[0];
+  const activeCount = tests.filter(t => !t.placeholder).length;
+  const inReviewCount = tests.filter(t => t.placeholder).length;
 
   return html`
     <section class="bg-charcoal" style="padding:160px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
       <div class="container text-center mb-64 reveal-up">
         <span style="color:var(--color-coral);font-weight:700;letter-spacing:0.1em;text-transform:uppercase;">${t("Know Thyself")}</span>
-        <h2 style="font-family:var(--font-serif);font-size:48px;color:white;margin-top:16px;">${t("12 Free Clinical Tests.")}</h2>
+        <h2 style="font-family:var(--font-serif);font-size:48px;color:white;margin-top:16px;">${activeCount} ${t("Free Clinical Screenings")}</h2>
       </div>
       <div class="container split-30-70">
         <div class="reveal-up" style="border-right:1px solid rgba(255,255,255,0.1);padding-right:32px;">
@@ -1933,8 +3046,10 @@ function sectionTests() {
           <ul style="list-style:none;padding:0;margin:0;">
             ${tests.map((test, index) => `
               <li style="margin-bottom:4px;">
-                <a onclick="window.changeTestPreview(${index}, this); return false;" class="test-list-item ${index === 0 ? 'active' : ''}">
-                  <i class="ph-bold ph-caret-right" style="font-size:12px;"></i> ${t(test.name)}
+                <a onclick="window.changeTestPreview(${index}, this); return false;" class="test-list-item ${index === 0 ? 'active' : ''}" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                  <span style="display:flex;align-items:center;gap:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                    <i class="ph-bold ph-caret-right" style="font-size:12px;flex-shrink:0;"></i> ${t(test.name)}
+                  </span>
                 </a>
               </li>
             `).join('')}
@@ -1954,7 +3069,7 @@ function sectionTests() {
           <div style="background:#2A2A28;border-radius:24px;padding:48px;position:relative;overflow:hidden;">
             <div id="test-preview-card" class="test-preview-card" style="opacity: 1; transform: translateY(0);">
               <div style="margin-bottom:32px;">
-                <span id="test-preview-tag" style="background:rgba(255,255,255,0.1);color:white;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700;">${t(initialTest.short)}</span>
+                <span id="test-preview-tag" style="background:rgba(255,255,255,0.1);color:white;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700;">${t(initialTest.short)} · ${t(initialTest.category || "Symptom Screen")} [${t("Available Now")}]</span>
                 <h3 id="test-preview-title" style="font-family:var(--font-serif);color:white;font-size:32px;margin-top:16px;">${t(initialTest.full)}</h3>
                 <p id="test-preview-desc" style="color:rgba(255,255,255,0.6);font-size:16px;margin-top:8px;">${t(initialTest.desc)}</p>
               </div>

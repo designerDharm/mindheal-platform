@@ -998,7 +998,8 @@ test("Complete Staging Journeys Verification Suite", async (suite) => {
 
       // 5. Unlock Detailed Clinical Interpretation Report (Paid: ₹49 = 4900 paise - MH-38)
       const interpretRes = await request("POST", `/api/v1/screenings/${screeningSessionId}/interpret`, {
-        token: screeningUserToken
+        token: screeningUserToken,
+        body: { consentToAiInterpretation: true }
       });
       assert.strictEqual(interpretRes.status, 200);
       assert.ok(interpretRes.body.data.interpretation, "Detailed clinical interpretation report must be returned");
@@ -1087,7 +1088,8 @@ test("Complete Staging Journeys Verification Suite", async (suite) => {
       });
 
       const brokeUnlock = await request("POST", `/api/v1/screenings/${brokeScr.body.data.id}/interpret`, {
-        token: brokeToken
+        token: brokeToken,
+        body: { consentToAiInterpretation: true }
       });
       assert.strictEqual(brokeUnlock.status, 400, "Insufficient balance must reject report interpretation unlock");
       assert.match(brokeUnlock.body.error.message, /balance/i);

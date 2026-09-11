@@ -6,10 +6,13 @@
 
 export const QUESTIONNAIRES = {
   phq9: {
-    version: "1.0.0",
+    version: "2026.1.0",
+    policyVersion: "2026.1",
     type: "phq9",
     title: "Patient Health Questionnaire (PHQ-9)",
     shortName: "PHQ-9",
+    status: "available",
+    minimumAge: 18,
     scoringType: "sum",
     allowedValues: [0, 1, 2, 3],
     maxScore: 27,
@@ -30,6 +33,73 @@ export const QUESTIONNAIRES = {
       { min: 10, max: 14, band: "Moderate Depression", severity: "moderate", description: "Your self-reflection score is {score} out of 27. This indicates moderate depressive symptoms. Professional consultation is advised." },
       { min: 15, max: 19, band: "Moderately Severe Depression", severity: "moderate", description: "Your self-reflection score is {score} out of 27. This indicates moderately severe depressive symptoms. Active clinical support is recommended." },
       { min: 20, max: 27, band: "Severe Depression", severity: "severe", description: "Your self-reflection score is {score} out of 27. This indicates severe depressive symptoms. Prompt consultation with a mental health professional is strongly urged." }
+    ]
+  },
+  gad7: {
+    version: "2026.1.0",
+    policyVersion: "2026.1",
+    type: "gad7",
+    title: "Generalized Anxiety Disorder Assessment (GAD-7)",
+    shortName: "GAD-7",
+    status: "available",
+    minimumAge: 18,
+    scoringType: "sum",
+    allowedValues: [0, 1, 2, 3],
+    maxScore: 21,
+    questions: [
+      { id: "q1", text: "Feeling nervous, anxious, or on edge?", category: "Nervousness" },
+      { id: "q2", text: "Not being able to stop or control worrying?", category: "Uncontrolled worry" },
+      { id: "q3", text: "Worrying too much about different things?", category: "Excessive worry" },
+      { id: "q4", text: "Trouble relaxing?", category: "Restlessness" },
+      { id: "q5", text: "Being so restless that it is hard to sit still?", category: "Motor agitation" },
+      { id: "q6", text: "Becoming easily annoyed or irritable?", category: "Irritability" },
+      { id: "q7", text: "Feeling afraid as if something awful might happen?", category: "Anticipatory dread" }
+    ],
+    bands: [
+      { min: 0, max: 4, band: "Minimal Anxiety", severity: "low", description: "Your self-reflection score is {score} out of 21. This indicates minimal anxiety symptoms." },
+      { min: 5, max: 9, band: "Mild Anxiety", severity: "low", description: "Your self-reflection score is {score} out of 21. This indicates mild anxiety symptoms." },
+      { min: 10, max: 14, band: "Moderate Anxiety", severity: "moderate", description: "Your self-reflection score is {score} out of 21. This indicates moderate anxiety symptoms. Professional consultation is advised." },
+      { min: 15, max: 21, band: "Severe Anxiety", severity: "severe", description: "Your self-reflection score is {score} out of 21. This indicates severe anxiety symptoms. Active clinical support is recommended." }
+    ]
+  },
+  who5: {
+    version: "2026.1.0",
+    policyVersion: "2026.1",
+    type: "who5",
+    title: "WHO-5 Well-Being Index (1998 version)",
+    shortName: "WHO-5",
+    category: "Well-Being Indicator",
+    scoringType: "sum",
+    allowedValues: [0, 1, 2, 3, 4, 5],
+    minScore: 0,
+    maxScore: 25,
+    percentageMultiplier: 4,
+    status: "rights_restricted", // Gated pending clinical rights clearance
+    minimumAge: 12,
+    isAvailable: false,
+    owner: "Psychiatric Research Unit, Mental Health Centre North Zealand, Hillerød, Denmark / World Health Organization",
+    recallPeriod: "Over the last 2 weeks",
+    administrationInstructions: "Please indicate for each of the five statements which is closest to how you have been feeling over the last two weeks.",
+    copyrightNotice: "The WHO-5 is free to use for non-commercial clinical practice and academic research. Commercial-use rights & platform syndication clearance are currently under clinical and licensing review.",
+    questions: [
+      { id: "q1", text: "I have felt cheerful and in good spirits", category: "Positive mood" },
+      { id: "q2", text: "I have felt calm and relaxed", category: "Vitality & Calm" },
+      { id: "q3", text: "I have felt active and vigorous", category: "Vitality" },
+      { id: "q4", text: "I woke up feeling fresh and rested", category: "Restorative sleep" },
+      { id: "q5", text: "My daily life has been filled with things that interest me", category: "General interest" }
+    ],
+    anchors: [
+      { value: 5, label: "All of the time" },
+      { value: 4, label: "Most of the time" },
+      { value: 3, label: "More than half of the time" },
+      { value: 2, label: "Less than half of the time" },
+      { value: 1, label: "Some of the time" },
+      { value: 0, label: "At no time" }
+    ],
+    bands: [
+      { min: 0, max: 12, band: "Poor Well-Being", severity: "moderate", description: "Your raw score is {score} out of 25 ({percentage}%). A raw score below 13 indicates reduced emotional well-being and is the official WHO-5 cut-off warranting further screening for depression." },
+      { min: 13, max: 21, band: "Adequate Well-Being", severity: "low", description: "Your raw score is {score} out of 25 ({percentage}%). This reflects adequate psychological well-being over the past two weeks." },
+      { min: 22, max: 25, band: "Optimal Well-Being", severity: "optimal", description: "Your raw score is {score} out of 25 ({percentage}%). This reflects high, flourishing psychological well-being." }
     ]
   },
   low_mood: {
@@ -186,12 +256,15 @@ export function validateAndEvaluateScreening(screeningType, payload = {}) {
 
   for (let i = 0; i < questions.length; i++) {
     const q = questions[i];
-    const qKey1 = `q${i + 1}`; // 1-based (q1..q6)
-    const qKey0 = `q${i}`;     // 0-based (q0..q5)
+    const qKey1 = `q${i + 1}`; // 1-based (q1..q9)
+    const qKey0 = `q${i}`;     // 0-based (q0..q8)
+    const prefixedKey = `${screeningType}_q${i + 1}`; // e.g. phq9_q1, gad7_q1
     
     let answerValue;
     if (Array.isArray(rawAnswers)) {
       answerValue = rawAnswers[i];
+    } else if (rawAnswers[prefixedKey] !== undefined) {
+      answerValue = rawAnswers[prefixedKey];
     } else if (rawAnswers[qKey1] !== undefined) {
       answerValue = rawAnswers[qKey1];
     } else if (rawAnswers[qKey0] !== undefined) {
@@ -212,6 +285,12 @@ export function validateAndEvaluateScreening(screeningType, payload = {}) {
 
     // Allowed values check
     if (questionnaire.scoringType === "sum") {
+      if (typeof answerValue === "boolean") {
+        return {
+          isValid: false,
+          error: `Invalid type boolean for Question ${i + 1}. Expected integer value from [${questionnaire.allowedValues.join(", ")}].`
+        };
+      }
       const numVal = Number(answerValue);
       if (isNaN(numVal) || !Number.isInteger(numVal) || !questionnaire.allowedValues.includes(numVal)) {
         return {
@@ -295,9 +374,30 @@ export function validateAndEvaluateScreening(screeningType, payload = {}) {
     ];
   }
 
+  // Extract optional functional impact & intake context (unscored, non-diagnostic)
+  const functionalImpact = payload.functionalImpact !== undefined && payload.functionalImpact !== null
+    ? Number(payload.functionalImpact)
+    : (rawAnswers.functionalImpact !== undefined && rawAnswers.functionalImpact !== null ? Number(rawAnswers.functionalImpact) : null);
+
+  const rawContext = payload.intakeContext || rawAnswers.intakeContext || null;
+  let intakeContext = null;
+  if (rawContext && typeof rawContext === "object") {
+    intakeContext = {
+      onsetDuration: typeof rawContext.onsetDuration === "string" ? rawContext.onsetDuration.slice(0, 100) : "",
+      dailyDifficulties: Array.isArray(rawContext.dailyDifficulties) ? rawContext.dailyDifficulties.slice(0, 10) : [],
+      healthChanges: typeof rawContext.healthChanges === "string" ? rawContext.healthChanges.slice(0, 500) : "",
+      previousSupport: typeof rawContext.previousSupport === "string" ? rawContext.previousSupport.slice(0, 100) : "",
+      personalGoals: typeof rawContext.personalGoals === "string" ? rawContext.personalGoals.slice(0, 500) : ""
+    };
+  }
+
+  const language = typeof payload.language === "string" ? payload.language.slice(0, 10) : "en";
+
   return {
     isValid: true,
     questionnaireVersion: questionnaire.version,
+    policyVersion: questionnaire.policyVersion || "2026.1",
+    language,
     screeningType,
     score: serverCalculatedScore,
     band: matchedBand.band,
@@ -305,6 +405,56 @@ export function validateAndEvaluateScreening(screeningType, payload = {}) {
     title: questionnaire.title,
     description,
     safetyGuidance,
-    validatedAnswers
+    validatedAnswers,
+    functionalImpact,
+    intakeContext
   };
 }
+
+/**
+ * Calculates accurate chronological age from a YYYY-MM-DD date string
+ * against a reference date (defaulting to current date), accounting for leap years
+ * and exact day-of-month boundaries.
+ */
+export function calculateAge(dobString, referenceDate = new Date()) {
+  if (!dobString) return null;
+
+  let year, month, day;
+  if (typeof dobString === "string") {
+    const str = dobString.trim();
+    const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!match) return null;
+    year = parseInt(match[1], 10);
+    month = parseInt(match[2], 10);
+    day = parseInt(match[3], 10);
+  } else if (dobString instanceof Date && !isNaN(dobString.getTime())) {
+    year = dobString.getUTCFullYear();
+    month = dobString.getUTCMonth() + 1;
+    day = dobString.getUTCDate();
+  } else {
+    return null;
+  }
+
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+  const dobUtc = new Date(Date.UTC(year, month - 1, day));
+  if (isNaN(dobUtc.getTime())) return null;
+  if (dobUtc.getUTCFullYear() !== year || dobUtc.getUTCMonth() !== month - 1 || dobUtc.getUTCDate() !== day) {
+    return null;
+  }
+
+  const ref = referenceDate instanceof Date && !isNaN(referenceDate.getTime()) ? referenceDate : new Date();
+  const refUtc = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), ref.getUTCDate()));
+
+  if (dobUtc > refUtc) return null;
+
+  let age = refUtc.getUTCFullYear() - dobUtc.getUTCFullYear();
+  const monthDiff = refUtc.getUTCMonth() - dobUtc.getUTCMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && refUtc.getUTCDate() < dobUtc.getUTCDate())) {
+    age--;
+  }
+
+  if (age < 0) return null;
+  return age;
+}
+

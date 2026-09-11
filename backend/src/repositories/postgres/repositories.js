@@ -2000,9 +2000,18 @@ export const postgresRepositories = {
       const res = await query("SELECT * FROM screenings WHERE id = $1", [id]);
       return mapScreening(res.rows[0]);
     },
+    async findByShareToken(token) {
+      if (!token) return null;
+      const res = await query("SELECT * FROM screenings WHERE responses_json->>'shareToken' = $1 LIMIT 1", [token]);
+      return mapScreening(res.rows[0]);
+    },
     async listForUser(userId) {
       const res = await query("SELECT * FROM screenings WHERE user_id = $1 ORDER BY created_at DESC", [userId]);
       return res.rows.map(mapScreening);
+    },
+    async delete(id) {
+      const res = await query("DELETE FROM screenings WHERE id = $1 RETURNING id", [id]);
+      return (res.rowCount || 0) > 0;
     }
   },
 
